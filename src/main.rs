@@ -22,11 +22,6 @@ struct WebCommand<'r> {
     data: &'r str,
 }
 
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
-}
-
 #[post("/api/cmd", format = "json", data = "<input>")]
 async fn webcmd(input: Json<WebCommand<'_>>) {
     println!("got a form! payload {}, op {}, data {}", input.payload, input.cmd, input.data);
@@ -45,7 +40,7 @@ async fn rocket() -> _ {
         Err(e) => println!("connection error: {}", e),
     }
     rocket::build()
-        .mount("/", routes![index, webcmd])
+        .mount("/", routes![webcmd])
         .mount("/", FileServer::from(relative!("static")))
 }
 
