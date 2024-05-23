@@ -9,10 +9,6 @@
 /dist/
 /**/dist/
 
-# Static files (if generated)
-/static/
-/**/static/
-
 # Node.js dependencies
 /node_modules/
 /**/node_modules/
@@ -41,17 +37,11 @@
 /*.ipr
 /*.iws
 
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
 # Operating system files
 .DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-*~
 
-# npm package lock files
-package-lock.json
-yarn.lock
+
+# Ignoring specific files in ex3_ground_station_dashboard
+/ex3_ground_station_dashboard/dist/
+/ex3_ground_station_dashboard/target/
+/ex3_ground_station_dashboard/Cargo.lock
