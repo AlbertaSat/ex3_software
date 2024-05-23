@@ -1,0 +1,14 @@
+[package]
+name = "ex3_ground_station_dashboard"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.115"
+stylist = { version = "0.13.0", features = ["yew"] }
+web-sys = { version = "0.3.69", features = ["HtmlSelectElement", "EventTarget"] }
+yew = { version = "0.21.0", features = ["csr"] }
+yew-router = "0.18.0"
