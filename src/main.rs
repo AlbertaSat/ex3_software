@@ -6,13 +6,15 @@ use rocket::fs::{relative, FileServer};
 use rocket::serde::{Deserialize, json::Json};
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use rocket_cors::{AllowedHeaders, AllowedOrigins, CorsOptions};
+
 
 mod obc_client;
 mod message;
 
 static OBC_CLIENT: Lazy<Mutex<ObcClient>> = Lazy::new(|| Mutex::new(
                             ObcClient::new("localhost".to_string(), 50000)
-                                                      ));
+                                                        ));
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -32,6 +34,11 @@ async fn webcmd(input: Json<WebCommand<'_>>) {
     };
 }
 
+#[options("/api/cmd")]
+fn options_cors() -> rocket::http::Status {
+    rocket::http::Status::Ok
+}
+
 #[launch]
 async fn rocket() -> _ {
     let mut client = OBC_CLIENT.lock().await;
@@ -39,8 +46,15 @@ async fn rocket() -> _ {
         Ok(_) => println!("connected to obc"),
         Err(e) => println!("connection error: {}", e),
     }
+
+    let cors = CorsOptions::default()
+    .allowed_origins(AllowedOrigins::all())
+    .allowed_headers(AllowedHeaders::all())
+    .allow_credentials(true);
+
     rocket::build()
-        .mount("/", routes![webcmd])
+        .mount("/", routes![webcmd, options_cors])
         .mount("/", FileServer::from(relative!("static")))
+        .attach(cors.to_cors().unwrap())
 }
 
