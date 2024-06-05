@@ -1,12 +1,9 @@
 use yew::{function_component, html, Html};
 
-use crate::components::navbar::Navbar;
-
-#[function_component]
-pub fn Home() -> Html {
+#[function_component(HomePage)]
+pub fn home_page() -> Html {
     html! {
         <div>
-            <Navbar/>
             <p>{"home"}</p>
         </div>
     }
