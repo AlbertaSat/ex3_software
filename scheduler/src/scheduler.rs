@@ -4,6 +4,56 @@ use std::path::Path;
 use std::io;
 use std::io::Write;
 use chrono::{NaiveDateTime, TimeZone, Utc};
+use crate::Message;
+use std::io::BufRead;
+use crate::log_info;
+
+pub fn process_saved_commands(dir: &str, curr_time_millis: u64, msg: &Message) {
+    let saved_commands_dir = Path::new(dir);
+    if saved_commands_dir.exists() && saved_commands_dir.is_dir() {
+        match fs::read_dir(saved_commands_dir) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    process_entry(entry, curr_time_millis, msg);
+                }
+            }
+            Err(e) => eprintln!("Error reading directory: {:?}", e),
+        }
+    } else {
+        eprintln!("Directory {} does not exist or is not a directory.", dir);
+    }
+}
+
+fn process_entry(entry: fs::DirEntry, curr_time_millis: u64, msg: &Message) {
+    if let Some(file_name) = entry.file_name().to_str() {
+        if file_name.ends_with(".txt") {
+            if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
+                if file_time <= curr_time_millis {
+                    process_command_line(&entry.path(), file_name, msg);
+                }
+            }
+        }
+    }
+}
+
+fn process_command_line(file_path: &Path, file_name: &str, msg: &Message) {
+    match fs::File::open(file_path) {
+        Ok(file) => {
+            let lines: Vec<String> = io::BufReader::new(file)
+                .lines()
+                .filter_map(Result::ok)
+                .collect();
+            if lines.len() > 1 {
+                // Send to command dispatcher
+                println!("Second line of {}: {}", file_name, lines[1]);
+            } else {
+                println!("File {} does not have a second line.", file_name);
+            }
+            log_info(format!("Processed file: {}", file_name), msg.id);
+        }
+        Err(e) => eprintln!("Failed to open file {}: {:?}", file_name, e),
+    }
+}
 
 pub fn timestamp_to_epoch(timestamp: String) -> Result<u64, String> {
     // Split the input timestamp into date and time parts

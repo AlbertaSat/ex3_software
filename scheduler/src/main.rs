@@ -1,8 +1,5 @@
-use std::{time::{SystemTime, Duration}, io::{self}};
-use std::time;
-use std::path::Path;
-use std::fs;
-use std::io::BufRead;
+use std::{time::{SystemTime, Duration}, io::{self}, sync::{Arc, Mutex}};
+use std::{time, thread};
 pub mod schedule_message;
 use crate::schedule_message::*;
 pub mod scheduler;
@@ -15,6 +12,8 @@ fn main() {
     init_logger();
 
     let stdin = io::stdin();
+    let input = Arc::new(Mutex::new(String::new()));
+    let command_queue = input.clone();
 
     let mut cmd_count: u32 = 0;
     // if cmd_count = max - 1, then reset
@@ -63,53 +62,9 @@ fn main() {
         log_info("Command stored and scheduled for later".to_string(), msg.id);
 
     }
-
-    let saved_commands_dir = Path::new("scheduler/saved_commands");
-    if saved_commands_dir.try_exists().unwrap() && saved_commands_dir.is_dir() {
-        match fs::read_dir(saved_commands_dir) {
-            Ok(entries) => {
-                for entry in entries {
-                    match entry {
-                        Ok(entry) => {
-                            if let Some(file_name) = entry.file_name().to_str() {
-                                    if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
-                                        if file_time <= curr_time_millis {
-                                            // Read the file contents
-                                            let file_path = entry.path();
-                                            match fs::File::open(&file_path) {
-                                                Ok(file) => {
-                                                    let lines: Vec<String> = io::BufReader::new(file)
-                                                        .lines()
-                                                        .filter_map(Result::ok)
-                                                        .collect();
-                                                    if lines.len() > 1 {
-                                                        // send to command dispatcher
-                                                        println!("Command of {}: {} was executed.", file_name, lines[1]);
-                                                    } else {
-                                                        println!("File {} does not have a command.", file_name);
-                                                    }
-                                                }
-                                                Err(e) => eprintln!("Failed to open file {}: {:?}", file_name, e),
-                                            }
-                                        }
-                                    }
-                            }
-                        }
-                        Err(e) => eprintln!("Error reading directory entry: {:?}", e),
-                    }
-                }
-            }
-            Err(e) => eprintln!("Error reading directory: {:?}", e),
-        }
-    } else {
-        eprintln!("Directory saved_commands does not exist or is not a directory.");
-    }
+    process_saved_commands("scheduler/saved_commands", curr_time_millis, &msg);
 
 }}
-
-    // TODO: create queue for incoming tasks. Assign priority values and sort based on time to be execcuted
-    // can create function for comparing UTC epoch values that returns true if one occurs before the other
-    // and an if statement uses this to determine whether the values will be swapped.
 
 #[cfg(test)]
 mod tests {
