@@ -37,7 +37,7 @@ Expects two lines of input from stdin:
 
 #### Example Command:
 ```bash
-cargo run
+cargo run --bin scheduler
 1
 2024-06-22 22:34:50
 ```
