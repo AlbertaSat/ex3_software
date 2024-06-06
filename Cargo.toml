@@ -1,9 +1,10 @@
 [workspace]
 
 members = [
-        "handlers/handler",
-        "libs/interfaces",
-        "message_dispatcher",
-        "libs/message_structure",
-        "scheduler"
-    ]
+    "handlers/handler",
+    "libs/interfaces",
+    "message_dispatcher",
+    "libs/message_structure",
+    "scheduler",
+    "handlers/dfgm_handler",
+]
