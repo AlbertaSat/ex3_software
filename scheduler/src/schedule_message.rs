@@ -1,5 +1,6 @@
 use log::info;
 
+#[derive(Clone)]
 pub enum MessageState {
     New,
     Suspended,
@@ -7,7 +8,7 @@ pub enum MessageState {
     Running,
     Done,
 }
-
+#[derive(Clone)]
 pub struct Message {
     pub time: Result<u64, String>,
     pub state: MessageState,

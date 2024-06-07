@@ -4,17 +4,17 @@ use std::path::Path;
 use std::io;
 use std::io::Write;
 use chrono::{NaiveDateTime, TimeZone, Utc};
-use crate::Message;
+use std::time::SystemTime;
 use std::io::BufRead;
 use crate::log_info;
 
-pub fn process_saved_commands(dir: &str, curr_time_millis: u64, msg: &Message) {
+pub fn process_saved_commands(dir: &str, curr_time_millis: u64) {
     let saved_commands_dir = Path::new(dir);
     if saved_commands_dir.exists() && saved_commands_dir.is_dir() {
         match fs::read_dir(saved_commands_dir) {
             Ok(entries) => {
                 for entry in entries.flatten() {
-                    process_entry(entry, curr_time_millis, msg);
+                    process_entry(entry, curr_time_millis);
                 }
             }
             Err(e) => eprintln!("Error reading directory: {:?}", e),
@@ -24,19 +24,20 @@ pub fn process_saved_commands(dir: &str, curr_time_millis: u64, msg: &Message) {
     }
 }
 
-fn process_entry(entry: fs::DirEntry, curr_time_millis: u64, msg: &Message) {
+fn process_entry(entry: fs::DirEntry, curr_time_millis: u64) {
     if let Some(file_name) = entry.file_name().to_str() {
         if file_name.ends_with(".txt") {
             if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
                 if file_time <= curr_time_millis {
-                    process_command_line(&entry.path(), file_name, msg);
+                    send_command(&entry.path(), file_name);
+                    delete_file(&entry.path());
                 }
             }
         }
     }
 }
 
-fn process_command_line(file_path: &Path, file_name: &str, msg: &Message) {
+fn send_command(file_path: &Path, file_name: &str) {
     match fs::File::open(file_path) {
         Ok(file) => {
             let lines: Vec<String> = io::BufReader::new(file)
@@ -44,14 +45,30 @@ fn process_command_line(file_path: &Path, file_name: &str, msg: &Message) {
                 .filter_map(Result::ok)
                 .collect();
             if lines.len() > 1 {
-                // Send to command dispatcher
-                println!("Second line of {}: {}", file_name, lines[1]);
+                println!("Sent Command {} at {}", lines[1], file_name);
             } else {
-                println!("File {} does not have a second line.", file_name);
+                println!("File {} does not have a command.", file_name);
             }
-            log_info(format!("Processed file: {}", file_name), msg.id);
+            log_info(format!("Processed file: {}", file_name), 0); // Message ID can be managed as needed
         }
         Err(e) => eprintln!("Failed to open file {}: {:?}", file_name, e),
+    }
+}
+
+pub fn get_current_time_millis() -> u64 {
+    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(duration) => duration.as_millis() as u64,
+        Err(e) => {
+            eprint!("Error {:?}", e);
+            0
+        }
+    }
+}
+
+fn delete_file(file_path: &Path) {
+    match fs::remove_file(file_path) {
+        Ok(_) => println!("Deleted file: {:?}", file_path),
+        Err(e) => eprintln!("Failed to delete file {:?}: {:?}", file_path, e),
     }
 }
 

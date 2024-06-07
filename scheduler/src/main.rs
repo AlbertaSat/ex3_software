@@ -1,5 +1,5 @@
-use std::{time::{SystemTime, Duration}, io::{self}, sync::{Arc, Mutex}};
-use std::{time, thread};
+use std::{time::Duration, io::{self}, sync::{Arc, Mutex}};
+use std::thread;
 pub mod schedule_message;
 use crate::schedule_message::*;
 pub mod scheduler;
@@ -11,35 +11,36 @@ use crate::log::*;
 fn main() {
     init_logger();
 
-    let stdin = io::stdin();
-    let input = Arc::new(Mutex::new(String::new()));
-    let command_queue = input.clone();
+    let stdin: io::Stdin = io::stdin();
+    let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let _command_queue: Arc<Mutex<String>> = input.clone();
+
+        // Spawn a thread to process saved commands
+    thread::spawn(move || loop {
+        let curr_time = get_current_time_millis();
+        process_saved_commands("scheduler/saved_commands", curr_time);
+        thread::sleep(Duration::from_secs(7)); // Check every 7 seconds
+    });
 
     let mut cmd_count: u32 = 0;
     // if cmd_count = max - 1, then reset
     while cmd_count < u32::MAX {
-    let mut command_arg = String::new();
+    let mut command_arg: String = String::new();
     stdin.read_line(&mut command_arg).expect("Failed to read command");
 
-    let mut human_date = String::new();
+    let mut human_date: String = String::new();
     stdin.read_line(&mut human_date).expect("Failed to read date");
 
     // Convert input human-readable time to epoch time to compare times when program is run
     let command_time: Result<u64, String> = timestamp_to_epoch(human_date.trim().to_string());
-
-    let curr_time: Result<Duration, time::SystemTimeError> = time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
-    let curr_time_millis: u64 = match curr_time {
-        Ok(duration) => duration.as_millis() as u64,
-        Err(e) => {eprint!("Error {:?}", e);
-    return;}
-    };
+    let curr_time_millis: u64 = get_current_time_millis();
 
     let input_tuple: (Result<u64, String>, String) = (command_time.clone(),command_arg.clone());
     cmd_count += 1;
     println!("Command Time: {:?} ms, Command: {}Current time is {:?} ms", input_tuple.0.as_ref().unwrap(), input_tuple.1, curr_time_millis);
 
     // dummy message
-    let mut msg = Message {
+    let mut msg: Message = Message {
         time: command_time.clone(),
         state: MessageState::New,
         id: cmd_count,
@@ -62,7 +63,10 @@ fn main() {
         log_info("Command stored and scheduled for later".to_string(), msg.id);
 
     }
-    process_saved_commands("scheduler/saved_commands", curr_time_millis, &msg);
+
+    // Update the shared input
+    let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
+    *shared_input = command_arg.clone();
 
 }}
 
@@ -147,7 +151,7 @@ mod tests {
 
     #[test]
     fn test_write_input_tuple_creates_file() {
-        let test_dir = "saved_commands".to_string();
+        let test_dir = "scheduler/saved_commands".to_string();
         let input_tuple = (Ok(1717110630000), "Test command".to_string());
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
@@ -160,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_oldest_file_deletion() {
-        let test_dir = "saved_commands";
+        let test_dir = "scheduler/saved_commands";
         fs::create_dir_all(test_dir).unwrap();
 
         let input_tuple = (1717428208, String::from("Test Command"));
