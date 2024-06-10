@@ -1,3 +1,12 @@
+/*  Written by: Rowan Rasmusson
+
+    References: https://www.geeksforgeeks.org/process-schedulers-in-operating-system/
+        - Justification for having multiple message states
+
+    Saved_commands: name of the file that is created is the time of execution of the command
+*/
+
+
 use std::{time::Duration, io::{self}, sync::{Arc, Mutex}};
 use std::thread;
 pub mod schedule_message;
@@ -7,19 +16,20 @@ use crate::scheduler::*;
 pub mod log;
 use crate::log::*;
 
+const CHECK_DELAY: u64 = 100;
 
 fn main() {
     init_logger();
 
     let stdin: io::Stdin = io::stdin();
     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let _command_queue: Arc<Mutex<String>> = input.clone();
+    // let _command_queue: Arc<Mutex<String>> = input.clone();
 
-        // Spawn a thread to process saved commands
+    // Check commands while reading input
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
         process_saved_commands("scheduler/saved_commands", curr_time);
-        thread::sleep(Duration::from_secs(1)); // Check every second
+        thread::sleep(Duration::from_millis(CHECK_DELAY));
     });
 
     let mut cmd_count: u32 = 0;
@@ -48,10 +58,9 @@ fn main() {
     };
 
     if msg.time <= Ok(curr_time_millis) {
-        // Send to CmdDispathcer
+        // Message state dictates what the scheduler does with the message
         msg.state = MessageState::Running;
         handle_state(&msg);
-        println!("Sent to CmdDispatcher");
         log_error("Received command from past".to_string(), msg.id);
     } else {
         // save to non-volatile memory

@@ -23,6 +23,7 @@ pub fn handle_state(msg: &Message) {
         }
         MessageState::Running => {
             info!("Task #{} is running.", msg.id);
+            println!("Sent to CmdDispatcher");
             // Send to CmdDispatcher
         }
         MessageState::Done => {

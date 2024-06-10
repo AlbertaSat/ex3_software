@@ -30,6 +30,7 @@ fn process_entry(entry: fs::DirEntry, curr_time_millis: u64) {
             if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
                 if file_time <= curr_time_millis {
                     send_command(&entry.path(), file_name);
+                    todo!();
                     delete_file(&entry.path());
                 }
             }
