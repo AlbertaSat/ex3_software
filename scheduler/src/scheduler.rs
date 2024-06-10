@@ -6,7 +6,7 @@ use std::io::Write;
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use std::time::SystemTime;
 use std::io::BufRead;
-use crate::log_info;
+use crate::{log_info, log_error};
 
 pub fn process_saved_commands(dir: &str, curr_time_millis: u64) {
     let saved_commands_dir = Path::new(dir);
@@ -20,7 +20,7 @@ pub fn process_saved_commands(dir: &str, curr_time_millis: u64) {
             Err(e) => eprintln!("Error reading directory: {:?}", e),
         }
     } else {
-        eprintln!("Directory {} does not exist or is not a directory.", dir);
+        log_error("Directory does not exist or is not a directory.".to_string(), 54);
     }
 }
 

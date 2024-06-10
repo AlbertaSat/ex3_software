@@ -19,7 +19,7 @@ fn main() {
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
         process_saved_commands("scheduler/saved_commands", curr_time);
-        thread::sleep(Duration::from_secs(7)); // Check every 7 seconds
+        thread::sleep(Duration::from_secs(1)); // Check every second
     });
 
     let mut cmd_count: u32 = 0;
