@@ -15,7 +15,7 @@ path = "scheduler/scheduler_logs/schedule_output.log"
     kind = "fixed_window"
     base = 1
     count = 5
-    pattern = "scheduler_logs/schedule_output_{}.log"
+    pattern = "scheduler/scheduler_logs/schedule_output_{}.log"
 
 [root]
 level = "info"

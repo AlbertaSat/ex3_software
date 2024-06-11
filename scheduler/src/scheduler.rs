@@ -30,8 +30,6 @@ fn process_entry(entry: fs::DirEntry, curr_time_millis: u64) {
             if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
                 if file_time <= curr_time_millis {
                     send_command(&entry.path(), file_name);
-                    todo!();
-                    delete_file(&entry.path());
                 }
             }
         }
@@ -70,30 +68,6 @@ fn delete_file(file_path: &Path) {
     match fs::remove_file(file_path) {
         Ok(_) => println!("Deleted file: {:?}", file_path),
         Err(e) => eprintln!("Failed to delete file {:?}: {:?}", file_path, e),
-    }
-}
-
-pub fn timestamp_to_epoch(timestamp: String) -> Result<u64, String> {
-    // Split the input timestamp into date and time parts
-    let parts: Vec<&str> = timestamp.split(' ').collect();
-    if parts.len() != 2 {
-        return Err("Invalid timestamp format".to_string());
-    }
-
-    let date_str = parts[0];
-    let time_str = parts[1];
-
-    // Parse the input date and time separately using NaiveDateTime from the chrono crate
-    match NaiveDateTime::parse_from_str(&format!("{} {}", date_str, time_str), "%Y-%m-%d %H:%M:%S") {
-        Ok(naive_date_time) => {
-            // Convert the NaiveDateTime to a DateTime<Utc> object
-            let date_time_utc = Utc.from_utc_datetime(&naive_date_time);
-            // Get the epoch timestamp in milliseconds
-            let epoch_millis = date_time_utc.timestamp_millis();
-            // Convert the epoch timestamp to u64
-            Ok(epoch_millis as u64)
-        }
-        Err(e) => Err(format!("Failed to parse timestamp: {}", e)),
     }
 }
 

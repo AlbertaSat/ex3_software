@@ -8,6 +8,7 @@
 
 
 use std::{time::Duration, io::{self}, sync::{Arc, Mutex}};
+use std::sync::mpsc;
 use std::thread;
 pub mod schedule_message;
 use crate::schedule_message::*;
@@ -15,8 +16,9 @@ pub mod scheduler;
 use crate::scheduler::*;
 pub mod log;
 use crate::log::*;
+use interfaces;
 
-const CHECK_DELAY: u64 = 100;
+const CHECK_DELAY: u8 = 100;
 
 fn main() {
     init_logger();
@@ -29,31 +31,43 @@ fn main() {
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
         process_saved_commands("scheduler/saved_commands", curr_time);
-        thread::sleep(Duration::from_millis(CHECK_DELAY));
+        thread::sleep(Duration::from_millis(CHECK_DELAY as u64));
     });
 
-    let mut cmd_count: u32 = 0;
-    // if cmd_count = max - 1, then reset
-    while cmd_count < u32::MAX {
-    let mut command_arg: String = String::new();
-    stdin.read_line(&mut command_arg).expect("Failed to read command");
+    loop {
+    // read in byte stream
+    let ip = "127.0.0.1".to_string();
+    let port = 8081;
+    let tcp_interface = interfaces::TcpInterface::new(ip, port).unwrap();
 
-    let mut human_date: String = String::new();
-    stdin.read_line(&mut human_date).expect("Failed to read date");
+    let (sched_tx, sched_rx) = mpsc::channel();
+    // make a message struct out of it. from_bytes() from message_structure
+    interfaces::async_read(tcp_interface.clone(), sched_tx);
+    if let Ok(msg) = sched_rx.recv() {
+        let curr_msg = MessageStructure::from_bytes(msg);
+    } else {
+        todo!()
+    }
 
-    // Convert input human-readable time to epoch time to compare times when program is run
-    let command_time: Result<u64, String> = timestamp_to_epoch(human_date.trim().to_string());
+    /* let opcode = msg.get_opcode();
+        let body = msg.get_body ();
+        let time = body.get_time();
+        */
+
+    // read time as UNIX EPOCH u64
+    let command_time: Result<u64, String> = body.get_time();
     let curr_time_millis: u64 = get_current_time_millis();
 
-    let input_tuple: (Result<u64, String>, String) = (command_time.clone(),command_arg.clone());
-    cmd_count += 1;
+    let input_tuple: (Result<u64, String>, String) = (command_time.clone(),msg.id.clone());
+
     println!("Command Time: {:?} ms, Command: {}Current time is {:?} ms", input_tuple.0.as_ref().unwrap(), input_tuple.1, curr_time_millis);
 
     // dummy message
+    // won't need this when message is built
     let mut msg: Message = Message {
         time: command_time.clone(),
         state: MessageState::New,
-        id: cmd_count,
+        id: 0,
         command: command_arg.clone(),
     };
 
@@ -77,86 +91,14 @@ fn main() {
     let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
     *shared_input = command_arg.clone();
 
+    
+
 }}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::{self};
-
-    #[test]
-    fn conversion_test_valid_timestamp() {
-        let timestamp: String = "2024-06-23 4:22:22".to_string();
-        let expected_epoch: u64 = 1719116542000;
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => assert_eq!(epoch, expected_epoch),
-            Err(e) => panic!("Expected Ok({}) but got ERR({})", expected_epoch, e),
-        }
-    }
-
-    #[test]
-    fn conversion_test_no_space() {
-        let timestamp: String = "2024-11-2103:33:32".to_string();
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => panic!("Expected Err, but got Ok({})", epoch),
-            Err(e) => assert_eq!(e, "Invalid timestamp format".to_string()),
-        }
-    }
-
-    #[test]
-    fn conversion_test_empty_timestamp() {
-        let timestamp = "".to_string();
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => panic!("Expected Err, but got Ok({})", epoch),
-            Err(e) => assert_eq!(e, "Invalid timestamp format".to_string()),
-        }
-    }
-
-    #[test]
-    fn conversion_test_invalid_format() {
-        let timestamp = "2023/05/30 12:34:56".to_string();
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => panic!("Expected Err, but got Ok({})", epoch),
-            Err(e) => assert!(e.contains("Failed to parse timestamp")),
-        }
-    }
-
-    #[test]
-    fn conversion_test_invalid_date() {
-        let timestamp: String = "2024-55-41 12:33:33".to_string();
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => panic!("Invalid timestamp format, got {}", epoch),
-            Err(e) => assert!(e.contains("Failed to parse timestamp")),
-        }
-    }
-
-    #[test]
-    fn conversion_test_invalid_time() {
-        let timestamp: String = "2024-10-30 24:41:77".to_string();
-
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => panic!("Invalid timestamp format, got {}", epoch),
-            Err(e) => assert!(e.contains("Failed to parse timestamp")),
-        }
-    }
-
-    #[test]
-    fn conversion_test_valid_timestamp_2() {
-        let timestamp: String = "2027-02-05 02:04:38".to_string();
-        match timestamp_to_epoch(timestamp) {
-            Ok(epoch) => {
-                // Verify the epoch value is correct
-                let expected_epoch: u64 = 1801793078000;
-                assert_eq!(epoch, expected_epoch);
-            },
-            Err(e) => panic!("Expected valid date, but got error: {}", e),
-        }
-    }
 
     #[test]
     fn test_write_input_tuple_creates_file() {
