@@ -26,3 +26,17 @@ cargo run --bin handler && cargo run --bin message_dispatcher
 ```
 
 to run multiple binaries one after another. This can be done with any number of `cargo run`'s.
+
+## Usage
+
+Scripts to launch various processes (in seperate gnome-terminals) for testing and demonstration can be found in the [scripts](./scripts) directory.
+
+TODO - Change these paths to be relative so they can be used by other members.
+
+Gnome terminal cli commands are used in the scripts to launch a seperate terminal for each process of interest, with a defined title.
+
+For example, to test the dfgm handler with a mock dispatcher (tcp server setup using netcat), and the simulated dfgm subsystem python program run the following command. (NOTE: You will have to modify the paths to match your local machines paths to find the simulated dfgm python program).
+
+```@sh
+bash dfgm_handler_test.sh
+```
