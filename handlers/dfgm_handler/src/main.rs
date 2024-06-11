@@ -30,6 +30,11 @@ const DFGM_SIM_PORT: u16 = 1802;
 const DISPATCHER_PORT: u16 = 1900;
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
 
+const DFGM_PACKET_SIZE: usize = 1252;
+const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
+
+const DISPATCHER_INTERFACER_BUFFER_SIZE: usize = 512;
+
 /// Opcodes for messages relating to DFGM functionality
 pub enum OpCode {
     ToggleDataCollection, // toggles a flag which either enables or disables data collection from the DFGM
@@ -67,62 +72,62 @@ impl DFGMHandler {
         }
     }
 
+    // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) {
-        // call async read and write on interfaces
-        // handle incomming messages when they are recevied and send outgoing messages
+        // NOTE: A seperate channel PAIR each is needed for the main handler process to communicate with a thread. 
+        // one pair handles communication between the async_read and the handler, and the other pair handles communication between the handler and the async_write
 
-        // NOTE: A seperate channel PAIR is needed for both reading and writing to an interface.
-        // one pair handles communication between the async read and the handler, and the other pair handles communication between the handler and the async write
-
-        //Setup channel pairs for interface threads to communicate with handler
-        let (dfgm_tx, dfgm_rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
-        //let (dispatcher_tx, dispatcher_rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
+        let (dfgm_reader_tx_ch, dfgm_reader_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
+            mpsc::channel();
 
         if let Some(interface) = self.peripheral_interface.clone() {
-            async_read(interface, dfgm_tx.clone());
+            async_read(interface, dfgm_reader_tx_ch.clone(), DFGM_INTERFACE_BUFFER_SIZE);
         }
 
-        // if let Some(interface) = self.dispatcher_interface.clone() {
-        //     async_read(interface, dispatcher_tx.clone());
-        // }
-
-        //dispatcher_tx.send(b"Hello from DFGM Handler! \n \n \n".to_vec());
+        // DFGM doesnt setup a 'dfgm_writer' thread because it only reads data from the DFGM
 
         // //setup a seperate channel pair for writing to the dispatcher
         // Async write opens a thread with the recevier, and we write to it by writing data to the sender
-        let (dispatcher_tx_write, dispatcher_rx_write): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
+        let (disp_writer_tx_ch, disp_writer_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
             mpsc::channel();
 
+        if let Some(interface) = self.dispatcher_interface.clone() {
+            async_write(interface, disp_writer_rx_ch);
+        }
 
-        dispatcher_tx_write
-            .send(b"Hello from DFGM Handler! \n".to_vec())
-            .expect("Failed to send message to dispatcher");
-        
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        let (disp_reader_tx_ch, disp_reader_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
+            mpsc::channel();
 
         if let Some(interface) = self.dispatcher_interface.clone() {
-            async_write(interface, dispatcher_rx_write);
+            async_read(interface, disp_reader_tx_ch.clone(), DISPATCHER_INTERFACER_BUFFER_SIZE);
         }
-        loop {
-            // if let Ok(data) = dfgm_rx.try_recv() {
-            //     if data.is_empty() {
-            //         continue;
-            //     }
-            //     println!("Received DFGM Data{:?}", data);
-            //     if self.toggle_data_collection {
-            //         store_dfgm_data(&data);
-            //     }
-            // }
 
-            // if let Ok(data) = dispatcher_rx.try_recv() {
-            //     if data.is_empty() {
-            //         continue;
-            //     }
-            //     println!("Received Dispatcher Data{:?}", data);
-            //     //TODO - Convert bytestream into message struct
-            //     //TODO - handle the message based on its opcode
-            // }
-           
+        // Test sending dummy message
+        disp_writer_tx_ch
+            .send(b"Hello from DFGM Handler! \n".to_vec())
+            .expect("Failed to send message to dispatcher");
+
+        std::thread::sleep(std::time::Duration::from_secs(1));
+
+        loop {
+            if let Ok(data) = dfgm_reader_rx_ch.try_recv() {
+                if data.is_empty() {
+                    continue;
+                }
+                println!("Received DFGM Data{:?}", data);
+                if self.toggle_data_collection {
+                    store_dfgm_data(&data);
+                }
+            }
+
+            if let Ok(data) = disp_reader_rx_ch.try_recv() {
+                if data.is_empty() {
+                    continue;
+                }
+                println!("Received Dispatcher Data{:?}", data);
+                //TODO - Convert bytestream into message struct
+                //TODO - handle the message based on its opcode
+            }
         }
     }
 }
