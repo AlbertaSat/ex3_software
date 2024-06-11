@@ -54,13 +54,17 @@ impl Interface for TcpInterface {
 
 /// handle asynchronous reading on an interface by spawing a new thread and passing data to mpsc sender channel
 #[allow(dead_code)]
-pub fn async_read<T: Interface + Send + 'static>(mut interface: T, sender: Sender<Vec<u8>>) {
+pub fn async_read<T: Interface + Send + 'static>(mut interface: T, sender: Sender<Vec<u8>>, buffer_size: usize) {
     thread::spawn(move || {
         println!("Async read thread started");
         loop {
-            let mut buffer = vec![0; TCP_BUFFER_SIZE];
+            let mut buffer = vec![0; buffer_size];
             match interface.read(&mut buffer) {
                 Ok(_) => {
+                    //if buffer is empty or only zeroes, ignore it
+                    if buffer.iter().all(|&x| x == 0) {
+                        break;
+                    }
                     sender.send(buffer).unwrap();
                 }
                 Err(e) => {
@@ -82,7 +86,7 @@ pub fn async_write<T: Interface + Send + 'static>(mut interface: T, receiver: Re
                 eprintln!("Write error: {}", e);
                 break;
             } else {
-                println!("Data sent: {:?}", data);
+                //println!("Data sent: {:?}", data);
             }
         }
     });
@@ -107,7 +111,7 @@ mod tests {
         let (send_tx, send_rx) = mpsc::channel();
         let (recv_tx, recv_rx) = mpsc::channel();
 
-        async_read(tcp_interface.clone(), recv_tx);
+        async_read(tcp_interface.clone(), recv_tx, 1024);
         async_write(tcp_interface.clone(), send_rx);
 
         send_tx.send(b"Hello, World!".to_vec());
