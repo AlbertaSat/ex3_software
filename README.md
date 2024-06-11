@@ -39,3 +39,13 @@ To run the dashboard, follow these steps:
     trunk serve --open
     ```
     By default, Trunk will serve the application at http://127.0.0.1:8080. Open this URL in your web browser to view the dashboard.
+
+# CLI to send a command to the OBC via TCP port
+
+1. **Navigate to cli_command_obc** 
+
+```sh
+    cd cli_command_obc 
+```
+
+2. See the [README](./cli_command_obc/README.md) for usage and more info
