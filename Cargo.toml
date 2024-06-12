@@ -6,5 +6,5 @@ members = [
     "message_dispatcher",
     "libs/message_structure",
     "scheduler",
-    "handlers/dfgm_handler", "handlers/mock_server",
+    "handlers/dfgm_handler",
 ]
