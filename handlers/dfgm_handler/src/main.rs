@@ -19,6 +19,8 @@ use std::io::prelude::*;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
+use common::ports; 
+
 const DFGM_SIM_PORT: u16 = 1802;
 const DISPATCHER_PORT: u16 = 1900;
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
@@ -152,10 +154,10 @@ fn main() {
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
     //Create TCP interface for DFGM handler to talk to simulated DFGM
-    let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), DFGM_SIM_PORT);
+    let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
     //Create TCP interface for DFGM handler to talk to message dispatcher
-    let dispatcher_interface = TcpInterface::new_client("127.0.0.1".to_string(), DISPATCHER_PORT);
+    let dispatcher_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::DFGM_HANDLER_DISPATCHER_PORT);
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, dispatcher_interface);
