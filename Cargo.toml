@@ -7,4 +7,5 @@ members = [
     "libs/message_structure",
     "scheduler",
     "handlers/dfgm_handler",
+    "libs/common",
 ]
