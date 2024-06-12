@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 interfaces = { path = "../../libs/interfaces" }
+common = {path = "../../libs/common"}
