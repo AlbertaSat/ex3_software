@@ -21,10 +21,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use common::ports; 
 
-const DFGM_SIM_PORT: u16 = 1802;
-const DISPATCHER_PORT: u16 = 1900;
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
-
 const DFGM_PACKET_SIZE: usize = 1252;
 const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 
