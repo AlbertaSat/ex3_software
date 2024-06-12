@@ -19,3 +19,9 @@ To test the TCP Interface you can enter the following command inside the libs/in
 ```@sh
     cargo test -- --nocapture 
 ```
+
+To run a specific test fxn, for example 'test_tcp_interface_server', use the following command:
+
+```@sh
+    cargo test test_tcp_interface_server -- --nocapture
+```

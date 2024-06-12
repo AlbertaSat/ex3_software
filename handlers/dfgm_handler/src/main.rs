@@ -152,10 +152,10 @@ fn main() {
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
     //Create TCP interface for DFGM handler to talk to simulated DFGM
-    let dfgm_interface = TcpInterface::new("127.0.0.1".to_string(), DFGM_SIM_PORT);
+    let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), DFGM_SIM_PORT);
 
     //Create TCP interface for DFGM handler to talk to message dispatcher
-    let dispatcher_interface = TcpInterface::new("127.0.0.1".to_string(), DISPATCHER_PORT);
+    let dispatcher_interface = TcpInterface::new_client("127.0.0.1".to_string(), DISPATCHER_PORT);
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, dispatcher_interface);
