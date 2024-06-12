@@ -28,12 +28,34 @@ pub struct TcpInterface {
 }
 
 impl TcpInterface {
-    pub fn new(ip: String, port: u16) -> Result<TcpInterface, Error> {
+    pub fn new_client(ip: String, port: u16) -> Result<TcpInterface, Error> {
         let stream = TcpStream::connect(format!("{}:{}", ip, port))?;
         stream.try_clone()?.flush()?;
         Ok(TcpInterface {
             stream: Arc::new(Mutex::new(stream)),
         })
+    }
+
+    pub fn new_server(ip: String, port: u16) -> Result<TcpInterface, Error> {
+        //Create a listener that binds to a socket address (ip:port) and listens for incoming TCP connections
+        let listener = std::net::TcpListener::bind(format!("{}:{}", ip, port))?;
+
+        // Accept a new incoming connection on the listener
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    println!("New connection: {}", stream.peer_addr().unwrap());
+                    return Ok(TcpInterface {
+                        stream: Arc::new(Mutex::new(stream)),
+                    });
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    return Err(e);
+                }
+            }
+        } 
+        Err(Error::new(std::io::ErrorKind::Other, "No incoming connections"))
     }
 }
 
@@ -106,7 +128,7 @@ mod tests {
     fn test_tcp_interface() {
         let ip = "127.0.0.1".to_string();
         let port = 1802;
-        let tcp_interface = TcpInterface::new(ip, port).unwrap();
+        let tcp_interface = TcpInterface::new_client(ip, port).unwrap();
 
         let (send_tx, send_rx) = mpsc::channel();
         let (recv_tx, recv_rx) = mpsc::channel();
@@ -122,5 +144,31 @@ mod tests {
 
         // Sleep to let threads run
         thread::sleep(Duration::from_secs(3));
+    }
+
+    #[test]
+    fn test_tcp_interface_server(){
+        let ip = "127.0.0.1";
+        let port = 1900;
+        let tcp_interface_server = TcpInterface::new_server(ip.to_string(), port).unwrap();
+
+        // Create channels for talking to reading / writing threads
+        let (send_tx, send_rx) = mpsc::channel();
+        let (recv_tx, recv_rx) = mpsc::channel();
+
+        async_read(tcp_interface_server.clone(), recv_tx, 1024);
+        async_write(tcp_interface_server.clone(), send_rx);
+
+        // Wait for a connection to be established - check if connection is established instead of waiting 
+
+        send_tx.send(b"Hello, World!".to_vec());
+
+        if let Ok(data) = recv_rx.recv() {
+            println!("Received data: {:?}", data);
+        }
+
+        // Sleep to let threads run
+        thread::sleep(Duration::from_secs(3));
+
     }
 }
