@@ -9,6 +9,7 @@ References:
 */
 use serde::Deserialize;
 use serde::Serialize;
+use std::io::Cursor;
 
 /// This message header is shared by all message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +29,7 @@ pub struct Msg {
 
 impl Msg {
     // Constructor to create message header with correct length
-    fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
+    pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
         let len = data.len() as u8;
         let header = MsgHeader {
             msg_len: len + 5, //5 bytes for header fields
@@ -44,6 +45,17 @@ impl Msg {
     }
 }
 
+pub fn serialize_msg(msg: Msg) -> Vec<u8> {
+    let mut buf = Vec::new();
+    let _serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
+    buf
+}
+
+pub fn deserialize_msg(serialized_msg: Vec<u8>) -> Msg {
+    let mut cursor = Cursor::new(serialized_msg);
+    serde_json::from_reader(&mut cursor).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,15 +65,14 @@ mod tests {
     #[test]
     fn test_msg_serdes() {
         let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
-        let mut buf = Vec::new();
-        let serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
-        println!("Serde Msg: {:?}", buf);
 
-        let mut cursor = Cursor::new(buf);
-        let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+        let serialized_msg = serialize_msg(msg);
+        println!("Serde Msg: {:?}", serialized_msg);
+
+        let deserialized_msg = deserialize_msg(serialized_msg);
 
         println!("Deserialized Msg: {:?}", deserialized_msg);
-        assert_eq!(deserialized_msg.header.msg_len, msg.header.msg_len);
-        assert_eq!(deserialized_msg.msg_body, msg.msg_body);
+        assert_eq!(deserialized_msg.header.msg_len, 12);
+        assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 }
