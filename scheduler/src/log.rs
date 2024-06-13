@@ -3,7 +3,7 @@ use log4rs;
 
 pub fn init_logger() {
     debug!("Initializing Logger.");
-    if let Err(e) = log4rs::init_file("scheduler/log4rs.toml", Default::default()) {
+    if let Err(e) = log4rs::init_file("../scheduler/log4rs.toml", Default::default()) {
         println!("Error initializing log4rs: {}", e);
     } else {
         println!("Logger initialized successfully.");

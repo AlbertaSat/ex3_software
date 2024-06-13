@@ -16,81 +16,75 @@ pub mod scheduler;
 use crate::scheduler::*;
 pub mod log;
 use crate::log::*;
-use interfaces;
+use interfaces::{self, TCP_BUFFER_SIZE};
 use message_structure::*;
-use common;
+use common::{self, ports::SCHEDULER_DISPATCHER_PORT};
 use std::io::Cursor;
-
 const CHECK_DELAY: u8 = 100;
 
 fn main() {
     init_logger();
+    check_saved_commands();
+    run_scheduler();
+}
 
-    let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    // let _command_queue: Arc<Mutex<String>> = input.clone();
-
-    // Check commands while reading input
+fn check_saved_commands() {
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
-        process_saved_commands("scheduler/saved_commands", curr_time);
+        process_saved_commands("saved_commands", curr_time);
         thread::sleep(Duration::from_millis(CHECK_DELAY as u64));
     });
+}
 
-    loop {
-    // read in byte stream
+fn run_scheduler() {
+
+    let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
     let ip = "127.0.0.1".to_string();
-    let port = 8081; // change to msg dispatcher port
+    let port = SCHEDULER_DISPATCHER_PORT;
     let tcp_interface = interfaces::TcpInterface::new_server(ip, port).unwrap();
 
-    let (sched_tx, sched_rx) = mpsc::channel();
-    // make a message struct out of it. from_bytes() from message_structure
-    interfaces::async_read(tcp_interface.clone(), sched_tx, 128);
-    let buf = Vec::new();
-    let mut cursor = Cursor::new(buf);
-    let curr_msg_body = Vec::new();
-    let deserialized_msg: Msg = Msg::new(0,0,0,0,curr_msg_body.clone());
+    let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
+    // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
 
-    if let Ok(msg) = sched_rx.recv() {
-        let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+    interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
 
+    loop {
+        if let Ok(buffer) = sched_reader_rx.recv() {
+            // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
+            let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
+            let mut cursor = Cursor::new(trimmed_buffer);
+            let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+
+            // gets execution time as unix epoch
+            let command_time: u64 = get_time(deserialized_msg.msg_body);
+            let curr_time_millis: u64 = get_current_time_millis();
+            let input_tuple: (u64, u8) = (command_time.clone(),deserialized_msg.header.msg_id);
+
+            println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
+
+            if command_time <= curr_time_millis {
+            // Message state dictates what the scheduler does with the message
+            // msg.state = MessageState::Running;
+            // handle_state(&msg);
+                log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
+            } else {
+                // save to non-volatile memory
+                if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
+                    eprintln!("Failed to write input tuple to file: {}", err);
+                } else {
+                    println!("Input tuple written to file successfully.");
+                }
+            log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
+
+            // Update the shared input
+            let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
+            *shared_input = deserialized_msg.header.msg_id.to_string();
+        }
     } else {
         log_error("Could not receive message".to_string(), 5);
-    }
-
-    // read time as UNIX EPOCH u64
-    let command_time: u64 = get_time(deserialized_msg.msg_body);
-    let curr_time_millis: u64 = get_current_time_millis();
-
-    let input_tuple: (u64, u8) = (command_time.clone(),deserialized_msg.header.msg_id);
-
-    println!("Command Time: {:?} ms, ID: {}Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
-
-    // dummy message
-    // won't need this when message is built
-
-    if command_time <= curr_time_millis {
-        // Message state dictates what the scheduler does with the message
-        // msg.state = MessageState::Running;
-        // handle_state(&msg);
-        log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
-    } else {
-        // save to non-volatile memory
-        if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
-            eprintln!("Failed to write input tuple to file: {}", err);
-        } else {
-            println!("Input tuple written to file successfully.");
+            }
         }
-        log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
-
-    }
-
-    // Update the shared input
-    let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
-    *shared_input = deserialized_msg.header.msg_id.to_string();
-
-
-
-}}
+}
 
 #[cfg(test)]
 mod tests {
@@ -99,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_write_input_tuple_creates_file() {
-        let test_dir = "scheduler/saved_commands".to_string();
+        let test_dir = "saved_commands".to_string();
         let input_tuple: (u64, u8) = (1717110630000, 30);
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
@@ -112,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_oldest_file_deletion() {
-        let test_dir = "scheduler/saved_commands";
+        let test_dir = "saved_commands";
         fs::create_dir_all(test_dir).unwrap();
 
         let input_tuple = (1717428208, 66);
