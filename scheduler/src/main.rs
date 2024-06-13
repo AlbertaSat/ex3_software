@@ -17,13 +17,14 @@ use crate::scheduler::*;
 pub mod log;
 use crate::log::*;
 use interfaces;
+use message_structure::*;
+use std::io::Cursor;
 
 const CHECK_DELAY: u8 = 100;
 
 fn main() {
     init_logger();
 
-    let stdin: io::Stdin = io::stdin();
     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
     // let _command_queue: Arc<Mutex<String>> = input.clone();
 
@@ -37,45 +38,40 @@ fn main() {
     loop {
     // read in byte stream
     let ip = "127.0.0.1".to_string();
-    let port = 8081;
-    let tcp_interface = interfaces::TcpInterface::new(ip, port).unwrap();
+    let port = 8081; // change to msg dispatcher port
+    let tcp_interface = interfaces::TcpInterface::new_server(ip, port).unwrap();
 
     let (sched_tx, sched_rx) = mpsc::channel();
     // make a message struct out of it. from_bytes() from message_structure
-    interfaces::async_read(tcp_interface.clone(), sched_tx);
+    interfaces::async_read(tcp_interface.clone(), sched_tx, 128);
+    let buf = Vec::new();
+    let mut cursor = Cursor::new(buf);
+    let curr_msg_body = Vec::new();
+    let deserialized_msg: Msg = Msg::new(0,0,0,0,curr_msg_body.clone());
+
     if let Ok(msg) = sched_rx.recv() {
-        let curr_msg = MessageStructure::from_bytes(msg);
+        let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+
     } else {
-        todo!()
+        log_error("Could not receive message".to_string(), 5);
     }
 
-    /* let opcode = msg.get_opcode();
-        let body = msg.get_body ();
-        let time = body.get_time();
-        */
-
     // read time as UNIX EPOCH u64
-    let command_time: Result<u64, String> = body.get_time();
+    let command_time: u64 = get_time(deserialized_msg.msg_body);
     let curr_time_millis: u64 = get_current_time_millis();
 
-    let input_tuple: (Result<u64, String>, String) = (command_time.clone(),msg.id.clone());
+    let input_tuple: (u64, u8) = (command_time.clone(),deserialized_msg.header.msg_id);
 
-    println!("Command Time: {:?} ms, Command: {}Current time is {:?} ms", input_tuple.0.as_ref().unwrap(), input_tuple.1, curr_time_millis);
+    println!("Command Time: {:?} ms, ID: {}Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
 
     // dummy message
     // won't need this when message is built
-    let mut msg: Message = Message {
-        time: command_time.clone(),
-        state: MessageState::New,
-        id: 0,
-        command: command_arg.clone(),
-    };
 
-    if msg.time <= Ok(curr_time_millis) {
+    if command_time <= curr_time_millis {
         // Message state dictates what the scheduler does with the message
-        msg.state = MessageState::Running;
-        handle_state(&msg);
-        log_error("Received command from past".to_string(), msg.id);
+        // msg.state = MessageState::Running;
+        // handle_state(&msg);
+        log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
     } else {
         // save to non-volatile memory
         if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
@@ -83,15 +79,15 @@ fn main() {
         } else {
             println!("Input tuple written to file successfully.");
         }
-        log_info("Command stored and scheduled for later".to_string(), msg.id);
+        log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
 
     }
 
     // Update the shared input
     let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
-    *shared_input = command_arg.clone();
+    *shared_input = deserialized_msg.header.msg_id.to_string();
 
-    
+
 
 }}
 
@@ -103,7 +99,7 @@ mod tests {
     #[test]
     fn test_write_input_tuple_creates_file() {
         let test_dir = "scheduler/saved_commands".to_string();
-        let input_tuple = (Ok(1717110630000), "Test command".to_string());
+        let input_tuple: (u64, u8) = (1717110630000, 30);
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
         assert!(result.is_ok());
@@ -118,19 +114,19 @@ mod tests {
         let test_dir = "scheduler/saved_commands";
         fs::create_dir_all(test_dir).unwrap();
 
-        let input_tuple = (1717428208, String::from("Test Command"));
+        let input_tuple = (1717428208, 66);
 
         // Create files to exceed the max size
         for i in 0..2000 {
             let new_timestamp: u64 = input_tuple.0.clone() + i;
-            write_input_tuple_to_rolling_file(&(Ok(new_timestamp), input_tuple.1.clone())).unwrap();
+            write_input_tuple_to_rolling_file(&(new_timestamp, input_tuple.1.clone())).unwrap();
         }
 
         // Check initial number of files
         let initial_files: Vec<_> = fs::read_dir(test_dir).unwrap().collect();
 
         // Write an input tuple to trigger the removal of the oldest file
-        let input_tuple = (Ok(2717428208), String::from("Test Command"));
+        let input_tuple = (2717428208, 77);
         write_input_tuple_to_rolling_file(&(input_tuple.0, input_tuple.1)).unwrap();
 
         // Check final number of files

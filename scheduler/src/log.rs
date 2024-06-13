@@ -10,10 +10,10 @@ pub fn init_logger() {
     }
 }
 
-pub fn log_error(e: String, id: u32) {
+pub fn log_error(e: String, id: u8) {
     error!("{} ID: {}", e, id);
 }
 
-pub fn log_info(e: String, id: u32) {
+pub fn log_info(e: String, id: u8) {
     info!("{} ID: {}", e, id);
 }

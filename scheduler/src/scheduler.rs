@@ -3,7 +3,6 @@ use std::fs::File;
 use std::path::Path;
 use std::io;
 use std::io::Write;
-use chrono::{NaiveDateTime, TimeZone, Utc};
 use std::time::SystemTime;
 use std::io::BufRead;
 use crate::{log_info, log_error};
@@ -29,14 +28,14 @@ fn process_entry(entry: fs::DirEntry, curr_time_millis: u64) {
         if file_name.ends_with(".txt") {
             if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
                 if file_time <= curr_time_millis {
-                    send_command(&entry.path(), file_name);
+                    send_message(&entry.path(), file_name);
                 }
             }
         }
     }
 }
 
-fn send_command(file_path: &Path, file_name: &str) {
+fn send_message(file_path: &Path, file_name: &str) {
     match fs::File::open(file_path) {
         Ok(file) => {
             let lines: Vec<String> = io::BufReader::new(file)
@@ -44,9 +43,9 @@ fn send_command(file_path: &Path, file_name: &str) {
                 .filter_map(Result::ok)
                 .collect();
             if lines.len() > 1 {
-                println!("Sent Command {} at {}", lines[1], file_name);
+                println!("Sent Message ID {} at {}", lines[1], file_name);
             } else {
-                println!("File {} does not have a command.", file_name);
+                println!("File {} does not have an ID.", file_name);
             }
             log_info(format!("Processed file: {}", file_name), 0); // Message ID can be managed as needed
         }
@@ -71,7 +70,7 @@ fn delete_file(file_path: &Path) {
     }
 }
 
-pub fn write_input_tuple_to_rolling_file(input_tuple: &(Result<u64, String>, String)) -> Result<(), io::Error> {
+pub fn write_input_tuple_to_rolling_file(input_tuple: &(u64, u8)) -> Result<(), io::Error> {
     // Create the directory if it doesn't exist
     let dir_path = "scheduler/saved_commands";
     fs::create_dir_all(dir_path)?;
@@ -91,12 +90,12 @@ pub fn write_input_tuple_to_rolling_file(input_tuple: &(Result<u64, String>, Str
     }
 
     // Create a new file
-    let file_name = format!("{}.txt", input_tuple.0.as_ref().unwrap());
+    let file_name = format!("{}.txt", input_tuple.0);
     let file_path = Path::new(dir_path).join(&file_name);
     let mut file = File::create(&file_path)?;
 
     // Write input_tuple to the file
-    writeln!(file, "{:?}\n{}", input_tuple.0.as_ref().unwrap(), input_tuple.1)?;
+    writeln!(file, "{:?}\n{}", input_tuple.0, input_tuple.1)?;
 
     Ok(())
 }
