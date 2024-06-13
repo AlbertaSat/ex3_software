@@ -11,6 +11,7 @@ use std::sync::{
 };
 use std::thread;
 
+
 pub const TCP_BUFFER_SIZE: usize = 1024;
 
 /// Interface trait to be implemented by all external interfaces
@@ -54,7 +55,7 @@ impl TcpInterface {
                     return Err(e);
                 }
             }
-        }
+        } 
         Err(Error::new(std::io::ErrorKind::Other, "No incoming connections"))
     }
 }
@@ -159,7 +160,7 @@ mod tests {
         async_read(tcp_interface_server.clone(), recv_tx, 1024);
         async_write(tcp_interface_server.clone(), send_rx);
 
-        // Wait for a connection to be established - check if connection is established instead of waiting
+        // Wait for a connection to be established - check if connection is established instead of waiting 
 
         send_tx.send(b"Hello, World!".to_vec());
 
