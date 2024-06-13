@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 interfaces = { path = "../libs/interfaces" }
 message_structure = { path = "../libs/message_structure" }
+common = { path = "../libs/common" }
 log = "0.4"
 log4rs = { version = "1.2", features = ["rolling_file_appender", "compound_policy", "size_trigger", "fixed_window_roller", "toml_format"] }
 chrono = "0.4"
