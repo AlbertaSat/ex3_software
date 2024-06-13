@@ -55,8 +55,8 @@ mod tests {
         // Why does the serialization also take the commas??
         let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
         let mut buf = Vec::new();
-        let serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
-        println!("Serde Msg: {:?}", buf);
+        let _serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
+        println!("Serialized Msg: {:?}", buf);
 
         let mut cursor = Cursor::new(buf);
         let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
