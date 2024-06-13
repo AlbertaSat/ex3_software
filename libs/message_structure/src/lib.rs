@@ -28,7 +28,7 @@ pub struct Msg {
 
 impl Msg {
     // Constructor to create message header with correct length
-    fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
+    pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
         let len = data.len() as u8;
         let header = MsgHeader {
             msg_len: len + 5, //5 bytes for header fields
@@ -52,6 +52,7 @@ mod tests {
 
     #[test]
     fn test_msg_serdes() {
+        // Why does the serialization also take the commas??
         let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
         let mut buf = Vec::new();
         let serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
