@@ -10,6 +10,7 @@ References:
 use serde::Deserialize;
 use serde::Serialize;
 use std::io::Cursor;
+use std::io::Stderr;
 
 /// This message header is shared by all message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,15 +46,20 @@ impl Msg {
     }
 }
 
-pub fn serialize_msg(msg: Msg) -> Vec<u8> {
+pub fn serialize_msg(msg: Msg) -> Result<Vec<u8>,Stderr> {
     let mut buf = Vec::new();
     let _serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
-    buf
+    Ok(buf)
 }
 
-pub fn deserialize_msg(serialized_msg: Vec<u8>) -> Msg {
-    let mut cursor = Cursor::new(serialized_msg);
-    serde_json::from_reader(&mut cursor).unwrap()
+pub fn deserialize_msg(buffer: Vec<u8>) -> Result<Msg, Stderr> {
+    // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
+    let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
+    let mut cursor = Cursor::new(trimmed_buffer);
+
+    // Deserialize the message
+    let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+    Ok(deserialized_msg)
 }
 
 #[cfg(test)]
@@ -64,13 +70,13 @@ mod tests {
     fn test_msg_serdes() {
         let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
-        let serialized_msg = serialize_msg(msg);
+        let serialized_msg = serialize_msg(msg).unwrap();
         println!("Serde Msg: {:?}", serialized_msg);
 
         let deserialized_msg = deserialize_msg(serialized_msg);
 
         println!("Deserialized Msg: {:?}", deserialized_msg);
-        assert_eq!(deserialized_msg.header.msg_len, 12);
-        assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
+        assert_eq!(deserialized_msg.as_ref().unwrap().header.msg_len, 12);
+        assert_eq!(deserialized_msg.unwrap().msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 }
