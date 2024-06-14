@@ -59,8 +59,6 @@ pub fn deserialize_msg(serialized_msg: Vec<u8>) -> Msg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
-    use std::io::Cursor;
 
     #[test]
     fn test_msg_serdes() {
