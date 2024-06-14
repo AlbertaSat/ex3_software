@@ -11,11 +11,11 @@ use std::sync::{
 };
 use std::thread;
 
-const TCP_BUFFER_SIZE: usize = 1024;
+pub const TCP_BUFFER_SIZE: usize = 1024;
 
 /// Interface trait to be implemented by all external interfaces
 pub trait Interface {
-    /// Send byte data to the interface as a shared slice type byte. Return number of bytes sent  
+    /// Send byte data to the interface as a shared slice type byte. Return number of bytes sent
     fn send(&mut self, data: &[u8]) -> Result<usize, Error>;
     /// Read byte data from the interface into a byte slice buffer. Return number of bytes read
     fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error>;
@@ -54,7 +54,7 @@ impl TcpInterface {
                     return Err(e);
                 }
             }
-        } 
+        }
         Err(Error::new(std::io::ErrorKind::Other, "No incoming connections"))
     }
 }
@@ -159,7 +159,7 @@ mod tests {
         async_read(tcp_interface_server.clone(), recv_tx, 1024);
         async_write(tcp_interface_server.clone(), send_rx);
 
-        // Wait for a connection to be established - check if connection is established instead of waiting 
+        // Wait for a connection to be established - check if connection is established instead of waiting
 
         send_tx.send(b"Hello, World!".to_vec());
 
