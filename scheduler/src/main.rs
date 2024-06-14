@@ -31,7 +31,7 @@ fn main() {
 fn check_saved_commands() {
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
-        process_saved_commands("saved_commands", curr_time);
+        process_saved_commands("scheduler/saved_commands", curr_time);
         thread::sleep(Duration::from_millis(CHECK_DELAY as u64));
     });
 }
@@ -49,41 +49,53 @@ fn run_scheduler() {
     interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
 
     loop {
-        if let Ok(buffer) = sched_reader_rx.recv() {
-            // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
-            let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
-            let mut cursor = Cursor::new(trimmed_buffer);
-            let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
-
-            // gets execution time as unix epoch
-            let command_time: u64 = get_time(deserialized_msg.msg_body);
-            let curr_time_millis: u64 = get_current_time_millis();
-            let input_tuple: (u64, u8) = (command_time.clone(),deserialized_msg.header.msg_id);
-
-            println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
-
-            if command_time <= curr_time_millis {
-            // Message state dictates what the scheduler does with the message
-            // msg.state = MessageState::Running;
-            // handle_state(&msg);
-                log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
-            } else {
-                // save to non-volatile memory
-                if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
-                    eprintln!("Failed to write input tuple to file: {}", err);
-                } else {
-                    println!("Input tuple written to file successfully.");
+        match sched_reader_rx.recv() {
+            Ok(buffer) => {
+                // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
+                let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
+                let mut cursor = Cursor::new(trimmed_buffer);
+                match serde_json::from_reader(&mut cursor) {
+                    Ok(deserialized_msg) => {
+                        process_message(deserialized_msg, &input);
+                    }
+                    Err(e) => {
+                        log_error(format!("Failed to deserialize message: {}", e), 5);
+                    }
                 }
-            log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
-
-            // Update the shared input
-            let mut shared_input: std::sync::MutexGuard<'_, String> = input.lock().unwrap();
-            *shared_input = deserialized_msg.header.msg_id.to_string();
-        }
-    } else {
-        log_error("Could not receive message".to_string(), 5);
+            }
+            Err(e) => {
+                log_error(format!("Failed to receive message: {}", e), 5);
             }
         }
+    }
+}
+
+fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
+    // gets execution time as unix epoch
+    let command_time: u64 = get_time(deserialized_msg.msg_body);
+    let curr_time_millis: u64 = get_current_time_millis();
+    let input_tuple: (u64, u8) = (command_time, deserialized_msg.header.msg_id);
+
+    println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
+
+    if command_time <= curr_time_millis {
+        // Message state dictates what the scheduler does with the message
+        // msg.state = MessageState::Running;
+        // handle_state(&msg);
+        log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
+    } else {
+        // save to non-volatile memory
+        if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
+            eprintln!("Failed to write input tuple to file: {}", err);
+        } else {
+            println!("Input tuple written to file successfully.");
+        }
+        log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
+
+        // Update the shared input
+        let mut shared_input = input.lock().unwrap();
+        *shared_input = deserialized_msg.header.msg_id.to_string();
+    }
 }
 
 #[cfg(test)]
@@ -93,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_write_input_tuple_creates_file() {
-        let test_dir = "saved_commands".to_string();
+        let test_dir = "scheduler/saved_commands".to_string();
         let input_tuple: (u64, u8) = (1717110630000, 30);
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
@@ -106,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_oldest_file_deletion() {
-        let test_dir = "saved_commands";
+        let test_dir = "scheduler/saved_commands";
         fs::create_dir_all(test_dir).unwrap();
 
         let input_tuple = (1717428208, 66);

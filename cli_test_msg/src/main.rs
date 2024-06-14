@@ -23,7 +23,7 @@ fn main() {
 
     let port = args[1].parse::<u16>().unwrap();
 
-    let data: Msg = Msg::new(0,0,0,0,vec![1,1,1,1,1,1]);
+    let data: Msg = Msg::new(0,0,0,0,vec![1,1,1,1,5,6,44,211,1]);
 
     let mut stream = TcpStream::connect((Ipv4Addr::new(127, 0, 0, 1), port)).unwrap();
     let output_stream = &mut stream;

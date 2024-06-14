@@ -65,7 +65,7 @@ pub fn get_current_time_millis() -> u64 {
 
 pub fn write_input_tuple_to_rolling_file(input_tuple: &(u64, u8)) -> Result<(), io::Error> {
     // Create the directory if it doesn't exist
-    let dir_path = "saved_commands";
+    let dir_path = "scheduler/saved_commands";
     fs::create_dir_all(dir_path)?;
 
     // Get the total size of files in the directory
