@@ -41,14 +41,14 @@ fn run_scheduler() {
     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
     let ip = "127.0.0.1".to_string();
     let port = SCHEDULER_DISPATCHER_PORT;
-    let tcp_interface = interfaces::TcpInterface::new_server(ip, port).unwrap();
-
-    let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-    // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
-
-    interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
-
     loop {
+
+        let tcp_interface = interfaces::TcpInterface::new_server(ip.clone(), port).unwrap();
+
+        let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
+        // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+
+        interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
         match sched_reader_rx.recv() {
             Ok(buffer) => {
                 // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
