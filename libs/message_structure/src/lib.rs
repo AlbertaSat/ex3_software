@@ -9,8 +9,8 @@ References:
 */
 use serde::Deserialize;
 use serde::Serialize;
-use std::io::Cursor;
-use std::io::Stderr;
+use serde_json::Error as SerdeError;
+use std::io::{Cursor, Error as IoError, ErrorKind};
 
 /// This message header is shared by all message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,19 +46,55 @@ impl Msg {
     }
 }
 
-pub fn serialize_msg(msg: Msg) -> Result<Vec<u8>,Stderr> {
+#[derive(Debug)]
+pub enum DeserializeError {
+    Io(IoError),
+    Serde(SerdeError),
+}
+
+#[derive(Debug)]
+pub enum SerializeError {
+    Io(IoError),
+    Serde(SerdeError),
+}
+
+impl From<IoError> for DeserializeError {
+    fn from(error: IoError) -> Self {
+        DeserializeError::Io(error)
+    }
+}
+
+impl From<SerdeError> for DeserializeError {
+    fn from(error: SerdeError) -> Self {
+        DeserializeError::Serde(error)
+    }
+}
+
+impl From<IoError> for SerializeError {
+    fn from(error: IoError) -> Self {
+        SerializeError::Io(error)
+    }
+}
+
+impl From<SerdeError> for SerializeError {
+    fn from(error: SerdeError) -> Self {
+        SerializeError::Serde(error)
+    }
+}
+
+pub fn serialize_msg(msg: Msg) -> Result<Vec<u8>,SerializeError> {
     let mut buf = Vec::new();
-    let _serialized_msg = serde_json::to_writer(&mut buf, &msg).unwrap();
+    let _serialized_msg = serde_json::to_writer(&mut buf, &msg)?;
     Ok(buf)
 }
 
-pub fn deserialize_msg(buffer: Vec<u8>) -> Result<Msg, Stderr> {
+pub fn deserialize_msg(buffer: Vec<u8>) -> Result<Msg, DeserializeError> {
     // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
     let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
     let mut cursor = Cursor::new(trimmed_buffer);
 
     // Deserialize the message
-    let deserialized_msg: Msg = serde_json::from_reader(&mut cursor).unwrap();
+    let deserialized_msg: Msg = serde_json::from_reader(&mut cursor)?;
     Ok(deserialized_msg)
 }
 
