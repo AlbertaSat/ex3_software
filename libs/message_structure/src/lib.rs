@@ -5,12 +5,12 @@ This source file contains a message struct that defines various data formats as
 it flows through the ex3 software stack (GS to OBC and various software components within).
 
 References:
-    -
+    - https://crates.io/crates/serde_json/1.0.1
 */
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Error as SerdeError;
-use std::io::{Cursor, Error as IoError, ErrorKind};
+use std::io::{Cursor, Error as IoError};
 
 /// This message header is shared by all message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
