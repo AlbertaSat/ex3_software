@@ -101,6 +101,8 @@ pub fn deserialize_msg(buffer: Vec<u8>) -> Result<Msg, DeserializeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::ser::{Serialize, Serializer};
+    use serde::de::{self, Deserialize, Deserializer};
 
     #[test]
     fn test_msg_serdes() {
@@ -114,5 +116,60 @@ mod tests {
         println!("Deserialized Msg: {:?}", deserialized_msg);
         assert_eq!(deserialized_msg.as_ref().unwrap().header.msg_len, 12);
         assert_eq!(deserialized_msg.unwrap().msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
+    }
+    #[derive(Debug)]
+    struct AlwaysFail;
+
+    impl Serialize for AlwaysFail {
+        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            Err(serde::ser::Error::custom("Intentional serialization failure"))
+        }
+    }
+
+    impl<'de> Deserialize<'de> for AlwaysFail {
+        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            Err(de::Error::custom("Intentional deserialization failure"))
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct MsgWithFail {
+        header: MsgHeader,
+        msg_body: Vec<u8>,
+        fail_field: AlwaysFail, // This field will cause serialization to fail
+    }
+
+    #[test]
+    fn test_msg_serialize_failure() {
+        let header = MsgHeader {
+            msg_len: 5,
+            msg_id: 0,
+            dest_id: 2,
+            source_id: 3,
+            op_code: 4,
+        };
+        let msg_with_fail = MsgWithFail {
+            header,
+            msg_body: vec![0, 1, 2, 3, 4, 5, 6],
+            fail_field: AlwaysFail,
+        };
+
+        let result = serde_json::to_vec(&msg_with_fail);
+        assert!(result.is_err(), "Expected serialization to fail");
+    }
+
+    #[test]
+    fn test_msg_deserialize_failure() {
+        // Invalid JSON data
+        let invalid_json = b"invalid json data";
+
+        let result: Result<Msg, _> = serde_json::from_slice(invalid_json);
+        assert!(result.is_err(), "Expected deserialization to fail");
     }
 }
