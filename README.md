@@ -40,3 +40,13 @@ For example, to test the dfgm handler with a mock dispatcher (tcp server setup u
 ```@sh
 bash dfgm_handler_test.sh
 ```
+
+## Message Format
+
+Below is the current format for how we will pass data through the OBC. It is subject to change as the project develops.
+
+| Byte 0 | Byte 1 | Byte 2 | Byte 3 | Byte 4 | Byte 5 | Byte 6 | Byte 127 |
+| :----: | :----: | :----: | :----: | :----: | :----: | :----: | :----: |
+| Length | MsgID  | DestID | SrcID  | Opcode | Data 0 | Data 1 | ... 0 |
+
+The message as a whole is 128 bytes long and everything that comes after the Opcode is a vector of bytes.
