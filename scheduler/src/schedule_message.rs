@@ -41,7 +41,7 @@ pub fn handle_state(msg: &Message) {
     }
 }
 
-// This function exists so the message is able to be scheduled
+// This function exists so the message is able to be scheduled. Reads time bytes as LITTLE-ENDIAN
 pub fn get_time(msg_body: Vec<u8>) -> u64 {
     assert!(msg_body.len() >= 6, "msg_body must be at least 6 bytes long");
     let time_bytes = &msg_body[0..6];

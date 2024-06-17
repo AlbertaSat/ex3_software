@@ -2,7 +2,7 @@
 This scheduler reads a stream of bytes using a TCP port and deserializes it into a Msg Struct which can be found in libs/message_structure.
 
 ### Running
-```bash
+```@bash
 cargo run --bin scheduler
 ```
 This creates a TCP server for clients to connect to.
@@ -10,6 +10,8 @@ This creates a TCP server for clients to connect to.
 Next, you can test its ability to read in a Msg struct by running the **cli_test_msg** directory which creates a client for the scheduler to read.
 
 ### Additional Info
+
+*The scheduler should be run from the root directory of the cargo workspace to properly initilize logging*
 
 The scheduler will also make two new directories when it runs:
 

@@ -7,10 +7,10 @@ use std::time::SystemTime;
 use std::io::BufRead;
 use crate::{log_info, log_error};
 
-pub fn process_saved_commands(dir: &str, curr_time_millis: u64) {
-    let saved_commands_dir = Path::new(dir);
-    if saved_commands_dir.exists() && saved_commands_dir.is_dir() {
-        match fs::read_dir(saved_commands_dir) {
+pub fn process_saved_messages(dir: &str, curr_time_millis: u64) {
+    let saved_messages_dir = Path::new(dir);
+    if saved_messages_dir.exists() && saved_messages_dir.is_dir() {
+        match fs::read_dir(saved_messages_dir) {
             Ok(entries) => {
                 for entry in entries.flatten() {
                     process_entry(entry, curr_time_millis);
@@ -65,7 +65,7 @@ pub fn get_current_time_millis() -> u64 {
 
 pub fn write_input_tuple_to_rolling_file(input_tuple: &(u64, u8)) -> Result<(), io::Error> {
     // Create the directory if it doesn't exist
-    let dir_path = "scheduler/saved_commands";
+    let dir_path = "scheduler/saved_messages";
     fs::create_dir_all(dir_path)?;
 
     // Get the total size of files in the directory
@@ -74,7 +74,7 @@ pub fn write_input_tuple_to_rolling_file(input_tuple: &(u64, u8)) -> Result<(), 
         .map(|entry| entry.metadata().ok().map(|m| m.len()).unwrap_or(0))
         .sum();
 
-    // Specify the maximum size of saved_commands directory in bytes
+    // Specify the maximum size of saved_messages directory in bytes
     let max_size_bytes: u64 = 2048; // 2 KB
 
     // If the total size exceeds the maximum size, remove the oldest file

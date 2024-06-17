@@ -3,7 +3,7 @@
     References: https://www.geeksforgeeks.org/process-schedulers-in-operating-system/
         - Justification for having multiple message states
 
-    Saved_commands: name of the file that is created is the time of execution of the command
+    Saved_messages: name of the file that is created is the time of execution of the command
 */
 
 
@@ -24,14 +24,14 @@ const CHECK_DELAY: u8 = 100;
 
 fn main() {
     init_logger();
-    check_saved_commands();
+    check_saved_messages();
     run_scheduler();
 }
 
-fn check_saved_commands() {
+fn check_saved_messages() {
     thread::spawn(move || loop {
         let curr_time = get_current_time_millis();
-        process_saved_commands("scheduler/saved_commands", curr_time);
+        process_saved_messages("scheduler/saved_messages", curr_time);
         thread::sleep(Duration::from_millis(CHECK_DELAY as u64));
     });
 }
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_write_input_tuple_creates_file() {
-        let test_dir = "scheduler/saved_commands".to_string();
+        let test_dir = "scheduler/saved_messages".to_string();
         let input_tuple: (u64, u8) = (1717110630000, 30);
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_oldest_file_deletion() {
-        let test_dir = "scheduler/saved_commands";
+        let test_dir = "scheduler/saved_messages";
         fs::create_dir_all(test_dir).unwrap();
 
         let input_tuple = (1717428208, 66);
