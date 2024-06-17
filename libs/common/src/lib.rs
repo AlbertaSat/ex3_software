@@ -8,4 +8,5 @@ pub mod ports {
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
     pub const SCHEDULER_DISPATCHER_PORT: u16 = 1901;
     pub const SUBSYSTEM_MONITOR_DISPATCHER_PORT: u16 = 1902;
+    pub const BULK_MSG_HANDLER_DISPATCHER_PORT: u16 = 1903;
 }
