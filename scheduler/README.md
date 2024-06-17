@@ -1,23 +1,21 @@
 # Scheduler
-Expects two lines of input from stdin:
+This scheduler reads a stream of bytes using a TCP port and deserializes it into a Msg Struct which can be found in libs/message_structure.
 
-1. The command number
-2. The time of execution of the command in the format *YYYY-MM-DD HH:MM:SS*
-
-***IMPORTANT:*** The scheduler expects time arguments in **UTC** to compare the current time with the time of the command.
-
-### Example Command:
-```bash
+### Running
+```@bash
 cargo run --bin scheduler
-1
-2024-06-22 22:34:50
 ```
+This creates a TCP server for clients to connect to.
 
-where 1 is the command and the line below it is the execution time.
+Next, you can test its ability to read in a Msg struct by running the **cli_test_msg** directory which creates a client for the scheduler to read.
+
+### Additional Info
+
+*The scheduler should be run from the root directory of the cargo workspace to properly initilize logging*
 
 The scheduler will also make two new directories when it runs:
 
-- A *scheduler_log* folder will contain logs that are made as part of the code.
+- A *scheduler_logs* folder will contain logs that are made as part of the code.
 - A *saved_commands* folder which will have the command saved in it's own timestamped file. As of now, if multiple commands are given, a new file will be created for each one. There is a rolling file system in place for this that holds 2 KB of files.
 
-The scheduler will pass along a command once it receives another command and passes through a check of the saved_commands directory again. Any command that is stored there whose time has passed or is now will be executed.
+There is a script in the scripts directory to delete these extra directories if needed.

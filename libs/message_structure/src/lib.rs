@@ -106,6 +106,8 @@ mod tests {
 
     #[test]
     fn test_msg_serdes() {
+
+        // Why does the serialization also take the commas??
         let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
         let serialized_msg = serialize_msg(msg).unwrap();
