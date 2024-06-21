@@ -7,7 +7,7 @@
 */
 
 
-use std::{time::Duration, sync::{Arc, Mutex}};
+use std::{time::Duration, sync::{Arc, Mutex}, collections::HashSet};
 use std::sync::mpsc;
 use std::thread;
 pub mod schedule_message;
@@ -29,29 +29,28 @@ fn main() {
 }
 
 fn check_saved_messages() {
+    let already_read = Arc::new(Mutex::new(HashSet::new()));
+
     thread::spawn(move || loop {
+        let already_read_clone = Arc::clone(&already_read);
         let curr_time = get_current_time_millis();
-        process_saved_messages("scheduler/saved_messages", curr_time);
+        process_saved_messages("scheduler/saved_messages", curr_time, &already_read_clone);
         thread::sleep(Duration::from_millis(CHECK_DELAY as u64));
     });
 }
 
 fn run_scheduler() {
-
     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+
     let ip = "127.0.0.1".to_string();
     let port = SCHEDULER_DISPATCHER_PORT;
     loop {
-
         let tcp_interface = interfaces::TcpInterface::new_server(ip.clone(), port).unwrap();
 
         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-        // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
-
         interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
         match sched_reader_rx.recv() {
             Ok(buffer) => {
-                // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
                 let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
                 let mut cursor = Cursor::new(trimmed_buffer);
                 match serde_json::from_reader(&mut cursor) {
@@ -71,7 +70,6 @@ fn run_scheduler() {
 }
 
 fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
-    // gets execution time as unix epoch
     let command_time: u64 = get_time(deserialized_msg.msg_body);
     let curr_time_millis: u64 = get_current_time_millis();
     let input_tuple: (u64, u8) = (command_time, deserialized_msg.header.msg_id);
@@ -79,12 +77,8 @@ fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
 
     if command_time <= curr_time_millis {
-        // Message state dictates what the scheduler does with the message
-        // msg.state = MessageState::Running;
-        // handle_state(&msg);
         log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
     } else {
-        // save to non-volatile memory
         if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
             eprintln!("Failed to write input tuple to file: {}", err);
         } else {
@@ -92,7 +86,6 @@ fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
         }
         log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
 
-        // Update the shared input
         let mut shared_input = input.lock().unwrap();
         *shared_input = deserialized_msg.header.msg_id.to_string();
     }
