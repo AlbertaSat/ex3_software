@@ -19,7 +19,6 @@ use crate::log::*;
 use tcp_interface::{self, TCP_BUFFER_SIZE};
 use message_structure::*;
 use common::{self, ports::SCHEDULER_DISPATCHER_PORT};
-use std::io::Cursor;
 const CHECK_DELAY: u8 = 100;
 
 fn main() {
@@ -54,28 +53,25 @@ fn run_scheduler() {
         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
         match sched_reader_rx.recv() {
             Ok(buffer) => {
-                let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
-                let mut cursor = Cursor::new(trimmed_buffer);
-                match serde_json::from_reader(&mut cursor) {
-                    Ok(deserialized_msg) => {
-                        process_message(deserialized_msg, &input);
-                    }
-                    Err(e) => {
-                        log_error(format!("Failed to deserialize message: {}", e), 5);
-                    }
-                }
+                let deserialized_msg: Msg = deserialize_msg(buffer).unwrap();
+                process_message(deserialized_msg, &input);
             }
             Err(e) => {
-                log_error(format!("Failed to receive message: {}", e), 5);
+                // ID 5 is arbitrary ID for error message
+                log_error(format!("Failed to deserialize message {}", e), 5);
             }
         }
     }
 }
 
 fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
-    let command_time: u64 = get_time(deserialized_msg.msg_body);
+    // unwrap message to get inner message for the subsystem
+    // the message body is the serialized message
+    let subsystem_msg: Msg = deserialize_msg(deserialized_msg.msg_body).unwrap();
+
+    let command_time: u64 = get_time(subsystem_msg.msg_body);
     let curr_time_millis: u64 = get_current_time_millis();
-    let input_tuple: (u64, u8) = (command_time, deserialized_msg.header.msg_id);
+    let input_tuple: (u64, u8) = (command_time, subsystem_msg.header.msg_id);
 
     println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
 
