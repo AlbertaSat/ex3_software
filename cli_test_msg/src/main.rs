@@ -32,7 +32,9 @@ fn main() {
     let msg_time: u64 = timestamp_to_epoch(timestamp.clone()).unwrap();
     let msg_time_bytes = msg_time.to_le_bytes().to_vec();
 
-    let data: Msg = Msg::new(22,0,0,0,msg_time_bytes);
+    let inner_msg: Msg = Msg::new(22,4,0,0,msg_time_bytes);
+    let serialized_inner_msg = serialize_msg(inner_msg).unwrap();
+    let data: Msg = Msg::new(0,8,1,2,serialized_inner_msg);
 
     let mut stream = TcpStream::connect((Ipv4Addr::new(127, 0, 0, 1), port)).unwrap();
     let output_stream = &mut stream;
