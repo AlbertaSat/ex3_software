@@ -7,5 +7,7 @@ members = [
     "libs/message_structure",
     "scheduler",
     "handlers/dfgm_handler",
-    "libs/common", "cli_test_msg",
+    "libs/common", 
+    "ipc_testing/cli_test_msg", 
+    "ipc_testing/ipc_client_test",
 ]
