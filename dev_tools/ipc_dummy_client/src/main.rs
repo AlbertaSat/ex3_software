@@ -8,9 +8,7 @@ use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr};
 use nix::unistd::{read, write};
 use std::env;
 use std::ffi::CString;
-use std::fs::File;
 use std::io::{self, BufRead};
-use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::process;
 
