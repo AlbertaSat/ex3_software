@@ -15,7 +15,7 @@ Summer 2024
 #include "connection.h"
 
 /// @brief If errno is not set by a function (perror cannot be used), then this fxn is used  to handle errors that crash the program
-/// @param error_msg 
+/// @param error_msg
 void handle_error(char *error_msg)
 {
     fprintf(stderr, "Error: %s", error_msg);
@@ -23,7 +23,7 @@ void handle_error(char *error_msg)
 }
 
 /// @brief Create a Unix Domain socket using SOCK_SEQPACKET type sockets, which have defined boundaries (a message 'unit' rather than stream)
-/// @return 
+/// @return
 int create_socket()
 {
     int data_socket = socket(AF_UNIX, SOCK_SEQPACKET, 0);
@@ -48,9 +48,9 @@ int get_msg_dest_id(char *data_buf)
     return dest_id;
 }
 
-/// @brief Constructor that creates a component struct by malloc-ing space required and assigning default values 
-/// @param name 
-/// @param component_id 
+/// @brief Constructor that creates a component struct by malloc-ing space required and assigning default values
+/// @param name
+/// @param component_id
 /// @return *ComponentStruct
 ComponentStruct *component_factory(char *name, int component_id)
 {
@@ -59,7 +59,7 @@ ComponentStruct *component_factory(char *name, int component_id)
     strcpy(c->name, name);
     c->component_id = component_id;
     c->connected = 0;
-    //1. Create a socket and get its associated fd 
+    // 1. Create a socket and get its associated fd
     c->conn_socket_fd = create_socket();
     printf("Created conn socket, with fd: %d\n", c->conn_socket_fd);
 
@@ -89,11 +89,11 @@ ComponentStruct *component_factory(char *name, int component_id)
     return c;
 }
 
-/// @brief Get the file descriptor associated with a component based on its component ID 
-/// @param cs 
-/// @param num_components 
-/// @param id 
-/// @return Associated fd for that component 
+/// @brief Get the file descriptor associated with a component based on its component ID
+/// @param cs
+/// @param num_components
+/// @param id
+/// @return Associated fd for that component
 int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
 {
     // loop over components, get fd of one with matching id
@@ -117,10 +117,9 @@ int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
     return -1;
 }
 
-
-/// @brief Accept an incoming client request. Update associated component structs data fd and connected flag 
-/// @param component 
-/// @param poll_struct 
+/// @brief Accept an incoming client request. Update associated component structs data fd and connected flag
+/// @param component
+/// @param poll_struct
 void accept_incoming_client_conn_request(ComponentStruct *component, struct pollfd *poll_struct)
 {
     socklen_t addrlen = sizeof(component->conn_socket);
@@ -137,13 +136,13 @@ void accept_incoming_client_conn_request(ComponentStruct *component, struct poll
 }
 
 /// @brief Read the incomming data from a connected component. If zero is read, then we know conn is dropped and flag is zeroed
-/// @param component 
-/// @param poll_struct 
-/// @param buffer 
+/// @param component
+/// @param poll_struct
+/// @param buffer
 /// @return Number of bytes read
 int read_data_socket(ComponentStruct *component, struct pollfd *poll_struct, char *buffer)
 {
-    int ret = read(poll_struct->fd, buffer,MSG_UNIT_SIZE);
+    int ret = read(poll_struct->fd, buffer, MSG_UNIT_SIZE);
     if (ret == -1)
     {
         perror("read");
@@ -152,6 +151,7 @@ int read_data_socket(ComponentStruct *component, struct pollfd *poll_struct, cha
     else if (ret == 0)
     {
         poll_struct->fd = component->conn_socket_fd; // Go back to polling the conn socket fd to listen for client connections components[i]->connected = 0;               // Reset the conn flag (so we know we are back to looking for conn revents on the poll)
+        component->connected = 0;
         printf("Connection to socket: %s closed . {zero byte read indicates this}\n", component->name);
         memset(buffer, 0, MSG_UNIT_SIZE);
     }
