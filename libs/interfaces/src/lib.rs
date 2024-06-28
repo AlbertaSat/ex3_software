@@ -5,12 +5,19 @@ Summer 2024
 
 use std::io::{Error, Read, Write};
 use std::net::TcpStream;
-use std::sync::{
-    mpsc::{Receiver, Sender},
-    Arc, Mutex,
-};
-use std::thread;
+use std::sync::{Arc, Mutex};
+use nix::libc;
+use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr};
+use nix::unistd::{read, write};
+use std::ffi::CString;
+use std::io;
+use std::path::Path;
+use std::process;
+use message_structure::*;
 
+pub const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
+pub const IPC_BUFFER_SIZE: usize = 1024;
+pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
 pub const TCP_BUFFER_SIZE: usize = 1024;
 
 /// Interface trait to be implemented by all external interfaces
@@ -74,101 +81,177 @@ impl Interface for TcpInterface {
     }
 }
 
-/// handle asynchronous reading on an interface by spawing a new thread and passing data to mpsc sender channel
-#[allow(dead_code)]
-pub fn async_read<T: Interface + Send + 'static>(mut interface: T, sender: Sender<Vec<u8>>, buffer_size: usize) {
-    thread::spawn(move || {
-        println!("Async read thread started");
-        loop {
-            let mut buffer = vec![0; buffer_size];
-            match interface.read(&mut buffer) {
-                Ok(_) => {
-                    //if buffer is empty or only zeroes, ignore it
-                    if buffer.iter().all(|&x| x == 0) {
-                        break;
+pub struct IPCInterface {
+    fd: i32,
+    socket_name: String,
+    connected: bool,
+}
+
+
+impl IPCInterface {
+
+    pub fn new(&mut self, socket_name: String) -> IPCInterface {
+        let fd = self.create_socket().unwrap();
+        let connected = if self.make_connection(fd, socket_name.clone()) {true} else {false};
+        IPCInterface {
+            fd,
+            socket_name,
+            connected,
+        }
+    }
+
+    /// create a socket of type SOCK_SEQPACKET to allow passing of information through processes
+    fn create_socket(&mut self) -> io::Result<i32> {
+        let socket_fd = socket::socket(
+            AddressFamily::Unix,
+            SockType::SeqPacket,
+            SockFlag::empty(),
+            None,
+        )?;
+        Ok(socket_fd)
+    }
+
+    /// Connect client process. True if connection is established.
+    fn make_connection(&mut self, socket_fd: i32, client_name: String) -> bool {
+        let fifo_name = format!("{}{}", SOCKET_PATH_PREPEND, client_name);
+        let socket_path = CString::new(fifo_name).unwrap();
+        let addr = UnixAddr::new(Path::new(socket_path.to_str().unwrap())).unwrap_or_else(|err| {
+            eprintln!("Failed to create UnixAddr: {}", err);
+            process::exit(1);
+        });
+        println!("Attempting to connect to {}", socket_path.to_str().unwrap());
+
+        socket::connect(socket_fd, &addr).unwrap_or_else(|err| {
+            eprintln!("Failed to connect to server: {}", err);
+            process::exit(1);
+        });
+
+        println!(
+            "Successfully Connected to {}, with fd: {}",
+            socket_path.to_str().unwrap(),
+            socket_fd
+        );
+        true
+    }
+}
+
+
+/// read bytes over a UNIX SOCK_SEQPACKET socket from a sender. Takes in the fd location to write to.
+/// loop{} over this 
+pub fn read_socket(read_fd: i32) -> usize {
+    // client name is the name of the handler or thing that the client is trying to connect to (fifo is named with this in path)
+
+    //We assume the fd for stdin is always zero. This is the default for UNIX systems and is unlikely to change.
+
+    let mut poll_fds = [
+        libc::pollfd {
+            fd: read_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+
+    
+        let ready = unsafe {
+            libc::poll(
+                poll_fds.as_mut_ptr(),
+                poll_fds.len() as libc::nfds_t,
+                CLIENT_POLL_TIMEOUT_MS,
+            )
+        };
+
+        if ready == -1 {
+            eprintln!("poll error");
+            process::exit(1);
+        }
+
+        for poll_fd in &poll_fds {
+            // println!("poll_fd: {:?}", poll_fd);
+            if poll_fd.revents != 0 {
+                if poll_fd.revents & libc::POLLIN != 0 {
+                    if poll_fd.fd == read_fd {
+                        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
+                        let ret = read(read_fd, &mut socket_buf).unwrap();
+
+                        if ret == 0 {
+                            println!("Connection to server dropped. Exiting...");
+                            process::exit(0);
+                        } else {
+                            println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
+                        }
+                        return ret;
                     }
-                    sender.send(buffer).unwrap();
-                }
-                Err(e) => {
-                    eprintln!("Read error: {}", e);
-                    break;
-                }
+                } 
             }
         }
-    });
+        return 0;
+    
 }
 
-/// handle asynchronous writing on an interface by spawing a new thread and reading data from mpsc receiver channel
-#[allow(dead_code)]
-pub fn async_write<T: Interface + Send + 'static>(mut interface: T, receiver: Receiver<Vec<u8>>) {
-    thread::spawn(move || {
-        println!("Async write thread started");
-        for data in receiver {
-            if let Err(e) = interface.send(&data) {
-                eprintln!("Write error: {}", e);
-                break;
-            } else {
-                //println!("Data sent: {:?}", data);
+/// Function for sending data over a specific socket fd. The data should be a 
+/// serialized Msg struct as a Vec<u8>
+pub fn send_over_socket(sender_fd: i32, data: Vec<u8>) -> usize {
+    let mut poll_fds = [
+        libc::pollfd {
+            fd: sender_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+
+    loop {
+        let ready = unsafe {
+            libc::poll(
+                poll_fds.as_mut_ptr(),
+                poll_fds.len() as libc::nfds_t,
+                CLIENT_POLL_TIMEOUT_MS,
+            )
+        };
+
+        if ready == -1 {
+            eprintln!("poll error");
+            process::exit(1);
+        }
+
+        for poll_fd in &poll_fds {
+            // println!("poll_fd: {:?}", poll_fd);
+            if poll_fd.revents != 0 {
+                if poll_fd.revents & libc::POLLIN != 0 {
+                    if poll_fd.fd == sender_fd {
+                        // write(sender_fd, data.as_slice()).unwrap_or_else(|_| {
+                        //     eprintln!("write error");
+                        //     process::exit(1);
+                        // });
+                        println!("{:?}", data);
+                    }
+                }  
             }
         }
-    });
+    }
 }
 
-pub fn presence() -> String {
-    "interfaces".to_string()
-}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc;
-    use std::time::Duration;
-
     #[test]
-    fn test_tcp_interface() {
-        let ip = "127.0.0.1".to_string();
-        let port = 1802;
-        let tcp_interface = TcpInterface::new_client(ip, port).unwrap();
-
-        let (send_tx, send_rx) = mpsc::channel();
-        let (recv_tx, recv_rx) = mpsc::channel();
-
-        async_read(tcp_interface.clone(), recv_tx, 1024);
-        async_write(tcp_interface.clone(), send_rx);
-
-        send_tx.send(b"Hello, World!".to_vec());
-
-        if let Ok(data) = recv_rx.recv() {
-            println!("Received data: {:?}", data);
+    fn test_read_write() {
+        let mut ipc: IPCInterface = IPCInterface {
+            fd: 0,
+            socket_name: "string".to_string(),
+            connected: false
+            };
+        let interface = IPCInterface::new(&mut ipc, "dfgm_handler".to_string());
+        // let msg: Msg = Msg::new(0,0,0,0,vec![0,0]);
+        // let data: Vec<u8> = serialize_msg(msg).unwrap();
+        loop{
+        let output = read_socket(interface.fd);
+        if output > 5 {
+            break;
+        } else {
+            continue;
         }
-
-        // Sleep to let threads run
-        thread::sleep(Duration::from_secs(3));
-    }
-
-    #[test]
-    fn test_tcp_interface_server(){
-        let ip = "127.0.0.1";
-        let port = 1900;
-        let tcp_interface_server = TcpInterface::new_server(ip.to_string(), port).unwrap();
-
-        // Create channels for talking to reading / writing threads
-        let (send_tx, send_rx) = mpsc::channel();
-        let (recv_tx, recv_rx) = mpsc::channel();
-
-        async_read(tcp_interface_server.clone(), recv_tx, 1024);
-        async_write(tcp_interface_server.clone(), send_rx);
-
-        // Wait for a connection to be established - check if connection is established instead of waiting
-
-        send_tx.send(b"Hello, World!".to_vec());
-
-        if let Ok(data) = recv_rx.recv() {
-            println!("Received data: {:?}", data);
         }
-
-        // Sleep to let threads run
-        thread::sleep(Duration::from_secs(3));
-
-    }
+    }   
 }
