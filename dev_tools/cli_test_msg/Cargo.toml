@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-message_structure = { path = "../libs/message_structure" }
+message_structure = { path = "../../libs/message_structure" }
 serde_json = "1.0.117"
 chrono = "0.4"

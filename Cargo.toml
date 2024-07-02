@@ -3,9 +3,10 @@
 members = [
     "handlers/handler",
     "libs/interfaces",
-    "message_dispatcher",
     "libs/message_structure",
     "scheduler",
     "handlers/dfgm_handler",
-    "libs/common", "cli_test_msg",
+    "libs/common", 
+    "dev_tools/cli_test_msg", 
+    "dev_tools/ipc_dummy_client",
 ]
