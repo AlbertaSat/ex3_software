@@ -13,7 +13,6 @@ use std::io::{self, BufRead, Read};
 use std::net::{TcpStream, SocketAddr};
 use std::path::Path;
 use std::process;
-use std::str::FromStr;
 use std::os::fd::AsRawFd;
 use std::net::TcpListener;
 
