@@ -16,8 +16,8 @@ fn main() {
     println!("Writing data to OBC FSW via TCP client socket connection");
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 1 {
-        println!("Usage: <obc_port> Default_Msg...");
+    if args.len() < 2 {
+        println!("Usage: <obc_port> <subsystem> ");
         return;
     }
 
