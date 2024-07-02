@@ -16,8 +16,8 @@ fn main() {
     println!("Writing data to OBC FSW via TCP client socket connection");
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 1 {
-        println!("Usage: <obc_port> Default_Msg...");
+    if args.len() < 2 {
+        println!("Usage: <obc_port> <subsystem> ");
         return;
     }
 
@@ -33,7 +33,7 @@ fn main() {
         let msg_time_bytes = msg_time.to_le_bytes().to_vec();
 
         let inner_msg: Msg = Msg::new(22,4,0,0,msg_time_bytes);
-        let serialized_inner_msg = serialize_msg(inner_msg).unwrap();
+        let serialized_inner_msg = serialize_msg(&inner_msg).unwrap();
         data = Msg::new(0,8,1,2,serialized_inner_msg);
     }
 

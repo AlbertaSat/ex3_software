@@ -40,7 +40,14 @@ int create_socket()
 int get_msg_dest_id(char *data_buf)
 {
     // Use byte offset
+<<<<<<< HEAD
     int dest_id = data_buf[2];
+=======
+    int dest_id = data_buf[46];
+
+    // TEMP for now we are sending ascii chars, so we want to offset the numerical value
+    dest_id -= '0';
+>>>>>>> 0aaadca (Very beta working tall-thin with json serdes. ipc_dummy_client acts as TCP server for input.)
     printf("Msg Dest ID: %d\n", dest_id);
     return dest_id;
 }
