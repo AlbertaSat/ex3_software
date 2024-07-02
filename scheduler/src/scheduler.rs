@@ -5,15 +5,17 @@ use std::io;
 use std::io::Write;
 use std::time::SystemTime;
 use std::io::BufRead;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use crate::{log_info, log_error};
 
-pub fn process_saved_messages(dir: &str, curr_time_millis: u64) {
+pub fn process_saved_messages(dir: &str, curr_time_millis: u64, already_read: &Arc<Mutex<HashSet<String>>>) {
     let saved_messages_dir = Path::new(dir);
     if saved_messages_dir.exists() && saved_messages_dir.is_dir() {
         match fs::read_dir(saved_messages_dir) {
             Ok(entries) => {
                 for entry in entries.flatten() {
-                    process_entry(entry, curr_time_millis);
+                    process_entry(entry, curr_time_millis, already_read);
                 }
             }
             Err(e) => eprintln!("Error reading directory: {:?}", e),
@@ -23,12 +25,19 @@ pub fn process_saved_messages(dir: &str, curr_time_millis: u64) {
     }
 }
 
-fn process_entry(entry: fs::DirEntry, curr_time_millis: u64) {
+fn process_entry(entry: fs::DirEntry, curr_time_millis: u64, already_read: &Arc<Mutex<HashSet<String>>>) {
     if let Some(file_name) = entry.file_name().to_str() {
+        let file_name = file_name.to_string();
+        let file_path = entry.path();
         if file_name.ends_with(".txt") {
             if let Ok(file_time) = file_name.trim_end_matches(".txt").parse::<u64>() {
                 if file_time <= curr_time_millis {
-                    send_message(&entry.path(), file_name);
+                    let mut already_read_set = already_read.lock().unwrap();
+                    if !already_read_set.contains(&file_name) {
+                        already_read_set.insert(file_name.clone());
+                        drop(already_read_set); // Release the lock before calling send_message
+                        send_message(&file_path, &file_name);
+                    }
                 }
             }
         }
