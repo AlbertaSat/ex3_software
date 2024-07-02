@@ -40,7 +40,7 @@ int create_socket()
 int get_msg_dest_id(char *data_buf)
 {
     // Use byte offset
-    int dest_id = data_buf[2];
+    int dest_id = data_buf[46];
 
     // TEMP for now we are sending ascii chars, so we want to offset the numerical value
     dest_id -= '0';
