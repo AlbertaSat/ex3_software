@@ -9,4 +9,5 @@ members = [
     "libs/common", 
     "dev_tools/cli_test_msg", 
     "dev_tools/ipc_dummy_client",
+    "libs/ipc_interface",
 ]
