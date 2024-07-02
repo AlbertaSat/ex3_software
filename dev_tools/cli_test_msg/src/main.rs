@@ -11,9 +11,6 @@ use std::net::Ipv4Addr;
 use std::net::TcpStream;
 use cli_test_msg::timestamp_to_epoch;
 use message_structure::*;
-use serde_json;
-
-
 
 fn main() {
     println!("Writing data to OBC FSW via TCP client socket connection");
@@ -37,16 +34,9 @@ fn main() {
     let mut stream = TcpStream::connect((Ipv4Addr::new(127, 0, 0, 1), port)).unwrap();
     let output_stream = &mut stream;
 
-    let command_bytes = build_command_bytes(data);
+    let command_bytes = serialize_msg(&data).unwrap();
+    println!("Bytes Sent: {:?}", command_bytes);
 
     output_stream.write(&command_bytes).unwrap();
     output_stream.flush().unwrap();
-}
-
-fn build_command_bytes(data: Msg) -> Vec<u8> {
-    let mut buf = Vec::new();
-    let _serialized_msg = serde_json::to_writer(&mut buf, &data).unwrap();
-
-    println!("Command Byte Values: {:?}", buf);
-    buf
 }
