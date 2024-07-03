@@ -51,6 +51,13 @@ fn run_scheduler() {
         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
 
         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
+
+        let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
+
+        let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
+        // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+
+        tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
         match sched_reader_rx.recv() {
             Ok(buffer) => {
                 let deserialized_msg: Msg = deserialize_msg(buffer).unwrap();
