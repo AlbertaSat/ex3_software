@@ -66,13 +66,13 @@ impl Msg {
         Msg { header, msg_body: data }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = self.header.to_bytes()?;
         bytes.extend_from_slice(&self.msg_body);
         Ok(bytes)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
         let header_bytes = &bytes[0..5];
         let msg_body = bytes[5..].to_vec();
         let header = MsgHeader::from_bytes(header_bytes)?;

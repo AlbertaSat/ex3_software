@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-interfaces = { path = "../libs/interfaces" }
+tcp_interface = { path = "../libs/tcp_interface" }
 message_structure = { path = "../libs/message_structure" }
 common = { path = "../libs/common" }
 log = "0.4"

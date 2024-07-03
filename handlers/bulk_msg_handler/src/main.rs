@@ -6,7 +6,7 @@ use common::ports::BULK_MSG_HANDLER_DISPATCHER_PORT;
     It will break it into multiple packets if this condition is true and
     will assign the packets a sequence number at msg_body[0]
  */
-use interfaces::*;
+use tcp_interface::*;
 use message_structure::*;
 
 use std::sync::mpsc;

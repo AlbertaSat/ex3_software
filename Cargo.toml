@@ -2,7 +2,7 @@
 
 members = [
     "handlers/handler",
-    "libs/interfaces",
+    "libs/tcp_interface",
     "libs/message_structure",
     "scheduler",
     "handlers/dfgm_handler",

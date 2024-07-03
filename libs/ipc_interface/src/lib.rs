@@ -3,10 +3,14 @@ use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr};
 use nix::unistd::{read, write};
 use std::ffi::CString;
 use std::io;
-use std::io::{Read, Write};
 use std::path::Path;
 use std::process;
 use std::io::Error as IoError;
+
+pub const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
+pub const IPC_BUFFER_SIZE: usize = 1024;
+pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
+pub const TCP_BUFFER_SIZE: usize = 1024;
 
 pub struct IPCInterface {
     fd: i32,
@@ -35,7 +39,7 @@ impl IPCInterface {
     }
 
     /// create a socket of type SOCK_SEQPACKET to allow passing of information through processes
-    pub fn create_socket(&mut self) -> io::Result<i32> {
+    fn create_socket(&mut self) -> io::Result<i32> {
         let socket_fd = socket::socket(
             AddressFamily::Unix,
             SockType::SeqPacket,
@@ -46,7 +50,7 @@ impl IPCInterface {
     }
 
     /// Connect client process. True if connection is established.
-    pub fn make_connection(&mut self, socket_fd: i32, client_name: String) -> bool {
+    fn make_connection(&mut self, socket_fd: i32, client_name: String) -> bool {
         let fifo_name = format!("{}{}", SOCKET_PATH_PREPEND, client_name);
         let socket_path = CString::new(fifo_name).unwrap();
         let addr = UnixAddr::new(Path::new(socket_path.to_str().unwrap())).unwrap_or_else(|err| {
@@ -71,7 +75,8 @@ impl IPCInterface {
 
 /// read bytes over a UNIX SOCK_SEQPACKET socket from a sender. Takes in the fd location to write to.
 /// loop{} over this
-pub fn read_socket(read_fd: i32) -> Result<usize, IoError> {
+/// The user needs to create a buffer to pass to the read function.
+pub fn read_socket(read_fd: i32, socket_buf: &mut Vec<u8>) -> Result<usize, IoError> {
     // client name is the name of the handler or thing that the client is trying to connect to (fifo is named with this in path)
 
     //We assume the fd for stdin is always zero. This is the default for UNIX systems and is unlikely to change.
@@ -100,14 +105,13 @@ pub fn read_socket(read_fd: i32) -> Result<usize, IoError> {
         if poll_fd.revents != 0 {
             if poll_fd.revents & libc::POLLIN != 0 {
                 if poll_fd.fd == read_fd {
-                    let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
-                    let ret = read(read_fd, &mut socket_buf).unwrap();
+                    let ret = read(read_fd, socket_buf).unwrap();
 
                     if ret == 0 {
                         println!("Connection to server dropped. Exiting...");
                         process::exit(0);
                     } else {
-                        println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
+                        println!("Received: {:?}", socket_buf);
                     }
                     return Ok(ret);
                 }
@@ -130,16 +134,18 @@ pub fn send_over_socket(write_fd: i32, data: Vec<u8>) -> Result<usize, IoError> 
 mod tests {
     use super::*;
     #[test]
-    fn test_dfgm_read() {
+    fn test_dfgm_echo() {
         let interface = IPCInterface::new("dfgm_handler".to_string());
+        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
-            let output = read_socket(interface.fd)?;
+            let output = read_socket(interface.fd, &mut socket_buf).unwrap();
             if output > 5 {
                 break;
             } else {
                 continue;
             }
         }
-        send_over_socket(interface.fd, data);
+        println!("Sending: {:?}", socket_buf);
+        send_over_socket(interface.fd, socket_buf.clone()).unwrap();
     }
 }

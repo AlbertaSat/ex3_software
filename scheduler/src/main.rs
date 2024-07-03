@@ -16,7 +16,7 @@ pub mod scheduler;
 use crate::scheduler::*;
 pub mod log;
 use crate::log::*;
-use interfaces::{self, TCP_BUFFER_SIZE};
+use tcp_interface::{self, TCP_BUFFER_SIZE};
 use message_structure::*;
 use common::{self, ports::SCHEDULER_DISPATCHER_PORT};
 use std::io::Cursor;
@@ -43,12 +43,12 @@ fn run_scheduler() {
     let port = SCHEDULER_DISPATCHER_PORT;
     loop {
 
-        let tcp_interface = interfaces::TcpInterface::new_server(ip.clone(), port).unwrap();
+        let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
 
         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
 
-        interfaces::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
+        tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
         match sched_reader_rx.recv() {
             Ok(buffer) => {
                 // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
