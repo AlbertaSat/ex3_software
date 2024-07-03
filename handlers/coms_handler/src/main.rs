@@ -2,14 +2,22 @@
 Written By Devin Headrick
 Summer 2024
 
-TODO - implement a 'gs' connection flag, which the handler uses to determine whether or not it can downlink messages to the ground station.
+For tall thin all we want this to do is talk to this (via TCP) and have it relay its data to the message dispatcher 
 
+TODO - implement a 'gs' connection flag, which the handler uses to determine whether or not it can downlink messages to the ground station.
 TODO - mucho error handling
 */
 
+use ipc_interface::{IPCInterface, IPC_BUFFER_SIZE, read_socket, send_over_socket};
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use message_structure::Msg;
+
+enum ComsHandlerOpCodes {
+    GetHK = 3,
+    SetBeacon = 4,
+    GetBeacon = 5,
+}
 
 ///Setup function for decrypting incoming messages from the UHF transceiver
 pub fn decrypt_byte_from_gs(encrypted_bytes: Vec<u8>) -> Vec<u8> {
@@ -23,8 +31,9 @@ pub fn decrypt_byte_from_gs(encrypted_bytes: Vec<u8>) -> Vec<u8> {
 fn handle_msg_for_coms(msg: Msg) {
     let opcode = msg.header.op_code;
     match (opcode) {
-        0 => println!("Opcode 0: Do nothing"),
-        1 => println!("Opcode 1: Do something"),
+        GetHK => println!("Opcode 3: Get House Keeping Data from COMS Handler for UHF"),
+        SetBeacon => println!("Opcode 4: Set the Beacon value"),
+        GetBeacon => println!("Opcode 5: Get the Beacon value "),
         _ => println!("Invalid msg opcode"),
     }
 }
@@ -33,7 +42,7 @@ fn handle_msg_for_coms(msg: Msg) {
 fn handle_msg_for_gs(msg: Msg) {
     let msg_len = msg.header.msg_len;
     if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES {
-        // If the message is a bulk message, then fragment it before downlinking  
+        // If the message is a bulk message, then fragment it before downlinking
         // TODO - handle bulk message
     }
     // TODO - downlink message to ground station
@@ -94,10 +103,17 @@ fn main() {
 
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
 
-    //Setup interface for comm with OBC FSW components (IPC)
+    //Setup interface for comm with OBC FSW components (IPC), by acting as a client connecting to msg dispatcher server
+    let ipc_interface = IPCInterface::new("coms_handler".to_string());
 
+    let mut ipc_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
     //loop - polling listen to both UHF transceiver & IPC unix domain socket
     loop {
         //Poll both the UHF transceiver and IPC unix domain socket
+        let output = read_socket(ipc_interface.fd, &mut ipc_buf).unwrap();
+
+        if (output > 0) {
+            println!("Received IPC Msg: {:?}", ipc_buf);
+        }
     }
 }

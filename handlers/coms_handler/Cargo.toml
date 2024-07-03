@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 message_structure = { path = "../../libs/message_structure" }
 common = { path = "../../libs/common" }
+ipc_interface = { path = "../../libs/ipc_interface" }
