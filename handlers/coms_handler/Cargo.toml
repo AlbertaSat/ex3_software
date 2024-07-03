@@ -1,0 +1,8 @@
+[package]
+name = "coms_handler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+message_structure = { path = "../../libs/message_structure" }
+common = { path = "../../libs/common" }
