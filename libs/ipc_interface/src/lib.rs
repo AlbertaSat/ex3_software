@@ -12,10 +12,11 @@ pub const IPC_BUFFER_SIZE: usize = 1024;
 pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
 pub const TCP_BUFFER_SIZE: usize = 1024;
 
+#[derive(Clone)]
 pub struct IPCInterface {
-    fd: i32,
+    pub fd: i32,
     socket_name: String,
-    connected: bool,
+    pub connected: bool,
 }
 
 impl IPCInterface {

@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 tcp_interface = { path = "../../libs/tcp_interface" }
+ipc_interface = { path = "../../libs/ipc_interface" }
 common = {path = "../../libs/common"}
+nix = "0.26.2"

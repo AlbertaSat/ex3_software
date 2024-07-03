@@ -12,13 +12,22 @@ TODO - Get state variables from a state manager (channels?) upon instantiation a
 TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
+use nix::libc;
+use nix::unistd::{read, write};
+use std::env;
+use std::io::Read;
+use std::net::TcpStream;
+use std::process;
+use std::os::fd::AsRawFd;
+use std::net::TcpListener;
 
+const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
+const BUFFER_SIZE: usize = 1024;
+const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
+use ipc_interface::IPCInterface;
 use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-
 use common::ports; 
 
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
@@ -36,13 +45,13 @@ const DISPATCHER_INTERFACER_BUFFER_SIZE: usize = 512;
 struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]
-    dispatcher_interface: Option<TcpInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
-        dispatcher_interface: Result<TcpInterface, std::io::Error>,
+        dispatcher_interface: Result<IPCInterface, std::io::Error>,
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -67,71 +76,109 @@ impl DFGMHandler {
 
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) {
-        // NOTE: A seperate channel PAIR each is needed for the main handler process to communicate with a thread.
-        // one pair handles communication between the async_read and the handler, and the other pair handles communication between the handler and the async_write
+        let args: Vec<String> = env::args().collect();
+
+        if args.len() != 2 {
+            eprintln!("Usage: {} <tcp_port>", args[0]);
+            process::exit(1);
+        }
+
+    
+        let tcp_port: u16 = args[1].parse().unwrap_or_else(|_| {
+            eprintln!("Invalid TCP port number");
+            process::exit(1);
+        });
 
         // ------------------ Peripheral Interface Setup ------------------
-        let (dfgm_reader_tx_ch, dfgm_reader_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
-            mpsc::channel();
-
-        if let Some(interface) = self.peripheral_interface.clone() {
-            async_read(
-                interface,
-                dfgm_reader_tx_ch.clone(),
-                DFGM_INTERFACE_BUFFER_SIZE,
-            );
-        }
-        // NOTE: DFGM doesnt setup a 'dfgm_writer' thread because it only reads data from the DFGM
+        let tcp_listener = TcpListener::bind(("127.0.0.1", tcp_port)).unwrap_or_else(|err| {
+            eprintln!("Failed to bind TCP server: {}", err);
+            process::exit(1);
+        });
+    
+        println!("TCP server listening on port {}", tcp_port);
 
         // ------------------ Dispatcher Interface Setup ------------------
-        let (disp_writer_tx_ch, disp_writer_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
-            mpsc::channel();
 
-        if let Some(interface) = self.dispatcher_interface.clone() {
-            async_write(interface, disp_writer_rx_ch);
-        }
-
-        let (disp_reader_tx_ch, disp_reader_rx_ch): (Sender<Vec<u8>>, Receiver<Vec<u8>>) =
-            mpsc::channel();
-
-        if let Some(interface) = self.dispatcher_interface.clone() {
-            async_read(
-                interface,
-                disp_reader_tx_ch.clone(),
-                DISPATCHER_INTERFACER_BUFFER_SIZE,
-            );
-        }
-
-        // Test sending dummy message
-        disp_writer_tx_ch
-            .send(b"Hello from DFGM Handler! \n".to_vec())
-            .expect("Failed to send message to dispatcher");
-
-        std::thread::sleep(std::time::Duration::from_secs(1)); //Sleep to let the message be sent
-
-        loop {
-            if let Ok(data) = dfgm_reader_rx_ch.try_recv() {
-                if data.is_empty() {
-                    continue;
+        for stream in tcp_listener.incoming() {
+            match stream {
+                Ok(tcp_stream) => {
+                    println!("New TCP client connected");
+                    handle_client(tcp_stream, self.interface.fd);
                 }
-                println!("Received DFGM Data{:?}", data);
-                if self.toggle_data_collection {
-                    store_dfgm_data(&data);
+                Err(err) => {
+                    eprintln!("TCP connection failed: {}", err);
                 }
             }
-
-            if let Ok(data) = disp_reader_rx_ch.try_recv() {
-                if data.is_empty() {
-                    continue;
-                }
-                println!("Received Dispatcher Data{:?}", data);
+        }
                 //TODO - Convert bytestream into message struct
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
+    }
+}
+
+
+    pub fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
+        let tcp_fd = tcp_stream.as_raw_fd();
+    
+        let mut poll_fds = [
+            libc::pollfd {
+                fd: tcp_fd,
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: data_socket_fd,
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+    
+        loop {
+            let ready = unsafe {
+                libc::poll(
+                    poll_fds.as_mut_ptr(),
+                    poll_fds.len() as libc::nfds_t,
+                    CLIENT_POLL_TIMEOUT_MS,
+                )
+            };
+    
+            if ready == -1 {
+                eprintln!("poll error");
+                process::exit(1);
+            }
+    
+            for poll_fd in &poll_fds {
+                if poll_fd.revents != 0 {
+                    if poll_fd.revents & libc::POLLIN != 0 {
+                        if poll_fd.fd == tcp_fd {
+                            let mut tcp_buf = vec![0u8; BUFFER_SIZE];
+                            let ret = tcp_stream.read(&mut tcp_buf).unwrap();
+    
+                            if ret == 0 {
+                                println!("TCP client disconnected. Exiting...");
+                                return;
+                            } else {
+                                write(data_socket_fd, &tcp_buf[..ret]).unwrap_or_else(|_| {
+                                    eprintln!("write error");
+                                    process::exit(1);
+                                });
+                            }
+                        } else if poll_fd.fd == data_socket_fd {
+                            let mut socket_buf = vec![0u8; BUFFER_SIZE];
+                            let ret = read(data_socket_fd, &mut socket_buf).unwrap();
+    
+                            if ret == 0 {
+                                println!("Connection to Unix server dropped. Exiting...");
+                                process::exit(0);
+                            } else {
+                                println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-}
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
 /// Later on we likely want to specify a path to specific storage medium (sd card 1 or 2)
@@ -154,7 +201,7 @@ fn main() {
     let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
     //Create TCP interface for DFGM handler to talk to message dispatcher
-    let dispatcher_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::DFGM_HANDLER_DISPATCHER_PORT);
+    let dispatcher_interface = Ok(IPCInterface::new("dfgm_handler".to_string()));
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, dispatcher_interface);
