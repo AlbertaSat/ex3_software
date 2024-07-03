@@ -41,9 +41,6 @@ int get_msg_dest_id(char *data_buf)
 {
     // Use byte offset
     int dest_id = data_buf[2];
-
-    // TEMP for now we are sending ascii chars, so we want to offset the numerical value
-    dest_id -= '0';
     printf("Msg Dest ID: %d\n", dest_id);
     return dest_id;
 }
@@ -157,7 +154,15 @@ int read_data_socket(ComponentStruct *component, struct pollfd *poll_struct, cha
     }
     else
     {
-        printf("Read %d bytes: %.*s \n", ret, ret, buffer);
+        printf("---------------------------------------\n");
+        printf("Read %d bytes:\n", ret);
+        //printf("Read data in ASCII: %.*s \n", ret, buffer);
+        printf("Data in HEX is: \n");
+        for (int i = 0; i < ret; i++)
+        {
+            printf(" %02x |", buffer[i]);
+        }
+        printf("\n---------------------------------------\n");
+        return ret;
     }
-    return ret;
 }
