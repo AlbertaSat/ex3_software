@@ -154,7 +154,15 @@ int read_data_socket(ComponentStruct *component, struct pollfd *poll_struct, cha
     }
     else
     {
-        printf("Read %d bytes: %.*s \n", ret, ret, buffer);
+        printf("---------------------------------------\n");
+        printf("Read %d bytes:\n", ret);
+        //printf("Read data in ASCII: %.*s \n", ret, buffer);
+        printf("Data in HEX is: \n");
+        for (int i = 0; i < ret; i++)
+        {
+            printf(" %02x |", buffer[i]);
+        }
+        printf("\n---------------------------------------\n");
+        return ret;
     }
-    return ret;
 }
