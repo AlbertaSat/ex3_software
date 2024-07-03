@@ -13,7 +13,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use interfaces::*;
+use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::sync::mpsc;

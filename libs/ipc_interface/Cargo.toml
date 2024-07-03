@@ -1,9 +1,8 @@
 [package]
-name = "bulk_msg_handler"
+name = "ipc_interface"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tcp_interface = { path = "../../libs/tcp_interface" }
-common = { path = "../../libs/common" }
+nix = "0.26.2"
 message_structure = { path = "../../libs/message_structure" }

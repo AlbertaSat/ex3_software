@@ -6,172 +6,168 @@ it flows through the ex3 software stack (GS to OBC and various software componen
 
 References:
     - https://crates.io/crates/serde_json/1.0.1
+    - https://crates.io/crates/serde-pickle
 */
-use serde::Deserialize;
-use serde::Serialize;
-use serde_json::Error as SerdeError;
-use std::io::{Cursor, Error as IoError};
+use std::io::Error as IoError;
 
 /// This message header is shared by all message types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MsgHeader {
-    pub msg_len: u8,   // This is the length of the whole message (header + body) in bytes
-    pub msg_id: u8,    // This is a unique identifier for each message sent by the GS
-    pub dest_id: u8, //The message dispatcher uses this to determine which destination to send this message
-    pub source_id: u8, // Identifies what sent the message for logging/debugging
-    pub op_code: u8, // This is a unique code related to some specfic meaning for each destination
+    pub msg_len: u8,
+    pub msg_id: u8,
+    pub dest_id: u8,
+    pub source_id: u8,
+    pub op_code: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl MsgHeader {
+    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+        let mut bytes = Vec::new();
+        bytes.push(self.msg_len);
+        bytes.push(self.msg_id);
+        bytes.push(self.dest_id);
+        bytes.push(self.source_id);
+        bytes.push(self.op_code);
+        Ok(bytes)
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
+        if bytes.len() < 5 {
+            return Err(IoError::new(std::io::ErrorKind::InvalidData, "Header bytes too short"));
+        }
+
+        Ok(MsgHeader {
+            msg_len: bytes[0],
+            msg_id: bytes[1],
+            dest_id: bytes[2],
+            source_id: bytes[3],
+            op_code: bytes[4],
+        })
+    }
+}
+
+/// Message struct with header and body
+#[derive(Debug, Clone)]
 pub struct Msg {
     pub header: MsgHeader,
-    pub msg_body: Vec<u8>, //Contents of the msg body are dictated by the opcode
+    pub msg_body: Vec<u8>,
 }
 
 impl Msg {
-    // Constructor to create message header with correct length
     pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
         let len = data.len() as u8;
         let header = MsgHeader {
-            msg_len: len + 5, //5 bytes for header fields
-            msg_id: msg_id,
-            dest_id: dest_id,
-            source_id: source_id,
+            msg_len: len + 5, // 5 bytes for header fields
+            msg_id,
+            dest_id,
+            source_id,
             op_code: opcode,
         };
-        Msg {
-            header,
-            msg_body: data,
-        }
+        Msg { header, msg_body: data }
+    }
+
+    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+        let mut bytes = self.header.to_bytes()?;
+        bytes.extend_from_slice(&self.msg_body);
+        Ok(bytes)
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
+        let header_bytes = &bytes[0..5];
+        let msg_body = bytes[5..].to_vec();
+        let header = MsgHeader::from_bytes(header_bytes)?;
+        Ok(Msg { header, msg_body })
     }
 }
 
-#[derive(Debug)]
-pub enum DeserializeError {
-    Io(IoError),
-    Serde(SerdeError),
+
+/// Serialize Msg struct to bytes
+pub fn serialize_msg(msg: &Msg) -> Result<Vec<u8>, IoError> {
+    let bytes = msg.to_bytes()?;
+    Ok(bytes)
 }
 
-#[derive(Debug)]
-pub enum SerializeError {
-    Io(IoError),
-    Serde(SerdeError),
-}
-
-impl From<IoError> for DeserializeError {
-    fn from(error: IoError) -> Self {
-        DeserializeError::Io(error)
-    }
-}
-
-impl From<SerdeError> for DeserializeError {
-    fn from(error: SerdeError) -> Self {
-        DeserializeError::Serde(error)
-    }
-}
-
-impl From<IoError> for SerializeError {
-    fn from(error: IoError) -> Self {
-        SerializeError::Io(error)
-    }
-}
-
-impl From<SerdeError> for SerializeError {
-    fn from(error: SerdeError) -> Self {
-        SerializeError::Serde(error)
-    }
-}
-
-pub fn serialize_msg(msg: Msg) -> Result<Vec<u8>,SerializeError> {
-    let mut buf = Vec::new();
-    let _serialized_msg = serde_json::to_writer(&mut buf, &msg)?;
-    Ok(buf)
-}
-
-pub fn deserialize_msg(buffer: Vec<u8>) -> Result<Msg, DeserializeError> {
-    // Trimming trailing 0's so JSON doesn't give a "trailing characters" error
-    let trimmed_buffer: Vec<_> = buffer.into_iter().take_while(|&x| x != 0).collect();
-    let mut cursor = Cursor::new(trimmed_buffer);
-
-    // Deserialize the message
-    let deserialized_msg: Msg = serde_json::from_reader(&mut cursor)?;
-    Ok(deserialized_msg)
+/// Deserialize bytes into Msg struct
+pub fn deserialize_msg(bytes: &[u8]) -> Result<Msg, IoError> {
+    let msg: Msg = Msg::from_bytes(bytes)?;
+    Ok(msg)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde::ser::{Serialize, Serializer};
-    use serde::de::{self, Deserialize, Deserializer};
 
     #[test]
-    fn test_msg_serdes() {
+    fn test_serialize_deserialize() {
+        let msg = Msg::new(1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
-        // Why does the serialization also take the commas??
-        let msg = Msg::new(0, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
+        // Serialize
+        let serialized_msg_result = msg.to_bytes();
+        assert!(serialized_msg_result.is_ok(), "Serialization failed");
+        let serialized_msg = serialized_msg_result.unwrap();
 
-        let serialized_msg = serialize_msg(msg).unwrap();
-        println!("Serde Msg: {:?}", serialized_msg);
+        // Deserialize
+        let deserialized_msg_result = Msg::from_bytes(&serialized_msg);
+        assert!(deserialized_msg_result.is_ok(), "Deserialization failed");
+        let deserialized_msg = deserialized_msg_result.unwrap();
 
-        let deserialized_msg = deserialize_msg(serialized_msg);
-
-        println!("Deserialized Msg: {:?}", deserialized_msg);
-        assert_eq!(deserialized_msg.as_ref().unwrap().header.msg_len, 12);
-        assert_eq!(deserialized_msg.unwrap().msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
-    }
-    #[derive(Debug)]
-    struct AlwaysFail;
-
-    impl Serialize for AlwaysFail {
-        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            Err(serde::ser::Error::custom("Intentional serialization failure"))
-        }
-    }
-
-    impl<'de> Deserialize<'de> for AlwaysFail {
-        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            Err(de::Error::custom("Intentional deserialization failure"))
-        }
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    struct MsgWithFail {
-        header: MsgHeader,
-        msg_body: Vec<u8>,
-        fail_field: AlwaysFail, // This field will cause serialization to fail
+        // Assert equality
+        assert_eq!(deserialized_msg.header.msg_len, 12);
+        assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
-    fn test_msg_serialize_failure() {
-        let header = MsgHeader {
-            msg_len: 5,
-            msg_id: 0,
-            dest_id: 2,
-            source_id: 3,
-            op_code: 4,
-        };
-        let msg_with_fail = MsgWithFail {
-            header,
-            msg_body: vec![0, 1, 2, 3, 4, 5, 6],
-            fail_field: AlwaysFail,
-        };
+    fn test_serialize_empty_body() {
+        let msg = Msg::new(1, 2, 3, 4, vec![]);
 
-        let result = serde_json::to_vec(&msg_with_fail);
-        assert!(result.is_err(), "Expected serialization to fail");
+        // Serialize
+        let serialized_msg_result = msg.to_bytes();
+        assert!(serialized_msg_result.is_ok(), "Serialization failed");
+        let serialized_msg = serialized_msg_result.unwrap();
+
+        // Deserialize
+        let deserialized_msg_result = Msg::from_bytes(&serialized_msg);
+        assert!(deserialized_msg_result.is_ok(), "Deserialization failed");
+        let deserialized_msg = deserialized_msg_result.unwrap();
+
+        // Assert equality
+        assert_eq!(deserialized_msg.header.msg_len, 5);
+        assert_eq!(deserialized_msg.msg_body, vec![]);
     }
 
     #[test]
-    fn test_msg_deserialize_failure() {
-        // Invalid JSON data
-        let invalid_json = b"invalid json data";
+    fn test_serialize_max_length_body() {
+        // Create a message with the maximum possible body size
+        let max_body_size = u8::MAX as usize - 5; // Maximum u8 value minus header size
+        let msg = Msg::new(1, 2, 3, 4, vec![0; max_body_size]);
 
-        let result: Result<Msg, _> = serde_json::from_slice(invalid_json);
-        assert!(result.is_err(), "Expected deserialization to fail");
+        // Serialize
+        let serialized_msg_result = msg.to_bytes();
+        assert!(serialized_msg_result.is_ok(), "Serialization failed");
+        let serialized_msg = serialized_msg_result.unwrap();
+
+        // Deserialize
+        let deserialized_msg_result = Msg::from_bytes(&serialized_msg);
+        assert!(deserialized_msg_result.is_ok(), "Deserialization failed");
+        let deserialized_msg = deserialized_msg_result.unwrap();
+
+        // Assert equality
+        assert_eq!(deserialized_msg.header.msg_len, u8::MAX);
+        assert_eq!(deserialized_msg.msg_body.len(), max_body_size);
+        assert_eq!(deserialized_msg.msg_body, vec![0; max_body_size]);
     }
+
+    #[should_panic]
+    #[test]
+    fn test_deserialize_invalid_data() {
+        // Provide insufficient bytes for header
+        let bytes = vec![0, 1, 2];
+    
+        // Deserialize should fail
+        let deserialized_msg_result = Msg::from_bytes(&bytes);
+        assert!(deserialized_msg_result.is_err(), "Deserialization succeeded unexpectedly");
+        let err = deserialized_msg_result.err().unwrap();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
 }
