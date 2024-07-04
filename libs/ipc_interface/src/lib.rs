@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_dfgm_echo() {
         let interface = IPCInterface::new("dfgm_handler".to_string());
-        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
+        let mut socket_buf = vec![0u8; BUFFER_SIZE];
         loop {
             let output = read_socket(interface.fd, &mut socket_buf).unwrap();
             if output > 5 {
