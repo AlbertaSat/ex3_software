@@ -12,18 +12,11 @@ TODO - Get state variables from a state manager (channels?) upon instantiation a
 TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
-use nix::libc;
-use nix::unistd::{read, write};
 use std::env;
-use std::io::Read;
-use std::net::TcpStream;
 use std::process;
-use std::os::fd::AsRawFd;
-use std::net::TcpListener;
 
-const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 const BUFFER_SIZE: usize = 1024;
-const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
+use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
 use tcp_interface::*;
 use std::fs::OpenOptions;
@@ -90,95 +83,31 @@ impl DFGMHandler {
         });
 
         // ------------------ Peripheral Interface Setup ------------------
-        let tcp_listener = TcpListener::bind(("127.0.0.1", tcp_port)).unwrap_or_else(|err| {
-            eprintln!("Failed to bind TCP server: {}", err);
-            process::exit(1);
-        });
+        let tcp_interface = TcpInterface::new_client("127.0.0.1".to_string(), tcp_port);
     
-        println!("TCP server listening on port {}", tcp_port);
+        println!("TCP client connected to port {}", tcp_port);
 
         // ------------------ Dispatcher Interface Setup ------------------
 
-        for stream in tcp_listener.incoming() {
-            match stream {
-                Ok(tcp_stream) => {
-                    println!("New TCP client connected");
-                    handle_client(tcp_stream, self.interface.fd);
-                }
-                Err(err) => {
-                    eprintln!("TCP connection failed: {}", err);
-                }
+        let ipc_interface = IPCInterface::new("dfgm_handler".to_string());
+
+        // Read and poll for input for a message
+        let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
+        loop {
+            let n = read_socket(ipc_interface.fd, &mut socket_buf).unwrap();
+            if n > 0 {
+                store_dfgm_data(&socket_buf);
             }
         }
+
+
+
                 //TODO - Convert bytestream into message struct
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
     }
 }
 
-
-    pub fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
-        let tcp_fd = tcp_stream.as_raw_fd();
-    
-        let mut poll_fds = [
-            libc::pollfd {
-                fd: tcp_fd,
-                events: libc::POLLIN,
-                revents: 0,
-            },
-            libc::pollfd {
-                fd: data_socket_fd,
-                events: libc::POLLIN,
-                revents: 0,
-            },
-        ];
-    
-        loop {
-            let ready = unsafe {
-                libc::poll(
-                    poll_fds.as_mut_ptr(),
-                    poll_fds.len() as libc::nfds_t,
-                    CLIENT_POLL_TIMEOUT_MS,
-                )
-            };
-    
-            if ready == -1 {
-                eprintln!("poll error");
-                process::exit(1);
-            }
-    
-            for poll_fd in &poll_fds {
-                if poll_fd.revents != 0 {
-                    if poll_fd.revents & libc::POLLIN != 0 {
-                        if poll_fd.fd == tcp_fd {
-                            let mut tcp_buf = vec![0u8; BUFFER_SIZE];
-                            let ret = tcp_stream.read(&mut tcp_buf).unwrap();
-    
-                            if ret == 0 {
-                                println!("TCP client disconnected. Exiting...");
-                                return;
-                            } else {
-                                write(data_socket_fd, &tcp_buf[..ret]).unwrap_or_else(|_| {
-                                    eprintln!("write error");
-                                    process::exit(1);
-                                });
-                            }
-                        } else if poll_fd.fd == data_socket_fd {
-                            let mut socket_buf = vec![0u8; BUFFER_SIZE];
-                            let ret = read(data_socket_fd, &mut socket_buf).unwrap();
-    
-                            if ret == 0 {
-                                println!("Connection to Unix server dropped. Exiting...");
-                                process::exit(0);
-                            } else {
-                                println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
 /// Later on we likely want to specify a path to specific storage medium (sd card 1 or 2)
