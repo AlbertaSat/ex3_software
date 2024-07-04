@@ -14,22 +14,22 @@ const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
 /// Interface trait to be implemented by all external interfaces
 pub trait Interface {
     /// Send byte data to the interface as a shared slice type byte. Return number of bytes sent
-    fn send(stream: &mut TcpStream, data: &[u8]) -> Result<usize, Error>;
+    fn send(&mut self, data: &[u8]) -> Result<usize, Error>;
     /// Read byte data from the interface into a byte slice buffer. Return number of bytes read
-    fn read(stream: &mut TcpStream, buffer: &mut [u8], poll_fds: &mut [libc::pollfd; 1]) -> Result<usize, Error>;
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error>;
 
 }
 
 /// TCP Interface for communication with simulated external peripherals
-#[derive(Clone)]
 pub struct TcpInterface {
     ip: String,
     port: u16,
     fd: [libc::pollfd; 1],
+    stream: TcpStream,
 }
 
 impl TcpInterface {
-    pub fn new_client(ip: String, port: u16) -> Result<(TcpInterface, TcpStream), Error> {
+    pub fn new_client(ip: String, port: u16) -> Result<TcpInterface, Error> {
         let stream = TcpStream::connect(format!("{}:{}", ip, port))?;
         let tcp_fd = stream.as_raw_fd();
         let poll_fds = [
@@ -39,14 +39,15 @@ impl TcpInterface {
                 revents: 0,
             },
         ];
-        Ok((TcpInterface {
+        Ok(TcpInterface {
             ip,
             port,
             fd: poll_fds,
-        }, stream))
+            stream,
+        })
     }
 
-    pub fn new_server(ip: String, port: u16) -> Result<(TcpInterface, TcpStream), Error> {
+    pub fn new_server(ip: String, port: u16) -> Result<TcpInterface, Error> {
         let listener = TcpListener::bind(format!("{}:{}", ip, port))?;
         for stream in listener.incoming() {
             match stream {
@@ -60,11 +61,12 @@ impl TcpInterface {
                         },
                     ];
                     println!("New connection: {}", stream.peer_addr().unwrap());
-                    return Ok((TcpInterface {
+                    return Ok(TcpInterface {
                         ip,
                         port,
                         fd: poll_fds,
-                    }, stream));
+                        stream,
+                    });
                 }
                 Err(e) => {
                     eprintln!("Error: {}", e);
@@ -80,16 +82,16 @@ impl TcpInterface {
 }
 
 impl Interface for TcpInterface {
-    fn send(stream: &mut TcpStream, data: &[u8]) -> Result<usize, Error> {
-        let n = stream.write(data)?;
-        stream.flush()?;
+    fn send(&mut self, data: &[u8]) -> Result<usize, Error> {
+        let n = self.stream.write(data)?;
+        self.stream.flush()?;
         Ok(n)
     }
 
-    fn read(stream: &mut TcpStream, buffer: &mut [u8], poll_fds: &mut [libc::pollfd; 1]) -> Result<usize, Error> {
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error> {
         let ready = unsafe {
             libc::poll(
-                poll_fds.as_mut_ptr(),
+                self.fd.as_mut_ptr(),
                 1 as libc::nfds_t,
                 CLIENT_POLL_TIMEOUT_MS,
             )
@@ -99,8 +101,8 @@ impl Interface for TcpInterface {
             return Err(Error::new(io::ErrorKind::Other, "poll error"));
         }
 
-        if poll_fds[0].revents & libc::POLLIN != 0 {
-            let n = stream.read(buffer)?;
+        if self.fd[0].revents & libc::POLLIN != 0 {
+            let n = self.stream.read(buffer)?;
             return Ok(n);
         }
 
@@ -117,8 +119,8 @@ mod tests {
 
     #[test]
     fn test_handler_write() {
-        let (mut client_interface, mut client_stream) = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
-        if let Ok(n) = TcpInterface::send(&mut client_stream, &[0,1,2,3,4,5,6,7,8,9]) {
+        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
+        if let Ok(n) = TcpInterface::send(&mut client_interface, &[48,48,48,48,48]) {
             println!("Sent {} bytes", n);
         } else {
             // couldn't send bytes
@@ -126,10 +128,10 @@ mod tests {
     }
     #[test]
     fn test_handler_read() {
-        let (mut client_interface, mut client_stream) = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
+        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
         let mut buffer = [0u8;BUFFER_SIZE];
         loop {
-        if let Ok(n) = TcpInterface::read(&mut client_stream, &mut buffer, &mut client_interface.fd) {
+        if let Ok(n) = TcpInterface::read(&mut client_interface, &mut buffer) {
             println!("got dem bytes: {:?}", buffer);
             if n > 0 {
                 break;
