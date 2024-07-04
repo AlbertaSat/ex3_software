@@ -32,6 +32,7 @@ fn main() {
         let msg_time: u64 = timestamp_to_epoch(timestamp.clone()).unwrap();
         let msg_time_bytes = msg_time.to_le_bytes().to_vec();
 
+    let mut data: Msg = Msg::new(22,3,25,25,msg_time_bytes.clone());
         let inner_msg: Msg = Msg::new(22,4,0,0,msg_time_bytes);
         let serialized_inner_msg = serialize_msg(&inner_msg).unwrap();
         data = Msg::new(0,8,1,2,serialized_inner_msg);
