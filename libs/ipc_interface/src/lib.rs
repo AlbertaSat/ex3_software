@@ -7,8 +7,10 @@ use std::path::Path;
 use std::process;
 use std::io::Error as IoError;
 
-pub const BUFFER_SIZE: usize = 1024;
-const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
+pub const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
+pub const IPC_BUFFER_SIZE: usize = 1024;
+pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
+pub const TCP_BUFFER_SIZE: usize = 1024;
 
 pub struct IPCInterface {
     fd: i32,
@@ -135,7 +137,7 @@ mod tests {
     #[test]
     fn test_dfgm_echo() {
         let interface = IPCInterface::new("dfgm_handler".to_string());
-        let mut socket_buf = vec![0u8; BUFFER_SIZE];
+        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
             let output = read_socket(interface.fd, &mut socket_buf).unwrap();
             if output > 5 {
