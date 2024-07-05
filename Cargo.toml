@@ -13,5 +13,5 @@ members = [
     "dev_tools/cli_test_msg", 
     "dev_tools/ipc_dummy_client",
     "libs/ipc_interface",
-    "handlers/coms_handler",
+    "handlers/coms_handler", "dev_tools/ipc_burst_hardcoded",
 ]

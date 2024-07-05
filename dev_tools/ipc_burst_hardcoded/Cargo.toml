@@ -1,0 +1,9 @@
+[package]
+name = "ipc_burst_hardcoded"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ipc_interface = { path = "../../libs/ipc_interface" }
+message_structure = { path = "../../libs/message_structure" }
+common = { path = "../../libs/common"}
