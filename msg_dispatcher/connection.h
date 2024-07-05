@@ -26,6 +26,7 @@ enum ComponentId
     DEPLOYABLES = 6,
     GS = 7,
     COMS = 8,
+    TEST = 99,
 };
 
 /// @brief Each architecture component the message dispatcher will talk to has its own struct

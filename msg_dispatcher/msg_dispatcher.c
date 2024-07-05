@@ -1,6 +1,9 @@
 /*
 Written by Devin Headrick
 Summer 2024
+
+TODO - HANDLE THE FACT THAT THE FD ALWAYS INCREASES WHEN CONNECTION IS DROPPED AND RE-ESTABLISHED
+       EVENTUALLY THIS WILL RESULT IN THE FD IN OVERFLOWING 
 */
 
 #include <stdio.h>
@@ -18,15 +21,16 @@ Summer 2024
 int main(int argc, char *argv[])
 {
     char buffer[MSG_UNIT_SIZE] = {0}; // Single buffer for reading and writing between clients
-    int ret = 0;                          // used for assessing returns of various fxn calls
-    int ready;                            // how many fd are ready from the poll (have return event)
+    int ret = 0;                      // used for assessing returns of various fxn calls
+    int ready;                        // how many fd are ready from the poll (have return event)
 
-    int num_components = 2;
+    int num_components = 3;
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
+    ComponentStruct *test_handler = component_factory("test_handler", TEST);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[2] = {dfgm_handler, coms_handler};
+    ComponentStruct *components[3] = {dfgm_handler, coms_handler, test_handler};
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling
