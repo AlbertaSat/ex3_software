@@ -18,6 +18,7 @@ use std::process;
 const BUFFER_SIZE: usize = 1024;
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
+use tcp_interface::TCP_BUFFER_SIZE;
 use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -68,36 +69,30 @@ impl DFGMHandler {
     }
 
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
-    pub fn run(&mut self) {
-        let args: Vec<String> = env::args().collect();
-
-        if args.len() != 2 {
-            eprintln!("Usage: {} <tcp_port>", args[0]);
-            process::exit(1);
-        }
-
-    
-        let tcp_port: u16 = args[1].parse().unwrap_or_else(|_| {
-            eprintln!("Invalid TCP port number");
-            process::exit(1);
-        });
+    pub fn run(&mut self) -> std::io::Result<()> {
 
         // ------------------ Peripheral Interface Setup ------------------
-        let tcp_interface = TcpInterface::new_client("127.0.0.1".to_string(), tcp_port);
     
-        println!("TCP client connected to port {}", tcp_port);
+        println!("TCP client connected to port {}", ports::SIM_DFGM_PORT);
 
         // ------------------ Dispatcher Interface Setup ------------------
-
-        let ipc_interface = IPCInterface::new("dfgm_handler".to_string());
 
         // Read and poll for input for a message
         let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
-            let n = read_socket(ipc_interface.fd, &mut socket_buf).unwrap();
+            if let Ok(n) = read_socket(self.dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
             if n > 0 {
-                store_dfgm_data(&socket_buf);
+                // Assuming msg is get data
+                let mut tcp_buf = [0u8;TCP_BUFFER_SIZE];
+                if let Ok(dfgm_bytes_num) = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf) {
+                    println!("Storing data {:?}", tcp_buf);
+                    store_dfgm_data(&tcp_buf)?;
+                } else {
+                    println!("Read from dfgm failed");
+                }
             }
+        } else {
+            println!("Could not read msg from dispatcher");
         }
 
 
@@ -105,6 +100,7 @@ impl DFGMHandler {
                 //TODO - Convert bytestream into message struct
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
+        }
     }
 }
 

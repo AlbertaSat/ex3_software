@@ -10,7 +10,6 @@ use std::io::Error as IoError;
 pub const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 pub const IPC_BUFFER_SIZE: usize = 1024;
 pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
-pub const TCP_BUFFER_SIZE: usize = 1024;
 
 #[derive(Clone)]
 pub struct IPCInterface {

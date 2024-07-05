@@ -24,7 +24,8 @@ fn main() {
     let port = args[1].parse::<u16>().unwrap();
 
     let subsystem: &String = &args[2];
-    let mut data: Msg = Msg::new(0,0,0,0,vec![]);
+    // Default DFGM msg
+    let mut data: Msg = Msg::new(0,3,0,0,vec![]);
     if subsystem == "scheduler" {
         let timestamp: &String = &args[3];
 
