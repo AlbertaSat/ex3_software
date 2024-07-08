@@ -20,6 +20,7 @@ use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use common::ports; 
+use message_structure::*;
 
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
 const DFGM_PACKET_SIZE: usize = 1252;
@@ -57,7 +58,7 @@ impl DFGMHandler {
         }
 
         DFGMHandler {
-            toggle_data_collection: true,
+            toggle_data_collection: false,
             peripheral_interface: dfgm_interface.ok(),
             dispatcher_interface: dispatcher_interface.ok(),
         }
@@ -76,18 +77,32 @@ impl DFGMHandler {
         let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
             if let Ok(n) = read_socket(self.dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
-            if n > 0 {
-                // Assuming msg is get data
-                let mut tcp_buf = [0u8;TCP_BUFFER_SIZE];
-                if let Ok(dfgm_bytes_num) = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf) {
-                    println!("Storing data {:?}", tcp_buf);
-                    store_dfgm_data(&tcp_buf)?;
-                } else {
-                    println!("Read from dfgm failed");
+                if n > 0 {
+                    let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
+                    if recv_msg.header.op_code == 0 && self.toggle_data_collection == false {
+                        self.toggle_data_collection = true;
+                    } else if recv_msg.header.op_code == 0 && self.toggle_data_collection == true {
+                        self.toggle_data_collection = false;
+                    }
+                    
+                    println!("Data toggle set to {}", self.toggle_data_collection);
+                    socket_buf.flush()?;
                 }
             }
-        } else {
-            println!("Could not read msg from dispatcher");
+            if self.toggle_data_collection == true {
+                let mut tcp_buf = [0u8;TCP_BUFFER_SIZE];
+                let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+                match status {
+                    Ok(data_len) => {
+                        println!("Got data {:?}", tcp_buf);
+                        store_dfgm_data(&tcp_buf);
+                    }
+                    Err(e) => {
+                        println!("Error: {}", e);
+                    }
+                }
+                }
+            }
         }
 
 
@@ -96,8 +111,6 @@ impl DFGMHandler {
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
         }
-    }
-}
 
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
