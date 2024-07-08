@@ -20,13 +20,8 @@ fn main(){
     // Get name of target from args 
     let args: Vec<String> = std::env::args().collect();
     
-    if args.len() != 2 {
-        eprintln!("Usage: {} <name of target>", args[0]);
-        std::process::exit(1);
-    }
-
     //Setup interface for comm with OBC FSW components (IPC), by acting as a client connecting to msg dispatcher server
-    let ipc_interface = IPCInterface::new(args[1].clone());
+    let ipc_interface = IPCInterface::new("test_handler".to_string());
     let mut ipc_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
 
     // Define msg to send contents
