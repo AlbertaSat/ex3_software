@@ -37,7 +37,7 @@ const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct DFGMHandler {
     toggle_data_collection: bool,
-    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]
+    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
     dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
@@ -89,13 +89,6 @@ impl DFGMHandler {
     }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
-
-        // ------------------ Peripheral Interface Setup ------------------
-    
-        println!("TCP client connected to port {}", ports::SIM_DFGM_PORT);
-
-        // ------------------ Dispatcher Interface Setup ------------------
-
         // Read and poll for input for a message
         let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
@@ -152,7 +145,7 @@ fn main() {
     let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
     //Create TCP interface for DFGM handler to talk to message dispatcher
-    let dispatcher_interface = Ok(IPCInterface::new("dfgm_handler".to_string()));
+    let dispatcher_interface = IPCInterface::new("dfgm_handler".to_string());
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, dispatcher_interface);
