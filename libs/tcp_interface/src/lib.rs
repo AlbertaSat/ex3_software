@@ -8,7 +8,7 @@ use std::os::unix::io::AsRawFd;
 use nix::libc;
 use std::io;
 
-pub const BUFFER_SIZE: usize = 1024;
+pub const TCP_BUFFER_SIZE: usize = 1024;
 const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
 
 /// Interface trait to be implemented by all external interfaces
@@ -31,6 +31,7 @@ pub struct TcpInterface {
 impl TcpInterface {
     pub fn new_client(ip: String, port: u16) -> Result<TcpInterface, Error> {
         let stream = TcpStream::connect(format!("{}:{}", ip, port))?;
+        println!("Connected to port: {}", port);
         let tcp_fd = stream.as_raw_fd();
         let poll_fds = [
             libc::pollfd {
@@ -129,7 +130,7 @@ mod tests {
     #[test]
     fn test_handler_read() {
         let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
-        let mut buffer = [0u8;BUFFER_SIZE];
+        let mut buffer = [0u8;TCP_BUFFER_SIZE];
         loop {
         if let Ok(n) = TcpInterface::read(&mut client_interface, &mut buffer) {
             println!("got dem bytes: {:?}", buffer);

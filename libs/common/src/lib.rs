@@ -10,3 +10,9 @@ pub mod ports {
     pub const SUBSYSTEM_MONITOR_DISPATCHER_PORT: u16 = 1902;
     pub const BULK_MSG_HANDLER_DISPATCHER_PORT: u16 = 1903;
 }
+
+pub mod opcodes {
+    pub mod dfgm {
+        pub const TOGGLE_DATA_COLLECTION: u8 = 0;
+    }
+}
