@@ -12,10 +12,7 @@ TODO - Get state variables from a state manager (channels?) upon instantiation a
 TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
-use std::env;
-use std::process;
 
-const BUFFER_SIZE: usize = 1024;
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
 use tcp_interface::TCP_BUFFER_SIZE;
@@ -27,8 +24,6 @@ use common::ports;
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
 const DFGM_PACKET_SIZE: usize = 1252;
 const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
-
-const DISPATCHER_INTERFACER_BUFFER_SIZE: usize = 512;
 
 /// Opcodes for messages relating to DFGM functionality
 // pub enum OpCode {
