@@ -19,8 +19,11 @@ use tcp_interface::TCP_BUFFER_SIZE;
 use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
-use common::ports; 
+use std::io::Error;
+use std::io::ErrorKind;
+use common::{ports, opcodes}; 
 use message_structure::*;
+
 
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
 const DFGM_PACKET_SIZE: usize = 1252;
@@ -64,6 +67,26 @@ impl DFGMHandler {
         }
     }
 
+    fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
+        match msg.header.op_code {
+            opcodes::dfgm::TOGGLE_DATA_COLLECTION => {
+                if msg.msg_body[0] == 0 {
+                    self.toggle_data_collection = false;
+                    Ok(())
+                } else if msg.msg_body[0] == 1 {
+                    self.toggle_data_collection = true;
+                    Ok(())
+                } else {
+                    eprintln!("Error: invalid msg body for opcode 0");
+                    Err(Error::new(ErrorKind::InvalidData, "Invalid msg body for opcode 0 on DFGM"))
+                }
+            }
+            _ => {
+                eprintln!("Error: invalid msg body for opcode 0");
+                Err(Error::new(ErrorKind::NotFound, format!("Opcode {} not found for DFGM", msg.header.op_code)))
+            }
+        }
+    }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
 
@@ -79,12 +102,7 @@ impl DFGMHandler {
             if let Ok(n) = read_socket(self.dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
                 if n > 0 {
                     let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    if recv_msg.header.op_code == 0 && self.toggle_data_collection == false {
-                        self.toggle_data_collection = true;
-                    } else if recv_msg.header.op_code == 0 && self.toggle_data_collection == true {
-                        self.toggle_data_collection = false;
-                    }
-                    
+                    self.handle_msg_for_dfgm(recv_msg)?;
                     println!("Data toggle set to {}", self.toggle_data_collection);
                     socket_buf.flush()?;
                 }
@@ -95,22 +113,22 @@ impl DFGMHandler {
                 match status {
                     Ok(data_len) => {
                         println!("Got data {:?}", tcp_buf);
-                        store_dfgm_data(&tcp_buf);
+                        store_dfgm_data(&tcp_buf)?;
                     }
                     Err(e) => {
                         println!("Error: {}", e);
                     }
                 }
-                }
             }
         }
+    }
 
 
 
                 //TODO - Convert bytestream into message struct
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
-        }
+}
 
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
