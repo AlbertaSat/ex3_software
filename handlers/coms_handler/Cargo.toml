@@ -7,3 +7,4 @@ edition = "2021"
 message_structure = { path = "../../libs/message_structure" }
 common = { path = "../../libs/common" }
 ipc_interface = { path = "../../libs/ipc_interface" }
+tcp_interface = { path = "../../libs/tcp_interface" }

@@ -13,6 +13,19 @@ It is responsible for the following things:
   - Fragmenting large outgoing messages into chunks that fit within the message unit size (paylod of Ax.25 packet) defined by the UHF transceiver. ***As of now this is 128 bytes***
   - Rebuilding a large incomming message from its constiuent chunks (which as of now will be 128 byte chunks)
 
+## How it works
+
+The coms handler starts, creates an interface for communication with the OBC FSW (IPC), and the UHF Transceiver (for now Tcp to simulated uhf transceiver).
+Then it enters a loop, polling both reading for input from either. If either has read some data (read returns more than 0 bytes), then a handler function takes the data and determines where to send it based on its associated header destination.
+
 ## Usage
+
+First this component requires the msg dispacher to be running (IPC server awaiting client conn request), and the simulated UHF subsystem must be running (TCP server awaiting client conn request).
+
+After these are running you can use the following command to stard the coms handler from the main cargo workspace directory:
+
+```@sh
+cargo run --bin coms_handler
+```
 
 ## Notes
