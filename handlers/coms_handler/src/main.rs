@@ -4,34 +4,16 @@ Summer 2024
 
 For tall thin all we want this to do is talk to this (via TCP) and have it relay its data to the message dispatcher (via IPC unix domain socket)
 
-When reading from UHF -> If we have received something:
-- Emit an 'ack' that tells sender we got something
-- Decrypt bytes
-- Deserialize the bytes (create message obj from bytes)
-- Check the message destination
-    - if it is not for the coms handler directly, then forward it to the message dispatcher (write to IPC connection to message dispatcher)
-    - If it is for the coms handler directly, then handle it based on op code
-
-When reading from IPC -> If we received something:
-- Deserialize the bytes (create message obj from bytes)
-- Check message destination
-    - Not for coms hanlder direclty, then
-        - Check if the message needs to fragmented
-            - If not bulk msg: write it to UHF transceiver (downlink it)
-            - If bulk msg: 'handle it as a bulk msg' -> then
-    - For coms handler directly, then handle it based on op code
-
 TODO - Detect if connection to either msg dispatcher or UHF transceiver is lost, and handle that - attempt to reconnect
 TODO - implement a 'gs' connection flag, which the handler uses to determine whether or not it can downlink messages to the ground station.
 TODO - mucho error handling
-
 */
 
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
-use ipc_interface::{read_socket, IPCInterface, IPC_BUFFER_SIZE};
+use ipc_interface::{read_socket, send_over_socket, IPCInterface, IPC_BUFFER_SIZE};
 use message_structure::{deserialize_msg, serialize_msg, Msg};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
@@ -46,12 +28,11 @@ fn decrypt_bytes_from_gs(encrypted_bytes: &Vec<u8>) -> Result<Vec<u8>, std::io::
 
 /// Write the provided arg data to the UHF beacon
 fn set_beacon_value(new_beacon_value: Vec<u8>) {
-    // TODO - write this data to the UHF beacon buffer
+    // TODO - write this data to the UHF beacon buffer (or however it actually works w/ the hardware)
     println!("Setting beacon value to: {:?}", new_beacon_value);
 }
 
 /// For messages directed FOR the coms handler directly. Based on the opcode of the message, perform some action
-/// Later this is where we will want to allow the OBC to do things like update the Beacon contents etc
 fn handle_msg_for_coms(msg: &Msg) {
     let opcode = msg.header.op_code;
     match opcode {
@@ -93,13 +74,16 @@ fn handle_ipc_msg(msg: Msg) {
 
 /// Handle incomming messages from the UHF transceiver (uplinked stuff)
 /// Determines based on msg destination where to send it
-fn handle_uhf_msg(msg: &Msg) {
+fn handle_uhf_msg(msg: &Msg, ipc_interface_fd: i32) {
     // Check if the message is destined for the coms handler directly, or to be downlinked to the ground station
     let destination = msg.header.dest_id;
     match destination {
         COMS => handle_msg_for_coms(msg),
         _ => {
             // TODO - Send message to msg dispatcher via IPC connection
+            println!("Sending msg to msg_dispatcher");
+            let serialized_msg_result = serialize_msg(msg).unwrap();
+            send_over_socket(ipc_interface_fd, serialized_msg_result).unwrap();
         }
     }
 }
@@ -114,10 +98,7 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
             match send_result {
                 Ok(_) => {
                     // Successfully sent the message
-                    println!(
-                        "Successfully sent msg to uhf transceiver: {:?}",
-                        serialized_msg
-                    );
+                    println!("Successfully sent msg to uhf transceiver: {:?}", msg);
                 }
                 Err(e) => {
                     // Handle the error when sending the message
@@ -149,7 +130,7 @@ fn main() {
     let mut uhf_num_bytes_read = 0;
 
     loop {
-        //Poll both the UHF transceiver and IPC unix domain socket
+        // Poll both the UHF transceiver and IPC unix domain socket
         let ipc_bytes_read_result = read_socket(ipc_interface.fd, &mut ipc_buf);
         match ipc_bytes_read_result {
             Ok(num_bytes_read) => {
@@ -172,7 +153,6 @@ fn main() {
                     //Handle deserialization of IPC msg failure
                 }
             };
-            ipc_buf.clear();
         }
 
         let uhf_bytes_read_result = tcp_interface.read(&mut uhf_buf);
@@ -196,7 +176,7 @@ fn main() {
                     let deserialized_msg_result = deserialize_msg(&decrypted_byte_vec.as_slice());
                     match deserialized_msg_result {
                         Ok(deserialized_msg) => {
-                            handle_uhf_msg(&deserialized_msg);
+                            handle_uhf_msg(&deserialized_msg, ipc_interface.fd);
                             ack_msg_id = deserialized_msg.header.msg_id;
                         }
                         Err(e) => {
@@ -224,7 +204,7 @@ fn main() {
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
             let ack_msg = Msg::new(ack_msg_id, GS, COMS, 200, ack_msg_body);
             write_msg_to_uhf_for_downlink(&mut tcp_interface, ack_msg);
-            uhf_buf.clear();
+            // uhf_buf.clear(); //FOR SOME REASON CLEARING THE BUFFERS WOULD CAUSE THE CONNECTION TO DROP AFTER A SINGLE MSG IS READ
         }
     }
 }
