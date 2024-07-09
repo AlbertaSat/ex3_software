@@ -13,16 +13,15 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
+use common::{opcodes, ports};
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
-use tcp_interface::*;
+use message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
-use common::{ports, opcodes}; 
-use message_structure::*;
-
+use tcp_interface::*;
 
 const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
 const DFGM_PACKET_SIZE: usize = 1252;
@@ -36,7 +35,7 @@ const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct DFGMHandler {
     toggle_data_collection: bool,
-    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
+    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic
     dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
@@ -77,12 +76,18 @@ impl DFGMHandler {
                     Ok(())
                 } else {
                     eprintln!("Error: invalid msg body for opcode 0");
-                    Err(Error::new(ErrorKind::InvalidData, "Invalid msg body for opcode 0 on DFGM"))
+                    Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "Invalid msg body for opcode 0 on DFGM",
+                    ))
                 }
             }
             _ => {
                 eprintln!("Error: invalid msg body for opcode 0");
-                Err(Error::new(ErrorKind::NotFound, format!("Opcode {} not found for DFGM", msg.header.op_code)))
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Opcode {} not found for DFGM", msg.header.op_code),
+                ))
             }
         }
     }
@@ -91,7 +96,10 @@ impl DFGMHandler {
         // Read and poll for input for a message
         let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
-            if let Ok(n) = read_socket(self.dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
+            if let Ok(n) = read_socket(
+                self.dispatcher_interface.clone().unwrap().fd,
+                &mut socket_buf,
+            ) {
                 if n > 0 {
                     let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
                     self.handle_msg_for_dfgm(recv_msg)?;
@@ -100,8 +108,11 @@ impl DFGMHandler {
                 }
             }
             if self.toggle_data_collection == true {
-                let mut tcp_buf = [0u8;BUFFER_SIZE];
-                let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+                let mut tcp_buf = [0u8; BUFFER_SIZE];
+                let status = TcpInterface::read(
+                    &mut self.peripheral_interface.as_mut().unwrap(),
+                    &mut tcp_buf,
+                );
                 match status {
                     Ok(data_len) => {
                         println!("Got data {:?}", tcp_buf);
@@ -115,13 +126,10 @@ impl DFGMHandler {
         }
     }
 
-
-
-                //TODO - Convert bytestream into message struct
-                //TODO - After receiving the message, send a response back to the dispatcher
-                //TODO - handle the message based on its opcode
+    //TODO - Convert bytestream into message struct
+    //TODO - After receiving the message, send a response back to the dispatcher
+    //TODO - handle the message based on its opcode
 }
-
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
 /// Later on we likely want to specify a path to specific storage medium (sd card 1 or 2)

@@ -121,7 +121,12 @@ fn main() {
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), by acting as a client connecting to msg dispatcher server
-    let ipc_interface = IPCInterface::new("coms_handler".to_string());
+    let ipc_interface_res = IPCInterface::new("coms_handler".to_string());
+    if ipc_interface_res.is_err() {
+        println!("Error creating IPC interface: {:?}", ipc_interface_res.err());
+        return;
+    }
+    let ipc_interface = ipc_interface_res.unwrap();
 
     let mut ipc_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
     let mut ipc_num_bytes_read = 0;
