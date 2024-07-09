@@ -10,32 +10,32 @@ use std::io::Error as IoError;
 pub const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 pub const IPC_BUFFER_SIZE: usize = 1024;
 pub const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
-pub const TCP_BUFFER_SIZE: usize = 1024;
 
+#[derive(Clone)]
 pub struct IPCInterface {
     pub fd: i32,
     socket_name: String,
-    connected: bool,
+    pub connected: bool,
 }
 
 impl IPCInterface {
-    pub fn new(socket_name: String) -> IPCInterface {
+    pub fn new(socket_name: String) -> Result<IPCInterface, std::io::Error> {
         let mut ipc: IPCInterface = IPCInterface {
             fd: 0,
             socket_name: "string".to_string(),
             connected: false,
         };
-        let fd = ipc.create_socket().unwrap();
-        let connected = if ipc.make_connection(fd, socket_name.clone()) {
+        let fd = ipc.create_socket()?;
+        let connected = if ipc.make_connection(fd, socket_name.clone())? {
             true
         } else {
             false
         };
-        IPCInterface {
+        Ok(IPCInterface {
             fd,
             socket_name,
             connected,
-        }
+        })
     }
 
     /// create a socket of type SOCK_SEQPACKET to allow passing of information through processes
@@ -50,7 +50,7 @@ impl IPCInterface {
     }
 
     /// Connect client process. True if connection is established.
-    fn make_connection(&mut self, socket_fd: i32, client_name: String) -> bool {
+    fn make_connection(&mut self, socket_fd: i32, client_name: String) -> Result<bool, std::io::Error> {
         let fifo_name = format!("{}{}", SOCKET_PATH_PREPEND, client_name);
         let socket_path = CString::new(fifo_name).unwrap();
         let addr = UnixAddr::new(Path::new(socket_path.to_str().unwrap())).unwrap_or_else(|err| {
@@ -69,7 +69,7 @@ impl IPCInterface {
             socket_path.to_str().unwrap(),
             socket_fd
         );
-        true
+        Ok(true)
     }
 }
 

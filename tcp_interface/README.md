@@ -4,7 +4,7 @@ This library provides interfaces which are use by handlers and allow them to com
 
 ## What is this
 
-Read and send functions are part of the TcpInterface struct and can be called whenever a process wants to simulate communicating with a peripheral. 
+Read and send functions are part of the TcpInterface struct and can be called whenever a process wants to simulate communicating with a peripheral.
 The external handlers which use these interfaces can use these functions to send and receive data to and from the interface asynchronously (non blocking).
 Polling is used to allow for this behaviour.
 
@@ -14,7 +14,7 @@ A TcpInterface is used to faciliate communication between handlers and their ass
 
 ### Testing the TcpInterface
 
-To test the TCP Interface you can enter the following command inside the libs/interfaces directory. Be sure you have a Tcp server available for connection on the specified port:
+To test the TCP Interface you can enter the following command inside the ex3_shared_libs/interfaces directory. Be sure you have a Tcp server available for connection on the specified port:
 
 ```@sh
     cargo test -- --nocapture 

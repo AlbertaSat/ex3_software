@@ -42,4 +42,7 @@ pub mod opcodes {
         pub const SET_BEACON: u8 = 4;
         pub const GET_BEACON: u8 = 5;
     }
+    pub mod dfgm {
+        pub const TOGGLE_DATA_COLLECTION: u8 = 0;
+    }
 }
