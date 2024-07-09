@@ -15,7 +15,6 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
-use tcp_interface::TCP_BUFFER_SIZE;
 use tcp_interface::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -101,7 +100,7 @@ impl DFGMHandler {
                 }
             }
             if self.toggle_data_collection == true {
-                let mut tcp_buf = [0u8;TCP_BUFFER_SIZE];
+                let mut tcp_buf = [0u8;BUFFER_SIZE];
                 let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
                 match status {
                     Ok(data_len) => {

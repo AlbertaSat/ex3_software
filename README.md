@@ -1,4 +1,5 @@
 # ex3_obc_fsw
+
 A cargo workspace for all communication and processes that run on the Ex-Alta 3 OBC.
 
 A [cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html) is used for large Rust projects to consolidate multiple related packages into one location.
@@ -40,6 +41,15 @@ For example, to test the dfgm handler with a mock dispatcher (tcp server setup u
 ```@sh
 bash dfgm_handler_test.sh
 ```
+
+**When first cloning this repository**, you must enter the following:
+
+```bash
+cd ex3_shared_libs
+git submodule update --init
+```
+
+This will allow the functions contained in that repo to be used for this code. The ex3_shared_libs directory is a git submodule containing libraries for various functions the satellites' processes use.
 
 ## Message Format
 
