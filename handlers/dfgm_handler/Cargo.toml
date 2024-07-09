@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tcp_interface = { path = "../../libs/tcp_interface" }
-ipc_interface = { path = "../../libs/ipc_interface" }
-common = {path = "../../libs/common"}
+tcp_interface = { path = "../../ex3_shared_libs/tcp_interface" }
+ipc_interface = { path = "../../ex3_shared_libs/ipc_interface" }
+common = {path = "../../ex3_shared_libs/common"}
 nix = "0.26.2"
-message_structure = { path = "../../libs/message_structure" }
+message_structure = { path = "../../ex3_shared_libs/message_structure" }

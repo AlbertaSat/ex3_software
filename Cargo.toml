@@ -2,12 +2,12 @@
 
 members = [
     "handlers/handler",
-    "libs/tcp_interface",
-    "libs/message_structure",
-    "scheduler",
     "handlers/dfgm_handler",
-    "libs/common", 
+    "ex3_shared_libs/tcp_interface",
+    "ex3_shared_libs/message_structure",
+    "ex3_shared_libs/ipc_interface",
+    "ex3_shared_libs/common", 
+    "scheduler",
     "dev_tools/cli_test_msg", 
     "dev_tools/ipc_dummy_client",
-    "libs/ipc_interface",
 ]

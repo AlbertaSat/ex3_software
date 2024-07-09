@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tcp_interface = { path = "../../libs/tcp_interface" }
-common = { path = "../../libs/common" }
-message_structure = { path = "../../libs/message_structure" }
+tcp_interface = { path = "../../ex3_shared_libs/tcp_interface" }
+common = { path = "../../ex3_shared_libs/common" }
+message_structure = { path = "../../ex3_shared_libs/message_structure" }
