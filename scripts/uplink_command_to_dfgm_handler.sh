@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# Written by Devin Headrick 
+# Summer 2024
 
 # This script runs the first leg of our 'tall and thin' implementation of software architecture. 
 #  The script sends a msg (command), from the gs (right now its mocked as a tcp server), up to the UHF transceiver, 
@@ -9,7 +11,6 @@ gnome-terminal -t SIM_GS -- sh -c 'cd /home/devin/albertasat/ex3/gs/cli_ground_s
 
 ## Create the simulated subystem components (dfgm and uhf transciever) - because they are tcp servers  
 gnome-terminal -t SIM_DFGM_SUBSYSTEM -- sh -c 'cd /home/devin/albertasat/ex3/sim_subs/ex3_simulated_subsystems/DFGM && python3 ./dfgm_subsystem.py ; bash exec;'
-
 # For now the UHF transceiver is bypassed and the GS sends msgs directly to the coms handler 
 
 ## Create the msg dispatcher (first component of the obc fsw because it creates ipc servers 
@@ -17,6 +18,5 @@ gnome-terminal -t MSG_DISPATCHER -- sh -c 'cd ../msg_dispatcher && ./msg_dispatc
 sleep 0.25
 
 ## Create the hanlders and other obc fsw components (coms handler, dfgm handler )
-
-#TODO - instantiate the DFGM handler 
+gnome-terminal -t DFGM_HANDLER -- sh -c 'cd ../ && cargo run --bin dfgm_handler; exec bash'
 gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
