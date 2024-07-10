@@ -26,6 +26,14 @@ use chrono::prelude::*;
 use serde_json::json;
 use std::io::{BufWriter, Write};
 
+use std::time::Duration;
+use tokio;
+
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
+
 //TOOD - create a new file for each time the program is run
 //TODO - get file if one already this time the 'program is run' - then properly append JSON data (right now it just appends json data entirely)
 //TODO - get the current users name
@@ -105,29 +113,70 @@ fn get_operator_input_line() -> String {
     return input;
 }
 
-fn main() {
+// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
+fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
+    //TODO - hanlde if the Ack is OK or ERR , OR not an ACK at all
+    println!("Received ACK: {:?}", msg);
+    *awaiting_ack = false;
+    Ok(())
+}
+
+fn send_msg_to_sc(msg: Msg, tcp_interface: &mut TcpInterface) {
+    // Serialize msg to bytes
+    let serialized_msg = serialize_msg(&msg).unwrap();
+
+    // Send the message to the coms handler via TCP
+    let ret = tcp_interface.send(&serialized_msg).unwrap();
+    println!("Sent {} bytes to Coms handler", ret);
+    std::io::stdout().flush().unwrap();
+}
+
+#[tokio::main]
+async fn main() {
     println!("Beginning CLI Ground Station...");
     println!("Waiting for connection to Coms handler via TCP..."); // bypass the UHF transceiver and direct to coms handler for now
-    let mut tcp_server = TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
+    let mut tcp_interface =
+        TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
     println!("Connected to Coms handler via TCP ");
 
     //Once connection is established, loop and read stdin, build a msg from operator entered data, and send to coms handler via TCP socket
     loop {
-        // Gather operator input from the command line
-        let input = get_operator_input_line();
+        let input = get_operator_input_line(); //Bl;ocking read on stdin until operator hits 'enter' key
 
-        // Build a message from the operator input
         let msg_build_res = build_msg_from_operator_input(input);
 
         match msg_build_res {
             Ok(msg) => {
-                // Serialize msg to bytes
-                let serialized_msg = serialize_msg(&msg).unwrap();
+                send_msg_to_sc(msg, &mut tcp_interface);
 
-                // Send the message to the coms handler via TCP
-                let ret = tcp_server.send(&serialized_msg).unwrap();
-                println!("Sent {} bytes to Coms handler", ret);
-                std::io::stdout().flush().unwrap();
+                //TODO - Wait for an ACK w/ a timeout of 10 seconds - if no ACK, inform the operator and ask if they want to resend
+                let mut buf = [0u8; 128];
+                let awaiting_ack = Arc::new(Mutex::new(true));
+                let awaiting_ack_clone = Arc::clone(&awaiting_ack);
+
+                tokio::task::spawn(async move {
+                    //Sleep for 1 second intervals - and check if the await ack flag has been reset
+                    let mut count = 0;
+                    while count < WAIT_FOR_ACK_TIMEOUT {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        count += 1;
+                        let lock = awaiting_ack_clone.lock().await;
+                        if *lock == false {
+                            return;
+                        }
+                    }
+                    let mut lock = awaiting_ack_clone.lock().await;
+                    *lock = false;
+                    println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
+                });
+
+                while *awaiting_ack.lock().await == true {
+                    let mut bytes_read = tcp_interface.read(&mut buf).unwrap();
+                    if bytes_read > 0 {
+                        let ack_msg = deserialize_msg(&buf).unwrap();
+                        let ack_res = handle_ack(ack_msg, &mut *awaiting_ack.lock().await);
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("Error building message: {}", e);

@@ -10,3 +10,4 @@ common = { path = "../ex3_shared_libs/common" }
 message_structure = { path = "../ex3_shared_libs/message_structure" }
 serde_json = "1.0.120"
 chrono = "0.4.38"
+tokio = { version = "1", features = ["full"] }
