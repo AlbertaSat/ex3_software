@@ -139,7 +139,7 @@ mod tests {
         let interface = IPCInterface::new("dfgm_handler".to_string());
         let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
-            let output = read_socket(interface.fd, &mut socket_buf).unwrap();
+            let output = read_socket(interface.as_ref().unwrap().fd, &mut socket_buf).unwrap();
             if output > 5 {
                 break;
             } else {
@@ -147,6 +147,6 @@ mod tests {
             }
         }
         println!("Sending: {:?}", socket_buf);
-        send_over_socket(interface.fd, socket_buf.clone()).unwrap();
+        send_over_socket(interface.unwrap().fd, socket_buf.clone()).unwrap();
     }
 }
