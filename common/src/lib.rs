@@ -44,5 +44,6 @@ pub mod opcodes {
     }
     pub mod dfgm {
         pub const TOGGLE_DATA_COLLECTION: u8 = 0;
+        pub const GET_DFGM_DATA: u8 = 1;
     }
 }
