@@ -42,15 +42,6 @@ For example, to test the dfgm handler with a mock dispatcher (tcp server setup u
 bash dfgm_handler_test.sh
 ```
 
-**When first cloning this repository**, you must enter the following:
-
-```bash
-cd ex3_shared_libs
-git submodule update --init
-```
-
-This will allow the functions contained in that repo to be used for this code. The ex3_shared_libs directory is a git submodule containing libraries for various functions the satellites' processes use.
-
 ## Message Format
 
 Below is the current format for how we will pass data through the OBC. It is subject to change as the project develops.
