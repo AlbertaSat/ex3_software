@@ -1,4 +1,4 @@
-workspace = { members = ["cli_command_obc"] }
+workspace = { members = ["cli_command_obc", "cli_ground_station"] }
 [package]
 name = "ground-server"
 version = "0.1.0"
