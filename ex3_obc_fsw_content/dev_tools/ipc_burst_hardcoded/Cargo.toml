@@ -1,0 +1,9 @@
+[package]
+name = "ipc_burst_hardcoded"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ipc_interface = { path = "../../ex3_shared_libs/ipc_interface" }
+message_structure = { path = "../../ex3_shared_libs/message_structure" }
+common = { path = "../../ex3_shared_libs/common"}

@@ -1,0 +1,7 @@
+[package]
+name = "ipc_dummy_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nix = "0.26.2"
