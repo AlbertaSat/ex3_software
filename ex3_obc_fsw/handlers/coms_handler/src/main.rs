@@ -49,23 +49,25 @@ fn handle_msg_for_coms(msg: &Msg) {
 }
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking
-fn handle_msg_for_gs(msg: &Msg) {
+fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) {
     let msg_len = msg.header.msg_len;
     if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES {
         // If the message is a bulk message, then fragment it before downlinking
         // TODO - handle bulk message
     }
-    // TODO - downlink message to ground station
+    // TMP - will write to sim UHF when done
+    let serialized_msg: Vec<u8> = serialize_msg(&msg).unwrap();
+    interface.send(&serialized_msg);
 }
 
 /// Handle incomming messages from other OBC FSW components
 /// Determines based on msg destination where to send it
-fn handle_ipc_msg(msg: Msg) {
+fn handle_ipc_msg(msg: Msg, interface: &mut TcpInterface) {
     // Check if the message is destined for the coms handler directly, or to be downlinked to the ground station
     let destination = msg.header.dest_id;
     match destination {
         COMS => handle_msg_for_coms(&msg),
-        GS => handle_msg_for_gs(&msg),
+        GS => handle_msg_for_gs(&msg, interface),
         _ => {
             println!("Invalid msg destination from IPC read");
         }
@@ -151,7 +153,7 @@ fn main() {
             let deserialized_msg_result = deserialize_msg(&ipc_buf.as_slice());
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
-                    handle_ipc_msg(deserialized_msg);
+                    handle_ipc_msg(deserialized_msg, &mut tcp_interface);
                 }
                 Err(e) => {
                     println!("Error deserializing IPC msg: {:?}", e);
