@@ -1,6 +1,5 @@
-workspace = { members = ["cli_command_obc", "cli_ground_station"] }
 [package]
-name = "ground-server"
+name = "ex3_ground_station"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,5 +1,5 @@
 [package]
-name = "ex3_obc_fsw"
+name = "ex3_shared_libs"
 version = "0.1.0"
 edition = "2021"
 
