@@ -92,7 +92,11 @@ ComponentStruct *component_factory(char *name, int component_id)
 /// @param id
 /// @return Associated fd for that component
 int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
-{
+{   
+    if (id == 7) {
+        return cs[1]->data_socket_fd; // if msg for gs, send to coms_handler
+    }
+
     // loop over components, get fd of one with matching id
     for (int i = 0; i < num_components; i++)
     {

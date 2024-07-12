@@ -147,7 +147,7 @@ fn main() {
         }
 
         if ipc_num_bytes_read > 0 {
-            println!("Received IPC Msg bytes: {:?}", ipc_buf);
+            println!("Received IPC Msg bytes");
             let deserialized_msg_result = deserialize_msg(&ipc_buf.as_slice());
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {

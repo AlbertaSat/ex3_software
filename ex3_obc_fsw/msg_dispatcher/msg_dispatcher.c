@@ -20,17 +20,23 @@ TODO - HANDLE THE FACT THAT THE FD ALWAYS INCREASES WHEN CONNECTION IS DROPPED A
 
 int main(int argc, char *argv[])
 {
-    char buffer[MSG_UNIT_SIZE] = {0}; // Single buffer for reading and writing between clients
-    int ret = 0;                      // used for assessing returns of various fxn calls
-    int ready;                        // how many fd are ready from the poll (have return event)
+    char *buffer = (char *)malloc(MSG_UNIT_SIZE); // Single buffer for reading and writing between clients
 
-    int num_components = 3;
+    if (buffer == NULL) {
+        handle_error("Failed  to allocate buffer");
+    }
+
+    int ret = 0;                          // used for assessing returns of various fxn calls
+    int ready;                            // how many fd are ready from the poll (have return event)
+
+    int num_components = 4;
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
+    ComponentStruct *gs = component_factory("gs", GS);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[3] = {dfgm_handler, coms_handler, test_handler};
+    ComponentStruct *components[4] = {dfgm_handler, coms_handler, test_handler, gs};
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling
@@ -98,6 +104,7 @@ int main(int argc, char *argv[])
 
 CleanEnd:
 
+    free(buffer);
     free(pfds);
     for (int i = 0; i < num_components; i++)
     {
