@@ -87,6 +87,15 @@ impl DFGMHandler {
                     Err(Error::new(ErrorKind::InvalidData, "Invalid msg body for opcode 0 on DFGM"))
                 }
             }
+            opcodes::dfgm::GET_DFGM_DATA => {
+                let data_to_send: Vec<u8> = get_dfgm_data()?;
+                let data_msg: Msg = Msg::new(0,GS,DFGM,0,data_to_send);
+                let serialized_data_msg: Vec<u8> = serialize_msg(&data_msg)?;
+                println!("Length of data to be sent: {} bytes", serialized_data_msg.len());
+                let n = send_over_socket(self.dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
+                println!("Sent data!");
+                Ok(())
+            }
             _ => {
                 debug!("Error: invalid msg body for opcode 0");
                 Err(Error::new(ErrorKind::NotFound, format!("Opcode {} not found for DFGM", msg.header.op_code)))
@@ -144,6 +153,16 @@ fn store_dfgm_data(data: &[u8]) -> std::io::Result<()> {
         .open(format!("{}/data", DFGM_DATA_DIR_PATH))?;
     file.write_all(data)?;
     Ok(())
+}
+/// This function will take all current data that is stored for the dfgm and
+/// write it to the message dispatcher. There it will be handled accordingly
+fn get_dfgm_data() -> Result<Vec<u8>, std::io::Error> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(format!("{}/data", DFGM_DATA_DIR_PATH))?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+    Ok(data)
 }
 
 fn main() -> Result<(), Error> {
