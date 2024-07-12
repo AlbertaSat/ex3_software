@@ -165,5 +165,12 @@ async fn main() {
                 eprintln!("Error building message: {}", e);
             }
         }
+        let mut read_buf = vec![0u8; 16520000]; //heap allocated
+        let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
+        if bytes_received > 0 {
+            println!("Received Data: {:?}", read_buf);
+        } else {
+            continue;
+        }
     }
 }
