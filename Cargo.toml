@@ -1,0 +1,9 @@
+
+[workspace]
+members = [
+    "cli_command_obc", 
+    "dashboard", 
+    "migration", 
+    "server",
+] 
+resolver = "2"
