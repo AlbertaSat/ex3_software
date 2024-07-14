@@ -1,9 +1,4 @@
-
-[workspace]
-members = [
-    "cli_command_obc", 
-    "dashboard", 
-    "migration", 
-    "server",
-] 
-resolver = "2"
+[package]
+name = "ex3_ground_station"
+version = "0.1.0"
+edition = "2021"
