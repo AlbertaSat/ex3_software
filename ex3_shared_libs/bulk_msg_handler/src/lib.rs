@@ -1,3 +1,5 @@
+use core::num;
+
 /*  Writte by Rowan Rasmusson
     Summer 2024
     This program is meant to take serialized Msg Struct and determine
@@ -12,19 +14,20 @@ pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence num
 pub fn handle_large_msg(large_msg: Msg) -> Result<Vec<Msg>, std::io::Error> {
 
     let body_len: usize = large_msg.msg_body.len();
-
+    println!("body len {}", body_len);
     let mut messages: Vec<Msg> = Vec::new();
 
     if body_len <= MAX_BULK_BODY_SIZE {
         messages.push(large_msg);
     } else {
-        let number_of_packets: usize = (body_len + MAX_BULK_BODY_SIZE - 1) / MAX_BULK_BODY_SIZE;
-        let number_of_packets_u8: u8 = number_of_packets as u8;
+        let number_of_packets: usize = body_len.div_ceil(MAX_BULK_BODY_SIZE);
+        let number_of_packets_u16: u16 = number_of_packets as u16;
 
         // First message with the number of packets
-        let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(number_of_packets_u8));
+        let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(number_of_packets_u16));
         messages.push(first_msg.clone());
-        assert_eq!(first_msg.msg_body[0], number_of_packets_u8);
+        println!("Messages to be sent: {}", number_of_packets);
+        assert_eq!(u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]), number_of_packets_u16);
         // Subsequent messages with chunks of the body
         for i in 0..number_of_packets {
             let start: usize = i * MAX_BULK_BODY_SIZE;
@@ -40,11 +43,12 @@ pub fn handle_large_msg(large_msg: Msg) -> Result<Vec<Msg>, std::io::Error> {
 }
 
 // return a Msg structure that has
-fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u8>) -> Msg {
+fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>) -> Msg {
     let head = msg.header;
 
     if let Some(total) = total_packets {
-        msg.msg_body = vec![total];
+        let len_bytes = total.to_le_bytes();
+        msg.msg_body = vec![len_bytes[0], len_bytes[1]];
     } else {
         let sequence_bytes = sequence_num.to_le_bytes();
         msg.msg_body.insert(0, sequence_bytes[0]);
@@ -99,7 +103,7 @@ mod tests {
 
     #[test]
     fn large_msg_copying() {
-        let large_msg: Msg = Msg::new(2,5,1,5,vec![0; 500]);
+        let large_msg: Msg = Msg::new(0,2,5,1,5,vec![0; 500]);
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone()).unwrap();
         assert_eq!(messages[1].msg_body[0], 1);
         assert_eq!(messages[2].msg_body[0], 2);
@@ -108,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_msg_vector_len() {
-        let large_msg: Msg = Msg::new(2,5,1,5,vec![0; 742]);
+        let large_msg: Msg = Msg::new(0,2,5,1,5,vec![0; 742]);
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone()).unwrap();
         let number_of_packets: usize = (large_msg.msg_body.len() + MAX_BULK_BODY_SIZE - 1) / MAX_BULK_BODY_SIZE;
         assert_eq!(messages.len(), number_of_packets + 1);

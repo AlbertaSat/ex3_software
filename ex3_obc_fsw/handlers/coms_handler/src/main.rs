@@ -156,6 +156,7 @@ fn main() {
         match ipc_bytes_read_result {
             Ok(num_bytes_read) => {
                 ipc_num_bytes_read = num_bytes_read;
+                println!("Read {} bytes", ipc_num_bytes_read);
             }
             Err(e) => {
                 println!("Error reading from IPC socket: {:?}", e);
@@ -167,6 +168,7 @@ fn main() {
             let deserialized_msg_result = deserialize_msg(&ipc_buf.as_slice());
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
+                    println!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                     handle_ipc_msg(deserialized_msg, &mut tcp_interface);
                 }
                 Err(e) => {
@@ -223,7 +225,7 @@ fn main() {
             //EMIT AN ACK TO TELL SENDER WE RECEIVED THE MSG
             // OK -> if decryption and msg deserialization of bytes succeeds
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
-            let ack_msg = Msg::new(ack_msg_id, GS, COMS, 200, ack_msg_body);
+            let ack_msg = Msg::new(0,ack_msg_id, GS, COMS, 200, ack_msg_body);
             write_msg_to_uhf_for_downlink(&mut tcp_interface, ack_msg);
             // uhf_buf.clear(); //FOR SOME REASON CLEARING THE BUFFERS WOULD CAUSE THE CONNECTION TO DROP AFTER A SINGLE MSG IS READ
         }
