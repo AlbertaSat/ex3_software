@@ -241,7 +241,7 @@ impl fmt::Display for AckCode {
 /// This message header is shared by all message types
 #[derive(Debug, Clone)]
 pub struct MsgHeader {
-    pub msg_len: u8,
+    pub msg_type: u8,
     pub msg_id: u8,
     pub dest_id: u8,
     pub source_id: u8,
@@ -251,7 +251,7 @@ pub struct MsgHeader {
 impl MsgHeader {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
-        bytes.push(self.msg_len);
+        bytes.push(self.msg_type);
         bytes.push(self.msg_id);
         bytes.push(self.dest_id);
         bytes.push(self.source_id);
@@ -268,7 +268,7 @@ impl MsgHeader {
         }
 
         Ok(MsgHeader {
-            msg_len: bytes[0],
+            msg_type: bytes[0],
             msg_id: bytes[1],
             dest_id: bytes[2],
             source_id: bytes[3],
@@ -288,7 +288,7 @@ impl Msg {
     pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
         let len = data.len() as u8;
         let header = MsgHeader {
-            msg_len: len + 5, // 5 bytes for header fields
+            msg_type: len + 5, // 5 bytes for header fields
             msg_id,
             dest_id,
             source_id,
@@ -379,7 +379,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, 12);
+        assert_eq!(deserialized_msg.header.msg_type, 12);
         assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
@@ -398,7 +398,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, 5);
+        assert_eq!(deserialized_msg.header.msg_type, 5);
         assert_eq!(deserialized_msg.msg_body, vec![]);
     }
 
@@ -419,7 +419,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, u8::MAX);
+        assert_eq!(deserialized_msg.header.msg_type, u8::MAX);
         assert_eq!(deserialized_msg.msg_body.len(), max_body_size);
         assert_eq!(deserialized_msg.msg_body, vec![0; max_body_size]);
     }

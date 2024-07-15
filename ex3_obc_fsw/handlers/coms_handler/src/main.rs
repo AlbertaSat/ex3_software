@@ -52,15 +52,16 @@ fn handle_msg_for_coms(msg: &Msg) {
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking
 fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
-    let msg_len = msg.header.msg_len;
-    if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES {
+    let msg_len = msg.msg_body.len() + 5; // account for header bytes
+    if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES.into() {
         // If the message is a bulk message, then fragment it before downlinking
         let messages: Vec<Msg> = handle_large_msg(msg.clone())?;
         let serialized_first_msg: Vec<u8> = serialize_msg(&messages[0])?;
         interface.send(&serialized_first_msg);
 
         // TODO - wait for gs to respond with ACK to send next messages
-
+        println!("About to send {} messages", messages.len());
+        thread::sleep(Duration::from_secs(10));
         for i in 1..messages.len() {
             let serialized_msg_packet: Vec<u8> = serialize_msg(&messages[i])?;
             interface.send(&serialized_msg_packet)?;
@@ -186,7 +187,7 @@ fn main() {
         }
 
         if uhf_num_bytes_read > 0 {
-            println!("Received UHF Msg bytes: {:?}", uhf_buf);
+            println!("Received UHF Msg bytes");
             let mut ack_msg_id = 0;
             let mut ack_msg_body = vec![0x4F, 0x4B]; // 0x4F = O , 0x4B = K  [OK
                                                      //TODO - Decrypt incomming encrypted bytes

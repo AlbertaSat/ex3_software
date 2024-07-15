@@ -93,7 +93,7 @@ impl DFGMHandler {
                 let serialized_data_msg: Vec<u8> = serialize_msg(&data_msg)?;
                 
                 // Data too big for len as u8. Need to change msg structure...
-                println!("Length of data after serialization {} bytes", data_msg.header.msg_len);
+                println!("Length of data after serialization {} bytes", data_msg.msg_body.len() + 5);
                 let n = send_over_socket(self.dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
                 println!("Sent data!");
                 Ok(())
