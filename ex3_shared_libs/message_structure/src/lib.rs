@@ -285,10 +285,9 @@ pub struct Msg {
 }
 
 impl Msg {
-    pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
-        let len = data.len() as u8;
+    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
         let header = MsgHeader {
-            msg_type: len + 5, // 5 bytes for header fields
+            msg_type,
             msg_id,
             dest_id,
             source_id,
@@ -366,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let msg = Msg::new(1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -385,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_serialize_empty_body() {
-        let msg = Msg::new(1, 2, 3, 4, vec![]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -406,7 +405,7 @@ mod tests {
     fn test_serialize_max_length_body() {
         // Create a message with the maximum possible body size
         let max_body_size = u8::MAX as usize - 5; // Maximum u8 value minus header size
-        let msg = Msg::new(1, 2, 3, 4, vec![0; max_body_size]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0; max_body_size]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();

@@ -93,7 +93,10 @@ ComponentStruct *component_factory(char *name, int component_id)
 /// @return Associated fd for that component
 int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
 {   
+    printf("Entered get_fd_from_id with id: %d\n", id);
+
     if (id == 7) {
+        printf("Special case: id == 7, returning cs[1]->data_socket_fd: %d\n", cs[1]->data_socket_fd);
         return cs[1]->data_socket_fd; // if msg for gs, send to coms_handler
     }
 

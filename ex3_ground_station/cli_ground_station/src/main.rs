@@ -76,7 +76,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
         msg_body.push(data_byte.parse::<u8>().unwrap());
     }
 
-    let msg = Msg::new(0, dest_id, GS, opcode, msg_body);
+    let msg = Msg::new(0,0, dest_id, GS, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }

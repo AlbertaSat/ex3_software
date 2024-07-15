@@ -89,11 +89,12 @@ impl DFGMHandler {
             }
             opcodes::dfgm::GET_DFGM_DATA => {
                 let data_to_send: Vec<u8> = get_dfgm_data()?;
-                let data_msg: Msg = Msg::new(0,GS,DFGM,0,data_to_send);
+                let data_msg: Msg = Msg::new(0,0,GS,DFGM,0,data_to_send);
                 let serialized_data_msg: Vec<u8> = serialize_msg(&data_msg)?;
                 
-                // Data too big for len as u8. Need to change msg structure...
+                println!("sending msg {:?}", data_msg);
                 println!("Length of data after serialization {} bytes", data_msg.msg_body.len() + 5);
+                println!("Sending {:?}", serialized_data_msg);
                 let n = send_over_socket(self.dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
                 println!("Sent data!");
                 Ok(())
