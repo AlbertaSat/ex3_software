@@ -1,6 +1,0 @@
-[package]
-name = "ex3_obc_fsw"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
