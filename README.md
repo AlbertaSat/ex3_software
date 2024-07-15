@@ -15,3 +15,19 @@ This section acts as a mirror to the command and data handling that happens onbo
 ## ex3_shared_libs
 
 Contained here is the shared functionality mentioned above between the ground station and the OBC. Mainly, serializing and deserializing messages and the required interfaces that allow for data to be passed from one process to another.
+
+## General Usage / Scripts
+
+Scripts to run various sections of the software together can be found in the [scripts](./scripts) directory.
+
+(For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems.
+
+### Running all components needs for a tall-thin demo of the Command Message Uplink
+
+This script takes the user defined path to wherever the simulated subsytem repo is for them, in order to start the simulated DFGM subsystem.
+
+First cd into the scripts directory, then run the following command.
+
+```@sh
+bash ./uplink_command_msg.sh <path_to_simulated_subsystem_directory>
+```
