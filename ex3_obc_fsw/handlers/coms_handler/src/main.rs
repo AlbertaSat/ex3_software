@@ -8,7 +8,8 @@ TODO - Detect if connection to either msg dispatcher or UHF transceiver is lost,
 TODO - implement a 'gs' connection flag, which the handler uses to determine whether or not it can downlink messages to the ground station.
 TODO - mucho error handling
 */
-
+use std::thread;
+use std::time::Duration;
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
@@ -50,19 +51,26 @@ fn handle_msg_for_coms(msg: &Msg) {
 }
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking
-fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) {
+fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
     let msg_len = msg.header.msg_len;
     if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES {
         // If the message is a bulk message, then fragment it before downlinking
-        let messages = handle_large_msg(msg.clone()).unwrap();
-        for data in 0..messages.len() {
-            
+        let messages: Vec<Msg> = handle_large_msg(msg.clone())?;
+        let serialized_first_msg: Vec<u8> = serialize_msg(&messages[0])?;
+        interface.send(&serialized_first_msg);
+
+        // TODO - wait for gs to respond with ACK to send next messages
+
+        for i in 1..messages.len() {
+            let serialized_msg_packet: Vec<u8> = serialize_msg(&messages[i])?;
+            interface.send(&serialized_msg_packet)?;
         }
     } else {
     // TMP - Writes directly to gs. will write to sim UHF when done
-    let serialized_msg: Vec<u8> = serialize_msg(&msg).unwrap();
-    interface.send(&serialized_msg);
+    let serialized_msg: Vec<u8> = serialize_msg(&msg)?;
+    interface.send(&serialized_msg)?;
     }
+    Ok(())
 }
 
 /// Handle incomming messages from other OBC FSW components
@@ -72,7 +80,7 @@ fn handle_ipc_msg(msg: Msg, interface: &mut TcpInterface) {
     let destination = msg.header.dest_id;
     match destination {
         COMS => handle_msg_for_coms(&msg),
-        GS => handle_msg_for_gs(&msg, interface),
+        GS => handle_msg_for_gs(&msg, interface).unwrap(),
         _ => {
             println!("Invalid msg destination from IPC read");
         }
