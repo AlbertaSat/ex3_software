@@ -1,0 +1,9 @@
+[package]
+name = "bulk_msg_handler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tcp_interface = { path = "../tcp_interface" }
+common = { path = "../common" }
+message_structure = { path = "../message_structure" }
