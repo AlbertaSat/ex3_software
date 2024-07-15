@@ -17,6 +17,7 @@ use ipc_interface::{read_socket, send_over_socket, IPCInterface, IPC_BUFFER_SIZE
 use message_structure::{deserialize_msg, serialize_msg, Msg};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
+use bulk_msg_handler::*;
 
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
@@ -53,11 +54,15 @@ fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) {
     let msg_len = msg.header.msg_len;
     if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES {
         // If the message is a bulk message, then fragment it before downlinking
-        // TODO - handle bulk message
-    }
-    // TMP - will write to sim UHF when done
+        let messages = handle_large_msg(msg.clone()).unwrap();
+        for data in 0..messages.len() {
+            
+        }
+    } else {
+    // TMP - Writes directly to gs. will write to sim UHF when done
     let serialized_msg: Vec<u8> = serialize_msg(&msg).unwrap();
     interface.send(&serialized_msg);
+    }
 }
 
 /// Handle incomming messages from other OBC FSW components

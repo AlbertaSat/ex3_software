@@ -4,7 +4,6 @@ members = [
     "ex3_obc_fsw/dev_tools/ipc_burst_hardcoded",
     "ex3_obc_fsw/dev_tools/ipc_dummy_client",
     "ex3_obc_fsw/handlers/dfgm_handler",
-    "ex3_obc_fsw/handlers/bulk_msg_handler",
     "ex3_obc_fsw/handlers/coms_handler",
     "ex3_obc_fsw/handlers/dummy_handler",
     "ex3_obc_fsw/scheduler",
