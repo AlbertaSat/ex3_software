@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "ex3_obc_fsw/dev_tools/cli_test_msg",
+    "ex3_obc_fsw/dev_tools/ipc_burst_hardcoded",
+    "ex3_obc_fsw/dev_tools/ipc_dummy_client",
+    "ex3_obc_fsw/handlers/dfgm_handler",
+    "ex3_obc_fsw/handlers/bulk_msg_handler",
+    "ex3_obc_fsw/handlers/coms_handler",
+    "ex3_obc_fsw/scheduler",
+    "ex3_ground_station/cli_command_obc",
+    "ex3_ground_station/cli_ground_station",
+    "ex3_ground_station/dashboard", 
+    "ex3_ground_station/migration", 
+    "ex3_ground_station/server",
+    "ex3_shared_libs/common",
+    "ex3_shared_libs/ipc_interface",
+    "ex3_shared_libs/tcp_interface",
+    "ex3_shared_libs/message_structure",
+]
