@@ -19,4 +19,6 @@ members = [
     "ex3_shared_libs/interfaces/ipc", 
     "ex3_obc_fsw/dev_tools/ipc_server_dev_tool",
     "ex3_shared_libs/logging",
+    "ex3_obc_fsw/handlers/iris_handler",
 ]
+
