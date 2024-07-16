@@ -91,20 +91,28 @@ int main(int argc, char *argv[])
                     int dest_comp_fd = get_fd_from_id(components, num_components, dest_id);
                     printf("Dest Comp ID is %d\n", dest_comp_fd);
                     if (dest_comp_fd > -1)
+                {
+                    printf("Sending\n");
+                    for (int i = 0; i < bytes_read; i++)
                     {
-                        printf("Sending\n");
-                        for (int i = 0; i < ret; i++)
-                        {
                         printf(" %02x |", buffer[i]);
-                        }
-                        printf("\n");
-                        printf("Bytes read %d\n", bytes_read);
-                        ret = write(dest_comp_fd, buffer, bytes_read);
+                    }
+                    printf("\n");
+
+                    // Ensure all bytes are written
+                    int bytes_written = 0;
+                    while (bytes_written < bytes_read)
+                    {
+                        ret = write(dest_comp_fd, buffer + bytes_written, bytes_read - bytes_written);
                         if (ret < 0)
                         {
-                            printf("Write failed \n");
+                            perror("Write failed");
+                            break;
                         }
+                        bytes_written += ret;
                     }
+                    printf("Bytes written: %d\n", bytes_written);
+                }
                     memset(buffer, 0, MSG_UNIT_SIZE); // clear read buffer after handling data
                 }
             }
