@@ -7,7 +7,7 @@ Summer 2024
 #ifndef CONNECTION_H
 #define CONNECTION_H
 
-#define MSG_UNIT_SIZE 16520000
+#define MSG_UNIT_SIZE 500
 #define LISTEN_BACKLOG_SIZE 3
 #define SOCKET_PATH_PREPEND "/tmp/fifo_socket_"
 #define COMPONENT_NAME_SIZE_MAX 32

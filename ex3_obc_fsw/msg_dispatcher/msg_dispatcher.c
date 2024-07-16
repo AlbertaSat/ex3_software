@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
-    ComponentStruct *gs = component_factory("gs", GS);
+    ComponentStruct *gs = component_factory("gs_handler", GS);
 
     // Array of pointers to components the message dispatcher interacts with
     ComponentStruct *components[4] = {dfgm_handler, coms_handler, test_handler, gs};
@@ -72,7 +72,8 @@ int main(int argc, char *argv[])
                 // IF we are waiting for incoming data from a connected client
                 else
                 {
-                    if (read_data_socket(components[i], &pfds[i], buffer) == 0)
+                    int bytes_read = read_data_socket(components[i], &pfds[i], buffer);
+                    if (bytes_read == 0)
                     {
                         continue;
                     }
@@ -88,10 +89,17 @@ int main(int argc, char *argv[])
                     // Now use the msg destination ID to determine what component (socket) to send the message to
                     // loop over components array of pointers - whichever component id enum matches the read dest id is what we are writing to
                     int dest_comp_fd = get_fd_from_id(components, num_components, dest_id);
-                    printf("Dest Comp ID is %d", dest_comp_fd);
+                    printf("Dest Comp ID is %d\n", dest_comp_fd);
                     if (dest_comp_fd > -1)
                     {
-                        ret = write(dest_comp_fd, buffer, sizeof(buffer));
+                        printf("Sending\n");
+                        for (int i = 0; i < ret; i++)
+                        {
+                        printf(" %02x |", buffer[i]);
+                        }
+                        printf("\n");
+                        printf("Bytes read %d\n", bytes_read);
+                        ret = write(dest_comp_fd, buffer, bytes_read);
                         if (ret < 0)
                         {
                             printf("Write failed \n");
