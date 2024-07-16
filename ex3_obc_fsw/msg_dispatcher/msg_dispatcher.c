@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
                     // Now use the msg destination ID to determine what component (socket) to send the message to
                     // loop over components array of pointers - whichever component id enum matches the read dest id is what we are writing to
                     int dest_comp_fd = get_fd_from_id(components, num_components, dest_id);
-                    printf("Dest Comp ID is %d\n", dest_comp_fd);
+                    printf("Dest Comp ID is %d\n", dest_id);
                     if (dest_comp_fd > -1)
                 {
                     printf("Sending\n");
