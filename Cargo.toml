@@ -15,5 +15,5 @@ members = [
     "ex3_shared_libs/common",
     "ex3_shared_libs/ipc_interface",
     "ex3_shared_libs/tcp_interface",
-    "ex3_shared_libs/message_structure",
+    "ex3_shared_libs/message_structure", "ex3_obc_fsw/handlers/adcs_handler",
 ]
