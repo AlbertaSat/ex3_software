@@ -95,11 +95,6 @@ int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
 {   
     printf("Entered get_fd_from_id with id: %d\n", id);
 
-    if (id == 7) {
-        printf("Special case: id == 7, returning cs[1]->data_socket_fd: %d\n", cs[1]->data_socket_fd);
-        return cs[1]->data_socket_fd; // if msg for gs, send to coms_handler
-    }
-
     // loop over components, get fd of one with matching id
     for (int i = 0; i < num_components; i++)
     {
@@ -113,7 +108,7 @@ int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
                 printf("Component not connected. Not writing \n");
                 return -2;
             }
-            printf("Destination component fd: %d \n", id);
+            printf("Destination component fd: %d \n", cs[i]->data_socket_fd);
             return cs[i]->data_socket_fd;
         }
     }
