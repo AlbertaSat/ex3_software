@@ -5,7 +5,7 @@ use message_structure::*;
 fn main() -> Result<(), std::io::Error> {
     // Setup communication with handler(s) and coms_handler
     let dfgm_interface = IPCInterface::new_server("bulk_dfgm".to_string())?;
-    let mut dfgm_ipc_initial_buf = Vec::with_capacity(128);
+    let mut dfgm_ipc_initial_buf = vec![0u8;128];
     let mut dfgm_ipc_num_bytes_read: usize = 0;
 
 

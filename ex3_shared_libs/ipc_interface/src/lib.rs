@@ -1,8 +1,8 @@
 use nix::libc;
-use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr, bind, listen, accept, SockaddrLike};
-use nix::unistd::{read, write};
+use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr, bind, listen, accept};
+use nix::unistd::{read, write, unlink};
 use std::ffi::CString;
-use std::io;
+use std::{io,fs};
 use std::path::Path;
 use std::process;
 use std::io::Error as IoError;
@@ -45,7 +45,7 @@ impl IPCInterface {
             connected: false,
         };
         let fd = ipc.create_socket()?;
-        ipc.bind_and_listen(fd, socket_name.clone());
+        ipc.bind_and_listen(fd, socket_name.clone())?;
         Ok(IPCInterface {
             fd,
             socket_name, 
@@ -57,6 +57,11 @@ impl IPCInterface {
     fn bind_and_listen(&mut self, socket_fd: i32, socket_name: String) -> Result<(), std::io::Error> {
         let fifo_name = format!("{}{}", SOCKET_PATH_PREPEND, socket_name);
         let socket_path = CString::new(fifo_name).unwrap();
+        let path = Path::new(socket_path.to_str().unwrap());
+        // Check if the socket file already exists and remove it
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
         let addr = UnixAddr::new(Path::new(socket_path.to_str().unwrap())).unwrap_or_else(|err| {
             eprintln!("Failed to create UnixAddr: {}", err);
             process::exit(1);
@@ -83,8 +88,6 @@ impl IPCInterface {
         });
         Ok(conn_fd)
     }
-
-    
 
     /// create a socket of type SOCK_SEQPACKET to allow passing of information through processes
     fn create_socket(&mut self) -> io::Result<i32> {
@@ -121,7 +124,6 @@ impl IPCInterface {
     }
 }
 
-
 /// read bytes over a UNIX SOCK_SEQPACKET socket from a sender. Takes in the fd location to write to.
 /// loop{} over this
 /// The user needs to create a buffer to pass to the read function.
@@ -154,15 +156,21 @@ pub fn read_socket(read_fd: i32, socket_buf: &mut Vec<u8>) -> Result<usize, IoEr
         if poll_fd.revents != 0 {
             if poll_fd.revents & libc::POLLIN != 0 {
                 if poll_fd.fd == read_fd {
-                    let ret = read(read_fd, socket_buf).unwrap();
-
-                    if ret == 0 {
-                        println!("Connection to server dropped. Exiting...");
-                        process::exit(0);
-                    } else {
-                        println!("Received: {:?}", socket_buf);
+                    match read(read_fd, socket_buf) {
+                        Ok(ret) => {
+                            if ret == 0 {
+                                println!("Connection to server dropped. Exiting...");
+                                return Err(IoError::new(io::ErrorKind::UnexpectedEof, "Connection closed"));
+                            } else {
+                                println!("Received: {:?}", socket_buf);
+                                return Ok(ret);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("read error: {:?}", e);
+                            return Err(e.into());
+                        }
                     }
-                    return Ok(ret);
                 }
             }
         }
