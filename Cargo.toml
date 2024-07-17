@@ -7,7 +7,7 @@ members = [
     "ex3_obc_fsw/handlers/coms_handler",
     "ex3_obc_fsw/handlers/dummy_handler",
     "ex3_obc_fsw/scheduler",
-    "ex3_obc_fsw/bulk_msg_dispatcher",
+    "ex3_obc_fsw/response_msg_dispatcher",
     "ex3_ground_station/cli_command_obc",
     "ex3_ground_station/cli_ground_station",
     "ex3_ground_station/dashboard",
