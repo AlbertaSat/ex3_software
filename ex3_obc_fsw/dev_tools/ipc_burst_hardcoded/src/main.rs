@@ -21,7 +21,7 @@ fn main(){
     let args: Vec<String> = std::env::args().collect();
     
     //Setup interface for comm with OBC FSW components (IPC), by acting as a client connecting to msg dispatcher server
-    let ipc_interface = IPCInterface::new("test_handler".to_string()).unwrap();
+    let ipc_interface = IPCInterface::new_client("test_handler".to_string()).unwrap();
     let mut ipc_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
 
     // Define msg to send contents

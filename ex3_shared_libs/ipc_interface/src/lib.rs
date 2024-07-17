@@ -1,5 +1,5 @@
 use nix::libc;
-use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr};
+use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr, bind, listen, accept, SockaddrLike};
 use nix::unistd::{read, write};
 use std::ffi::CString;
 use std::io;
@@ -19,7 +19,7 @@ pub struct IPCInterface {
 }
 
 impl IPCInterface {
-    pub fn new(socket_name: String) -> Result<IPCInterface, std::io::Error> {
+    pub fn new_client(socket_name: String) -> Result<IPCInterface, std::io::Error> {
         let mut ipc: IPCInterface = IPCInterface {
             fd: 0,
             socket_name: "string".to_string(),
@@ -37,6 +37,54 @@ impl IPCInterface {
             connected,
         })
     }
+
+    pub fn new_server(socket_name: String) -> Result<IPCInterface, std::io::Error> {
+        let mut ipc: IPCInterface = IPCInterface {
+            fd: 0,
+            socket_name: "string".to_string(),
+            connected: false,
+        };
+        let fd = ipc.create_socket()?;
+        ipc.bind_and_listen(fd, socket_name.clone());
+        Ok(IPCInterface {
+            fd,
+            socket_name, 
+            connected: true,
+        })
+    }
+
+    /// Bind and listen for incoming connections
+    fn bind_and_listen(&mut self, socket_fd: i32, socket_name: String) -> Result<(), std::io::Error> {
+        let fifo_name = format!("{}{}", SOCKET_PATH_PREPEND, socket_name);
+        let socket_path = CString::new(fifo_name).unwrap();
+        let addr = UnixAddr::new(Path::new(socket_path.to_str().unwrap())).unwrap_or_else(|err| {
+            eprintln!("Failed to create UnixAddr: {}", err);
+            process::exit(1);
+        });
+
+        bind(socket_fd, &addr).unwrap_or_else(|err| {
+            eprintln!("Failed to bind to socket: {}", err);
+            process::exit(1);
+        });
+
+        listen(socket_fd, 10).unwrap_or_else(|err| {
+            eprintln!("Failed to listen on socket: {}", err);
+            process::exit(1);
+        });
+
+        println!("Server listening on {}", socket_path.to_str().unwrap());
+        Ok(())
+    }
+
+    pub fn accept_connection(&self) -> Result<i32, std::io::Error> {
+        let conn_fd = accept(self.fd).unwrap_or_else(|err| {
+            eprintln!("Failed to accept connection: {}", err);
+            process::exit(1);
+        });
+        Ok(conn_fd)
+    }
+
+    
 
     /// create a socket of type SOCK_SEQPACKET to allow passing of information through processes
     fn create_socket(&mut self) -> io::Result<i32> {
@@ -136,7 +184,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_dfgm_echo() {
-        let interface = IPCInterface::new("dfgm_handler".to_string());
+        let interface = IPCInterface::new_client("dfgm_handler".to_string());
         let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
             let output = read_socket(interface.as_ref().unwrap().fd, &mut socket_buf).unwrap();

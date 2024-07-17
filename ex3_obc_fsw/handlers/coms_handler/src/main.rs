@@ -118,7 +118,7 @@ fn main() {
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
-    let ipc_gs_interface_res = IPCInterface::new("gs_handler".to_string());
+    let ipc_gs_interface_res = IPCInterface::new_client("gs_handler".to_string());
     if ipc_gs_interface_res.is_err() {
         println!("Error creating IPC interface: {:?}", ipc_gs_interface_res.err());
         return;
@@ -126,7 +126,7 @@ fn main() {
     let ipc_gs_interface = ipc_gs_interface_res.unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
-    let ipc_coms_interface_res = IPCInterface::new("coms_handler".to_string());
+    let ipc_coms_interface_res = IPCInterface::new_client("coms_handler".to_string());
     if ipc_coms_interface_res.is_err() {
         println!("Error creating IPC interface: {:?}", ipc_coms_interface_res.err());
         return;
