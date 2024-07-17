@@ -42,13 +42,15 @@ const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
-    dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    msg_dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    bulk_msg_dispatcher_interface: Option<IPCInterface>
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
-        dispatcher_interface: Result<IPCInterface, std::io::Error>,
+        msg_dispatcher_interface: Result<IPCInterface, std::io::Error>,
+        bulk_msg_dispatcher_interface: Result<IPCInterface, std::io::Error>
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -57,17 +59,24 @@ impl DFGMHandler {
                 dfgm_interface.as_ref().err().unwrap()
             );
         }
-        if dispatcher_interface.is_err() {
+        if msg_dispatcher_interface.is_err() {
             println!(
                 "Error creating dispatcher interface: {:?}",
-                dispatcher_interface.as_ref().err().unwrap()
+                msg_dispatcher_interface.as_ref().err().unwrap()
+            );
+        }
+        if bulk_msg_dispatcher_interface.is_err() {
+            println!(
+                "Error creating dispatcher interface: {:?}",
+                bulk_msg_dispatcher_interface.as_ref().err().unwrap()
             );
         }
 
         DFGMHandler {
             toggle_data_collection: false,
             peripheral_interface: dfgm_interface.ok(),
-            dispatcher_interface: dispatcher_interface.ok(),
+            msg_dispatcher_interface: msg_dispatcher_interface.ok(),
+            bulk_msg_dispatcher_interface: bulk_msg_dispatcher_interface.ok(),
         }
     }
 
@@ -95,7 +104,7 @@ impl DFGMHandler {
                 println!("sending msg {:?}", data_msg);
                 println!("Length of data after serialization {} bytes", data_msg.msg_body.len() + 5);
                 println!("Sending {:?}", serialized_data_msg);
-                let n = send_over_socket(self.dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
+                let n = send_over_socket(self.msg_dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
                 println!("Sent data!");
                 Ok(())
             }
@@ -110,7 +119,7 @@ impl DFGMHandler {
         // Read and poll for input for a message
         let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
-            if let Ok(n) = read_socket(self.dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
+            if let Ok(n) = read_socket(self.msg_dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
                 if n > 0 {
                     let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
                     println!("Received msg");
@@ -133,9 +142,6 @@ impl DFGMHandler {
             }
         }
     }
-
-
-
                 //TODO - Convert bytestream into message struct
                 //TODO - After receiving the message, send a response back to the dispatcher
                 //TODO - handle the message based on its opcode
@@ -172,11 +178,14 @@ fn main() -> Result<(), Error> {
     //Create TCP interface for DFGM handler to talk to simulated DFGM
     let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
-    //Create Unix domain socket interface for DFGM handler to talk to message dispatcher
-    let dispatcher_interface = IPCInterface::new("dfgm_handler".to_string());
+    //Create Unix domain socket interface for DFGM handler to talk to command message dispatcher
+    let msg_dispatcher_interface = IPCInterface::new_client("dfgm_handler".to_string());
+
+    // Create Unix domain socket for communication between DFGM hndler and bulk message dispatcher
+    let bulk_dispatcher_interface = IPCInterface::new_client("bulk_dfgm".to_string());
 
     //Create DFGM handler
-    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, dispatcher_interface);
+    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface, bulk_dispatcher_interface);
 
     dfgm_handler.run()
 }
