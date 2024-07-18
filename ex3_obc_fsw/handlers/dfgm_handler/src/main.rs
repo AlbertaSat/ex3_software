@@ -182,14 +182,14 @@ fn main() -> Result<(), Error> {
     let msg_dispatcher_interface = IPCInterface::new_client("dfgm_handler".to_string());
 
     // Create Unix domain socket for communication between DFGM handler and bulk message dispatcher
-    let bulk_dispatcher_interface_result = IPCInterface::new_client("bulk_dfgm".to_string());
+    let bulk_dispatcher_interface_result = IPCInterface::new_client("bulk_interface".to_string());
 
     // TMP - testing writing to IPC server
     let bulk_dispatcher_interface = match bulk_dispatcher_interface_result {
         Ok(interface) => {
-            let data = "Hello, World".as_bytes();
-            println!("sending {:?}", data);
-            let _ = send_over_socket(interface.fd, data.to_vec());
+            let data = Msg::new(0,0,7,3,66,"Hello World".as_bytes().to_vec());
+
+            let _ = send_over_socket(interface.fd, serialize_msg(&data)?);
             Ok(interface)
         }
         Err(e) => {

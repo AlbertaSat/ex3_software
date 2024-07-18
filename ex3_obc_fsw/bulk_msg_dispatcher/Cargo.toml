@@ -1,5 +1,5 @@
 [package]
-name = "response_msg_dispatcher"
+name = "bulk_msg_dispatcher"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,3 +7,4 @@ edition = "2021"
 ipc_interface = { path = "../../ex3_shared_libs/ipc_interface" }
 common = {path = "../../ex3_shared_libs/common"}
 message_structure = { path = "../../ex3_shared_libs/message_structure" }
+mio = { version = "0.8", features = ["os-poll", "os-ext"] }
