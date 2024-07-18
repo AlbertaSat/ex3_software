@@ -4,13 +4,13 @@ use message_structure::*;
 use std::collections::HashSet;
 
 fn main() -> Result<(), std::io::Error> {
-    // Setup communication with handler(s) and coms_handler
-    let dfgm_interface = IPCInterface::new_server("bulk_dfgm".to_string())?;
+    // Setup communication with handler(s) and gs_handler
+    let interface = IPCInterface::new_server("bulk_interface".to_string())?;
     let mut connected_clients: HashSet<i32> = HashSet::new();
 
 
     loop {
-        match dfgm_interface.accept_connection() {
+        match interface.accept_connection() {
             Ok(client_fd) => {
                 println!("New client accepted on fd: {}", client_fd);
                 connected_clients.insert(client_fd);
@@ -30,20 +30,23 @@ fn main() -> Result<(), std::io::Error> {
                     if num_bytes_read > 0 {
                         println!("Received {} IPC Msg bytes", num_bytes_read);
                         // Deserial Msg to look at body - path to data
-                        let deserialized_msg_result = deserialize_msg(&ipc_initial_buf.as_slice());
-                        match deserialized_msg_result {
-                            Ok(deserialized_msg) => {
-                                // Fetch data from path in body. Get string from bytes in body
-                                todo!()
-                            }
-                            Err(e) => {
-                                println!("Error deserializing GS IPC msg: {}", e);
-                            }
-                        };
+                        let deserialized_msg = deserialize_msg(&ipc_initial_buf.as_slice())?;
+                        // TMP - send write to hs_handler to test pipeline
+                        send_over_socket(client_fd, serialize_msg(&deserialized_msg)?);
+                        println!("Sent {:?}", deserialized_msg);
+                        // match deserialized_msg_result {
+                        //     Ok(deserialized_msg) => {
+                        //         // Fetch data from path in body. Get string from bytes in body
+                        //         todo!()
+                        //     }
+                        //     Err(e) => {
+                        //         println!("Error deserializing GS IPC msg: {}", e);
+                        //     }
+                        // };
                     }
                 }
                 Err(e) => {
-                    println!("Error reading from DFGM IPC socket: {:?}", e);
+                    println!("Error reading from IPC socket: {:?}", e);
                     if e.kind() == std::io::ErrorKind::UnexpectedEof {
                         println!("Client disconnected: {}", client_fd);
                         to_remove.push(client_fd);
