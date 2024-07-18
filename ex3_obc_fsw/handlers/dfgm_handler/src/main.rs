@@ -181,8 +181,22 @@ fn main() -> Result<(), Error> {
     //Create Unix domain socket interface for DFGM handler to talk to command message dispatcher
     let msg_dispatcher_interface = IPCInterface::new_client("dfgm_handler".to_string());
 
-    // Create Unix domain socket for communication between DFGM hndler and bulk message dispatcher
-    let bulk_dispatcher_interface = IPCInterface::new_client("bulk_dfgm".to_string());
+    // Create Unix domain socket for communication between DFGM handler and bulk message dispatcher
+    let bulk_dispatcher_interface_result = IPCInterface::new_client("bulk_dfgm".to_string());
+
+    // TMP - testing writing to IPC server
+    let bulk_dispatcher_interface = match bulk_dispatcher_interface_result {
+        Ok(interface) => {
+            let data = "Hello, World".as_bytes();
+            println!("sending {:?}", data);
+            let _ = send_over_socket(interface.fd, data.to_vec());
+            Ok(interface)
+        }
+        Err(e) => {
+            println!("Error creating bulk dispatcher interface: {:?}", e);
+            Err(e)
+        }
+    };
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface, bulk_dispatcher_interface);
