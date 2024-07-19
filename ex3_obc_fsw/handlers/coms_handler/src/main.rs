@@ -118,7 +118,7 @@ fn main() {
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
-    let ipc_gs_interface_res = IPCInterface::new_client("bulk_interface".to_string());
+    let ipc_gs_interface_res = IPCInterface::new_client("gs_handler".to_string());
     if ipc_gs_interface_res.is_err() {
         println!("Error creating IPC interface: {:?}", ipc_gs_interface_res.err());
         return;
@@ -230,7 +230,7 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    let _ = send_over_socket(ipc_gs_interface.fd, decrypted_byte_vec);
+                    let _ = send_over_socket(ipc_coms_interface.fd, decrypted_byte_vec);
                 }
                 Err(e) => {
                     println!("Error decrypting bytes from UHF: {:?}", e);
