@@ -45,8 +45,8 @@ impl IPCServerInterface {
         };
         ipc.create_socket()?;
         let mut ipc_server = IPCServerInterface {
-            interface: ipc,
-            conn_fd: None,
+            interface: ipc.clone(),
+            conn_fd: Some(ipc.fd),
         };
         ipc_server.bind_and_listen(socket_name.clone())?;
         Ok(ipc_server)
@@ -85,7 +85,7 @@ impl IPCServerInterface {
 
     //  AFTER the client connection is accepted, update the connected flag and change the fd to the one returend by the accepted connection
     pub fn accept_connection(&mut self) -> Result<i32, std::io::Error> {
-        let data_fd = accept(self.interface.fd).unwrap_or_else(|err| {
+        let data_fd = accept(self.conn_fd.unwrap()).unwrap_or_else(|err| {
             eprintln!("Failed to accept connection: {}", err);
             process::exit(1);
         });
