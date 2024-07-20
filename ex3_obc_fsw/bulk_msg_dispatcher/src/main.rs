@@ -4,7 +4,7 @@ use message_structure::*;
 
 fn main() -> Result<(), std::io::Error> {
     let dfgm_interface = IPCServerInterface::new_server("dfgm_bulk".to_string())?;
-    let gs_interface = IPCServerInterface::new_server("gs_handler".to_string())?;
+    let gs_interface = IPCServerInterface::new_server("gs_bulk".to_string())?;
     let mut connected_clients: Vec<IPCServerInterface> = vec![dfgm_interface, gs_interface.clone()];
     let socket_buf: &mut Vec<u8> = &mut vec![0u8; IPC_BUFFER_SIZE];
     let arb_data = Msg::new(0,0,0,0,0,"<path>".as_bytes().to_vec());
@@ -12,6 +12,7 @@ fn main() -> Result<(), std::io::Error> {
         poll_server_interfaces(&mut connected_clients, socket_buf);
     }
 }
+
 
 fn handle_client(client_fd: i32) -> Result<(), std::io::Error> {
     let mut ipc_initial_buf = vec![0u8; 128];

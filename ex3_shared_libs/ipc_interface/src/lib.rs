@@ -78,7 +78,7 @@ impl IPCServerInterface {
             eprintln!("Failed to listen on socket: {}", err);
             process::exit(1);
         });
-
+        self.interface.socket_name = socket_name;
         println!("Server listening on {}", socket_path.to_str().unwrap());
         Ok(())
     }
@@ -96,6 +96,7 @@ impl IPCServerInterface {
 }
 
 #[derive(Clone)]
+// TODO - make fd type Option<i32>
 pub struct IPCInterface {
     pub fd: i32,
     socket_name: String,
@@ -264,7 +265,7 @@ pub fn poll_server_interfaces(
                         }
                     } else {
                         interface.accept_connection().unwrap();
-                        println!("New client accepted on fd: {}", interface.interface.fd);
+                        println!("New client {} accepted on fd: {}", interface.interface.socket_name, interface.interface.fd);
                     }
                 }
             }
