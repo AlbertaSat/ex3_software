@@ -43,3 +43,6 @@ Cargo.lock
 **/target/
 **/target/doc/
 **/Cargo.lock
+
+# Except commands.json
+server/data/*
