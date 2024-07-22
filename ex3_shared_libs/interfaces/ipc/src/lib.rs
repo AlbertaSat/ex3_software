@@ -5,7 +5,7 @@ Summer 2024
 */
 use nix::libc;
 use nix::sys::socket::{self, accept, bind, listen, AddressFamily, SockFlag, SockType, UnixAddr};
-use nix::unistd::{read, unlink, write};
+use nix::unistd::{read, write};
 use std::ffi::CString;
 use std::io::Error as IoError;
 use std::path::Path;
@@ -319,7 +319,7 @@ mod tests {
                     "Server 2 received data: {:?}",
                     String::from_utf8_lossy(&ipc_server_socket_2.buffer)
                 );
-                write(ipc_server_socket.data_fd.unwrap(), ipc_server_socket.buffer.as_slice());
+                write(ipc_server_socket.data_fd.unwrap(), ipc_server_socket.buffer.as_slice()).unwrap();
                 ipc_server_socket_2.clear_buffer();
             }
         }
