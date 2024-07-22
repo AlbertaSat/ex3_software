@@ -9,6 +9,8 @@ References:
     - https://crates.io/crates/serde_json/1.0.1
     - https://crates.io/crates/serde-pickle
 */
+use common::component_ids::ComponentIds;
+use std::fmt;
 use std::io::Error as IoError;
 
 //TODO - add ref to common component id
@@ -27,6 +29,15 @@ pub enum MsgType {
     Ack = 1,
     //...Bulk msg?
     //.. Scheduled msg?
+}
+
+impl fmt::Display for MsgType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            MsgType::Cmd => write!(f, "Cmd"),
+            MsgType::Ack => write!(f, "Ack"),
+        }
+    }
 }
 
 //Convert byte equivalent value to MsgType enum
@@ -66,6 +77,20 @@ impl MsgHeaderNew {
     }
 }
 
+/// Use the ComponentId enum to display the source and destination ids actual name
+impl fmt::Display for MsgHeaderNew {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "MsgId: {},\n\tMsgType: {},\n\tDestId: {},\n\tSourceId: {}",
+            self.msg_id,
+            self.msg_type,
+            ComponentIds::from(self.dest_id),
+            ComponentIds::from(self.source_id),
+        )
+    }
+}
+
 impl SerializeAndDeserialize for MsgHeaderNew {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
@@ -102,6 +127,18 @@ impl CmdMsg {
         }
     }
 }
+
+// TODO - print associated opcode name
+impl fmt::Display for CmdMsg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "CmdMsg:\nHeader: {}, \nOpcode: {}, \nData: {:?}",
+            self.header, self.opcode, self.data
+        )
+    }
+}
+
 impl SerializeAndDeserialize for CmdMsg {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
@@ -148,6 +185,17 @@ impl AckMsg {
         }
     }
 }
+
+impl fmt::Display for AckMsg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "AckMsg: \nHeader: {}, AckCode: {}, ContextData: {:?}",
+            self.header, self.ack_code, self.context_data
+        )
+    }
+}
+
 impl SerializeAndDeserialize for AckMsg {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
@@ -183,6 +231,15 @@ impl From<u8> for AckCode {
             0 => AckCode::Success,
             1 => AckCode::Failed,
             _ => panic!("Invalid AckCode byte value"),
+        }
+    }
+}
+
+impl fmt::Display for AckCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            AckCode::Success => write!(f, "Success"),
+            AckCode::Failed => write!(f, "Failed"),
         }
     }
 }
@@ -289,7 +346,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_msg_ser_and_des() {
+    fn test_new_msg_print() {
+        //Create Command Message
+        let cmd_msg = CmdMsg::new(0, 5, 1, 0, vec![0, 1, 2, 3, 4, 5, 6]);
+        println!("cmd msg {}", cmd_msg);
+
+        //Create Ack Message
+        let ack_msg = AckMsg::new(0, 5, 1, AckCode::Success, vec![0, 1, 2, 3, 4, 5, 6]);
+        println!("ack msg {}", ack_msg);
+    }
+
+    #[test]
+    fn test_new_msg_ser_and_des() {
         //Create Cmd Msg
         let cmd_msg = CmdMsg::new(0, 5, 1, 0, vec![0, 1, 2, 3, 4, 5, 6]);
         let serialize_cmd_msg = serialize_msg_new(MsgNew::CmdMsg(cmd_msg)).unwrap();
