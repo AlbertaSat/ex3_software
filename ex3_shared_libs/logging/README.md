@@ -4,6 +4,10 @@ This library contains functions and features that cleanly and conveniently enabl
 
 Duplicate logs not of a high severity should be aggregated, such that they do not ‘fill up’ the log history and potentially cover up other important events that were logged. This can be implemented through a constraint on the time between logs of the event over a duration of n. Care should be taken when considering escalating the severity of an emitted log (think… if this error or log is generated, would this be something worth getting a call at 3am by your boss?).
 
+## Usage
+
+Right now the logger creates a 'log' directory in the project directory that the init_logger fxn is called in.
+
 ## Log4rs
 
 Log4rs has an architecture that is allows our logs to be written to various locations, formatted, and filtered conventiently.
@@ -11,4 +15,3 @@ Log4rs has an architecture that is allows our logs to be written to various loca
 ### Log4rs configuration
 
 Log4rs uses a 'yaml' file for configuration, which can be programatically configured but instead we are using a static file for init;
-
