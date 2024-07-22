@@ -16,5 +16,10 @@ members = [
     "ex3_shared_libs/ipc_interface",
     "ex3_shared_libs/tcp_interface",
     "ex3_shared_libs/message_structure",
+<<<<<<< HEAD
     "ex3_shared_libs/interfaces/ipc", "ex3_obc_fsw/dev_tools/ipc_server_dev_tool",
+=======
+    "ex3_shared_libs/logging",
+    "ex3_shared_libs/interfaces/ipc",
+>>>>>>> 91eae9b (Setup logging config file and fxn for programatic logger configuration to write two log files with different severity level filters)
 ]
