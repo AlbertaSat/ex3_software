@@ -1,0 +1,5 @@
+2024-07-26T10:58:08.141550642-06:00 - ERROR - This is an error message
+2024-07-26T10:58:08.141659779-06:00 - INFO - This is an info message
+2024-07-26T10:58:08.141675419-06:00 - DEBUG - This is a debug message
+2024-07-26T10:58:08.141689362-06:00 - WARN - This is a warning message
+2024-07-26T10:58:08.141709112-06:00 - TRACE - This is a trace message
