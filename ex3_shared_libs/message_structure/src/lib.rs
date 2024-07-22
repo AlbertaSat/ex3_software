@@ -17,8 +17,8 @@ use std::io::Error as IoError;
 
 /// Used when passing messages between around - between components and between GS and SC
 trait SerializeAndDeserialize {
-    fn to_bytes(&self) -> Result<Vec<u8>, IoError>;
-    fn from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
+    fn serialize_to_bytes(&self) -> Result<Vec<u8>, IoError>;
+    fn deserialize_from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
     where
         Self: Sized; //Must be sized so compiler can allocated enough space for instances of this type on the stack
 }
@@ -49,14 +49,6 @@ impl From<u8> for MsgType {
             _ => panic!("Invalid MsgType byte value"),
         }
     }
-}
-
-// New Msg enum - left old Msg and MsgHeader struct to not break them
-pub enum MsgNew {
-    CmdMsg(CmdMsg),
-    AckMsg(AckMsg),
-    //...Bulk msg?
-    //.. Scheduled msg?
 }
 
 //EVERY message should have this header - they all need an id, a dest, and a source
@@ -92,7 +84,7 @@ impl fmt::Display for MsgHeaderNew {
 }
 
 impl SerializeAndDeserialize for MsgHeaderNew {
-    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+    fn serialize_to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.msg_id.to_be_bytes());
         bytes.push(self.msg_type as u8);
@@ -100,7 +92,7 @@ impl SerializeAndDeserialize for MsgHeaderNew {
         bytes.push(self.source_id);
         Ok(bytes)
     }
-    fn from_bytes(serialized_bytes_slice: Vec<u8>) -> Result<Self, IoError> {
+    fn deserialize_from_bytes(serialized_bytes_slice: Vec<u8>) -> Result<Self, IoError> {
         let result_msg_header = MsgHeaderNew {
             msg_id: u16::from_be_bytes([serialized_bytes_slice[0], serialized_bytes_slice[1]]),
             msg_type: MsgType::from(serialized_bytes_slice[2]),
@@ -140,18 +132,18 @@ impl fmt::Display for CmdMsg {
 }
 
 impl SerializeAndDeserialize for CmdMsg {
-    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+    fn serialize_to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.header.to_bytes()?);
+        bytes.extend_from_slice(&self.header.serialize_to_bytes()?);
         bytes.push(self.opcode);
         bytes.extend_from_slice(&self.data);
         Ok(bytes)
     }
-    fn from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
+    fn deserialize_from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
     where
         Self: Sized,
     {
-        let header = MsgHeaderNew::from_bytes(byte_vec[0..5].to_vec())?;
+        let header = MsgHeaderNew::deserialize_from_bytes(byte_vec[0..5].to_vec())?;
         let opcode = byte_vec[5];
         let data = byte_vec[6..].to_vec();
         Ok(CmdMsg {
@@ -190,25 +182,25 @@ impl fmt::Display for AckMsg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "AckMsg: \nHeader: {}, AckCode: {}, ContextData: {:?}",
+            "AckMsg: \nHeader: {}, \nAckCode: {}, \nContextData: {:?}",
             self.header, self.ack_code, self.context_data
         )
     }
 }
 
 impl SerializeAndDeserialize for AckMsg {
-    fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
+    fn serialize_to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.header.to_bytes()?);
+        bytes.extend_from_slice(&self.header.serialize_to_bytes()?);
         bytes.push(self.ack_code as u8);
         bytes.extend_from_slice(&self.context_data);
         Ok(bytes)
     }
-    fn from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
+    fn deserialize_from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
     where
         Self: Sized,
     {
-        let header = MsgHeaderNew::from_bytes(byte_vec[0..5].to_vec())?;
+        let header = MsgHeaderNew::deserialize_from_bytes(byte_vec[0..5].to_vec())?;
         let ack_code = AckCode::from(byte_vec[5]);
         let context_data = byte_vec[6..].to_vec();
         Ok(AckMsg {
@@ -241,13 +233,6 @@ impl fmt::Display for AckCode {
             AckCode::Success => write!(f, "Success"),
             AckCode::Failed => write!(f, "Failed"),
         }
-    }
-}
-
-pub fn serialize_msg_new(msg: MsgNew) -> Result<Vec<u8>, IoError> {
-    match msg {
-        MsgNew::CmdMsg(cmd_msg) => cmd_msg.to_bytes(),
-        MsgNew::AckMsg(ack_msg) => ack_msg.to_bytes(),
     }
 }
 
@@ -349,19 +334,19 @@ mod tests {
     fn test_new_msg_print() {
         //Create Command Message
         let cmd_msg = CmdMsg::new(0, 5, 1, 0, vec![0, 1, 2, 3, 4, 5, 6]);
-        println!("cmd msg {}", cmd_msg);
+        println!("{}", cmd_msg);
 
         //Create Ack Message
         let ack_msg = AckMsg::new(0, 5, 1, AckCode::Success, vec![0, 1, 2, 3, 4, 5, 6]);
-        println!("ack msg {}", ack_msg);
+        println!("{}", ack_msg);
     }
 
     #[test]
     fn test_new_msg_ser_and_des() {
         //Create Cmd Msg
         let cmd_msg = CmdMsg::new(0, 5, 1, 0, vec![0, 1, 2, 3, 4, 5, 6]);
-        let serialize_cmd_msg = serialize_msg_new(MsgNew::CmdMsg(cmd_msg)).unwrap();
-        let deserialized_cmd_msg = CmdMsg::from_bytes(serialize_cmd_msg).unwrap();
+        let serialize_cmd_msg = cmd_msg.serialize_to_bytes().unwrap();
+        let deserialized_cmd_msg = CmdMsg::deserialize_from_bytes(serialize_cmd_msg).unwrap();
         assert_eq!(deserialized_cmd_msg.header.msg_id, 0);
         assert_eq!(deserialized_cmd_msg.header.dest_id, 5);
         assert_eq!(deserialized_cmd_msg.header.source_id, 1);
@@ -370,8 +355,8 @@ mod tests {
         assert_eq!(deserialized_cmd_msg.data, vec![0, 1, 2, 3, 4, 5, 6]);
 
         let ack_msg = AckMsg::new(0, 5, 1, AckCode::Success, vec![0, 1, 2, 3, 4, 5, 6]);
-        let serialize_ack_msg = serialize_msg_new(MsgNew::AckMsg(ack_msg)).unwrap();
-        let deserialized_ack_msg = AckMsg::from_bytes(serialize_ack_msg).unwrap();
+        let serialize_ack_msg = ack_msg.serialize_to_bytes().unwrap();
+        let deserialized_ack_msg = AckMsg::deserialize_from_bytes(serialize_ack_msg).unwrap();
         assert_eq!(deserialized_ack_msg.header.msg_id, 0);
         assert_eq!(deserialized_ack_msg.header.dest_id, 5);
         assert_eq!(deserialized_ack_msg.header.source_id, 1);
