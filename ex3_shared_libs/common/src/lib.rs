@@ -116,6 +116,16 @@ pub mod opcodes {
         pub const TOGGLE_DATA_COLLECTION: u8 = 0;
         pub const GET_DFGM_DATA: u8 = 1;
     }
+    pub mod adcs {
+        pub const DETUMBLE: u8 = 0;
+        pub const ON_OFF: u8 = 1;
+        pub const WHEEL_SPEED: u8 = 2;
+        pub const GET_HK: u8 = 3;
+        pub const MAGNETORQUER_CURRENT: u8 = 4;
+        pub const GET_ORIENTATION: u8 = 5;
+        pub const RESET: u8 = 6;
+        pub const ORIENT_TO_SBAND: u8 = 7;
+    }
 }
 
 #[cfg(test)]
