@@ -27,7 +27,7 @@ The EX3 Ground Station software interfaces with the Ex Alta 3 satellite, offerin
 ### Run Server
 
 Note: Data Storage
-All data is stored inside the `server/data` folder as JSON files. Ensure this folder exists and is writable to allow the server to store and manage data properly.
+All data is stored inside the `server/data` folder as JSON files. The `data` directory and necessary JSON files will be created automatically when user sends requests to the server.
 
 1. `cd server`
 2. `cargo run`
