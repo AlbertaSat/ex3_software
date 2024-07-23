@@ -3,7 +3,7 @@ Written by Devin Headrick
 Summer 2024
 
 TODO - HANDLE THE FACT THAT THE FD ALWAYS INCREASES WHEN CONNECTION IS DROPPED AND RE-ESTABLISHED
-       EVENTUALLY THIS WILL RESULT IN THE FD IN OVERFLOWING 
+       EVENTUALLY THIS WILL RESULT IN THE FD IN OVERFLOWING
 */
 
 #include <stdio.h>
@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
 
     int num_components = 3;
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
+    ComponentStruct *adcs_handler = component_factory("adcs_handler", ADCS);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
 
