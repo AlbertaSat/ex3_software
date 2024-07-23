@@ -1,6 +1,6 @@
-use crate::types::command::{Command, NewCommand};
+use crate::types::command::Command;
 use rocket::serde::json::serde_json;
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, create_dir_all};
 use std::io::{self, BufReader, BufWriter};
 use std::path::Path;
 use std::sync::Mutex;
@@ -24,12 +24,12 @@ pub fn read_commands() -> io::Result<Vec<Command>> {
     Ok(commands)
 }
 
-pub fn write_command(new_command: NewCommand) -> io::Result<()> {
+pub fn write_command(new_command: Command) -> io::Result<()> {
     let mut commands = read_commands()?;
-    let next_id = commands.iter().map(|c| c.id).max().unwrap_or(0) + 1;
+    let next_id = commands.iter().filter_map(|c| c.id).max().unwrap_or(0) + 1;
 
     let command = Command {
-        id: next_id,
+        id: Some(next_id),
         payload: new_command.payload,
         cmd: new_command.cmd,
         data: new_command.data,
@@ -37,8 +37,12 @@ pub fn write_command(new_command: NewCommand) -> io::Result<()> {
     };
 
     commands.push(command);
-    
-    let _lock: std::sync::MutexGuard<()> = FILE_LOCK.lock().unwrap();
+
+    let _lock = FILE_LOCK.lock().unwrap();
+
+    let path = Path::new(FILE_PATH);
+    let parent_dir = path.parent().unwrap();
+    create_dir_all(parent_dir)?;
 
     let file = OpenOptions::new()
         .write(true)

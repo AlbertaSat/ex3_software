@@ -14,7 +14,7 @@ mod message;
 mod types;
 mod utils;
 
-use types::command::{Command, NewCommand};
+use types::command::Command;
 use utils::file_ops::{read_commands, write_command};
 use obc_client::ObcClient;
 
@@ -29,7 +29,7 @@ async fn get_cmds() -> Json<Vec<Command>> {
 }
 
 #[post("/api/cmd", format = "json", data = "<input>")]
-async fn post_cmd(input: Json<NewCommand>) -> Status {
+async fn post_cmd(input: Json<Command>) -> Status {
     println!("Got a form! Payload: {}, Cmd: {}, Data: {}", input.payload, input.cmd, input.data);
 
     let new_command = input.into_inner();

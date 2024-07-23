@@ -42,6 +42,7 @@ pub fn command_form() -> Html {
             let value = input.value();
             
             command.set(Command {
+                id: command.id,
                 payload: if name == "payload" { value.clone() } else { command.payload.clone() },
                 cmd: if name == "cmd" { value.clone() } else { command.cmd.clone() },
                 data: if name == "data" { value.clone() } else { command.data.clone() },
