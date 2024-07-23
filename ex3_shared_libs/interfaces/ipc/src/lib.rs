@@ -31,7 +31,7 @@ fn create_socket() -> Result<i32, IoError> {
 /// Client struct using a unix domain socket of type SOCKSEQ packet, that connects to a server socket
 pub struct IpcClient {
     pub socket_path: String,
-    fd: Option<i32>,
+    pub fd: Option<i32>,
     connected: bool,
     pub buffer: [u8; IPC_BUFFER_SIZE],
 }
@@ -68,6 +68,13 @@ impl IpcClient {
 
         Ok(())
     }
+
+    /// Users of this lib can call this to clear the buffer - otherwise the preivous read data will remain
+    ///  the IPC client has no way of knowing when the user is done with the data in its buffer, so it is the responsibility of the user to clear it
+    pub fn clear_buffer(&mut self) {
+        self.buffer = [0u8; IPC_BUFFER_SIZE];
+        println!("Buffer cleared");
+    }
 }
 
 pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io::Error> {
@@ -75,6 +82,7 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
         if let Some(data_fd) = client.fd {
+            // Poll data_fd for incoming data
             poll_fds.push(libc::pollfd {
                 fd: data_fd,
                 events: libc::POLLIN,
@@ -112,8 +120,6 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io
                             "Received {} bytes on socket {}",
                             bytes_read, client.socket_path
                         );
-                    } else {
-                        eprintln!("Error reading from server");
                     }
                 }
             }
@@ -125,7 +131,7 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io
 pub struct IpcServer {
     pub socket_path: String,
     conn_fd: Option<i32>,
-    data_fd: Option<i32>,
+    pub data_fd: Option<i32>,
     connected: bool,
     pub buffer: [u8; IPC_BUFFER_SIZE],
 }
@@ -196,6 +202,7 @@ impl IpcServer {
         println!("Buffer cleared");
     }
 }
+
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
@@ -306,10 +313,11 @@ mod tests {
                 );
                 ipc_write(
                     ipc_server_socket.data_fd,
-                    ipc_server_socket_2.buffer.as_slice(),
+                    ipc_server_socket.buffer.as_slice(),
                 )
                 .unwrap();
                 ipc_server_socket_2.clear_buffer();
+                println!("Buffer after clear: {:?}", ipc_server_socket_2.buffer);
             }
         }
     }
