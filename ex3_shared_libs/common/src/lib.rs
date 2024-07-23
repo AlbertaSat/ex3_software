@@ -144,7 +144,6 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
-
     }
 
     impl From<u8> for COMS {
@@ -195,7 +194,7 @@ pub mod opcodes {
     pub enum DUMMY {
         SetDummyVariable = 0,
         GetDummyVariable = 1,
-    } 
+    }
 
     impl From<u8> for DUMMY {
         fn from(value: u8) -> Self {
@@ -208,6 +207,18 @@ pub mod opcodes {
                 }
             }
         }
+    }
+
+    // TODO: replace mod with enum
+    pub mod adcs {
+        pub const DETUMBLE: u8 = 0;
+        pub const ON_OFF: u8 = 1;
+        pub const WHEEL_SPEED: u8 = 2;
+        pub const GET_HK: u8 = 3;
+        pub const MAGNETORQUER_CURRENT: u8 = 4;
+        pub const GET_ORIENTATION: u8 = 5;
+        pub const RESET: u8 = 6;
+        pub const ORIENT_TO_SBAND: u8 = 7;
     }
 }
 
