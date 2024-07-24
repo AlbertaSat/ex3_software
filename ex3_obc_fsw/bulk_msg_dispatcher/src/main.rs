@@ -29,7 +29,7 @@ fn handle_client(server: &mut IpcServer) -> Result<(), std::io::Error> {
         //Build Msg from received bytes and get body which contains path
         let msg: Msg = deserialize_msg(&server.buffer)?;
         let path_bytes: Vec<u8> = msg.msg_body;
-        let path = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
+        let mut path = std::str::from_utf8(&path_bytes).expect("Found invalid UTF-8 in path.");
         path = path.trim_matches(char::from(0));
         println!("Got path: {}", path);
         let bulk_msg: Msg = get_data_from_path(&path)?;
