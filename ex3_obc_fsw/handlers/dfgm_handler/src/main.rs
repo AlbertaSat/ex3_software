@@ -15,9 +15,12 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 use common::component_ids::DFGM;
 use common::component_ids::GS;
+use ipc::ipc_write;
+use ipc::poll_ipc_clients;
+use ipc::IpcClient;
+use ipc::IPC_BUFFER_SIZE;
 use ipc_interface::read_socket;
 use ipc_interface::send_over_socket;
-use ipc_interface::IPCInterface;
 use tcp_interface::BUFFER_SIZE;
 use tcp_interface::*;
 use message_structure::*;
@@ -42,15 +45,15 @@ const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
-    msg_dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
-    bulk_msg_dispatcher_interface: Option<IPCInterface>
+    msg_dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    bulk_msg_dispatcher_interface: Option<IpcClient>
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
-        msg_dispatcher_interface: Result<IPCInterface, std::io::Error>,
-        bulk_msg_dispatcher_interface: Result<IPCInterface, std::io::Error>
+        msg_dispatcher_interface: Result<IpcClient, std::io::Error>,
+        bulk_msg_dispatcher_interface: Result<IpcClient, std::io::Error>
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -104,7 +107,7 @@ impl DFGMHandler {
                 println!("sending msg {:?}", data_msg);
                 println!("Length of data after serialization {} bytes", data_msg.msg_body.len() + 5);
                 println!("Sending {:?}", serialized_data_msg);
-                let n = send_over_socket(self.msg_dispatcher_interface.as_ref().unwrap().fd, serialized_data_msg)?;
+                let n = ipc_write(self.msg_dispatcher_interface.as_ref().unwrap().fd, &serialized_data_msg)?;
                 println!("Sent data!");
                 Ok(())
             }
@@ -117,16 +120,27 @@ impl DFGMHandler {
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
         // Read and poll for input for a message
-        let mut socket_buf = vec![0u8; DFGM_INTERFACE_BUFFER_SIZE];
         loop {
-            if let Ok(n) = read_socket(self.msg_dispatcher_interface.clone().unwrap().fd, &mut socket_buf) {
-                if n > 0 {
-                    let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    println!("Received msg");
+            // Borrowing the dispatcher interfaces
+            let msg_dispatcher_interface = self.msg_dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
+            let bulk_msg_dispatcher_interface = self.bulk_msg_dispatcher_interface.as_mut().expect("Bulk_Msg_Disp has value None");
+
+            let mut clients = vec![
+                msg_dispatcher_interface,
+                bulk_msg_dispatcher_interface,
+            ];
+            poll_ipc_clients(&mut clients);
+            
+            // Handling the bulk message dispatcher interface
+            if let Some(bulk_msg_dispatcher) = self.bulk_msg_dispatcher_interface.as_mut() {
+                if bulk_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
+                    let recv_msg: Msg = deserialize_msg(&bulk_msg_dispatcher.buffer).unwrap();
+                    println!("Received and deserialized msg");
                     self.handle_msg_for_dfgm(recv_msg)?;
-                    socket_buf.flush()?;
+                    // TODO - clear the buffer!!
                 }
             }
+        
             if self.toggle_data_collection == true {
                 let mut tcp_buf = [0u8;BUFFER_SIZE];
                 let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
@@ -179,17 +193,17 @@ fn main() -> Result<(), Error> {
     let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
     //Create Unix domain socket interface for DFGM handler to talk to command message dispatcher
-    let msg_dispatcher_interface = IPCInterface::new_client("dfgm_handler".to_string());
+    let msg_dispatcher_interface = IpcClient::new("dfgm_handler".to_string());
 
     // Create Unix domain socket for communication between DFGM handler and bulk message dispatcher
-    let bulk_dispatcher_interface_result = IPCInterface::new_client("dfgm_bulk".to_string());
+    let bulk_dispatcher_interface_result = IpcClient::new("dfgm_bulk".to_string());
 
     // TMP - testing writing to IPC server
     let bulk_dispatcher_interface = match bulk_dispatcher_interface_result {
         Ok(interface) => {
             let data = Msg::new(0,0,7,3,66,"Hello World".as_bytes().to_vec());
 
-            let _ = send_over_socket(interface.fd, serialize_msg(&data)?);
+            let _ = ipc_write(interface.fd, &serialize_msg(&data).unwrap());
             Ok(interface)
         }
         Err(e) => {
