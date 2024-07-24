@@ -6,6 +6,7 @@ use yew_custom_components::table::types::TableData;
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Command {
+    pub id: Option<i32>,
     pub payload: String,
     pub cmd: String,
     pub data: String,

@@ -1,84 +1,52 @@
-use crate::obc_client::ObcClient;
-use sea_orm::{Database, DatabaseConnection, Set, ActiveModelTrait, EntityTrait, QueryOrder};
 use rocket::fs::{relative, FileServer};
-use rocket::serde::{Deserialize, Serialize, json::Json};
-use rocket::State;
+use rocket::serde::json::Json;
+use rocket::http::Status;
+use rocket_cors::{AllowedHeaders, AllowedOrigins, CorsOptions};
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
-use rocket_cors::{AllowedHeaders, AllowedOrigins, CorsOptions};
-use rocket::http::Status;
-use entities::command;
 use dotenv::dotenv;
-use std::env;
 
 #[macro_use]
 extern crate rocket;
 
 mod obc_client;
 mod message;
-mod entities;
+mod types;
+mod utils;
+
+use types::command::Command;
+use utils::file_ops::{read_commands, write_command};
+use obc_client::ObcClient;
 
 static OBC_CLIENT: Lazy<Mutex<ObcClient>> = Lazy::new(|| Mutex::new(
     ObcClient::new("localhost".to_string(), 50000)
 ));
 
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-struct CommandInput<'r> {
-    payload: &'r str,
-    cmd: &'r str,
-    data: &'r str,
-    timestamp: &'r str,
-}
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct CommandOutput {
-    id: i32,
-    payload: String,
-    cmd: String,
-    data: String,
-    timestamp: String,
-}
-
 #[get("/api/cmd", format="json")]
-async fn get_cmds(connection: &State<DatabaseConnection>) -> Json<Vec<CommandOutput>> {
-    let commands = command::Entity::find()
-        .order_by_asc(command::Column::Timestamp)
-        .all(connection.inner())
-        .await
-        .expect("Could not fetch commands");
-
-    let result: Vec<CommandOutput> = commands.into_iter().map(|cmd| CommandOutput {
-        id: cmd.id,
-        payload: cmd.payload,
-        cmd: cmd.command,
-        data: cmd.data,
-        timestamp: cmd.timestamp,
-    }).collect();
-
-    Json(result)
+async fn get_cmds() -> Json<Vec<Command>> {
+    let commands = read_commands().expect("Could not read commands");
+    Json(commands)
 }
 
 #[post("/api/cmd", format = "json", data = "<input>")]
-async fn post_cmd(connection: &State<DatabaseConnection>, input: Json<CommandInput<'_>>) {
+async fn post_cmd(input: Json<Command>) -> Status {
     println!("Got a form! Payload: {}, Cmd: {}, Data: {}", input.payload, input.cmd, input.data);
 
-    let new_command = command::ActiveModel {
-        command: Set(input.cmd.to_string()),
-        payload: Set(input.payload.to_string()),
-        data: Set(input.data.to_string()),
-        timestamp: Set(input.timestamp.to_string()),
-        ..Default::default()
-    };
+    let new_command = input.into_inner();
 
-    new_command.save(connection.inner()).await.expect("Could not save command");
+    write_command(new_command.clone()).expect("Could not write command");
 
     let mut client = OBC_CLIENT.lock().await;
-    match client.send_cmd([input.payload, input.cmd, input.data]).await {
+    match client.send_cmd([
+        new_command.payload.as_str(),
+        new_command.cmd.as_str(),
+        new_command.data.as_str()
+    ]).await {
         Ok(rc) => println!("Client response: {}", rc),
         Err(e) => println!("Client send error: {}", e),
     };
+
+    Status::Ok
 }
 
 #[options("/api/cmd")]
@@ -89,13 +57,6 @@ fn options_cors() -> Status {
 #[launch]
 async fn rocket() -> _ {
     dotenv().ok(); 
-
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    
-    let connection = match Database::connect(db_url).await {
-        Ok(connection) => connection,
-        Err(e) => panic!("Error connecting to database: {}", e),
-    };
 
     let mut client = OBC_CLIENT.lock().await;
     match client.connect().await {
@@ -110,7 +71,6 @@ async fn rocket() -> _ {
         .to_cors().expect("Error creating CORS options");
 
     rocket::build()
-        .manage(connection)
         .mount("/", routes![get_cmds, post_cmd, options_cors])
         .mount("/", FileServer::from(relative!("static")))
         .attach(cors)
