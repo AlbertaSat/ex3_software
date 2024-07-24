@@ -1,5 +1,5 @@
 /*
-Written by Amar!!
+Written by Amar
 */
 use common::{opcodes, ports};
 use ipc_interface::read_socket;
@@ -11,9 +11,20 @@ use std::io::Error;
 use std::io::ErrorKind;
 use tcp_interface::*;
 
+const CMD_DELIMITER: u8 = b":"[0];
 const ADCS_DATA_DIR_PATH: &str = "adcs_data";
 const ADCS_PACKET_SIZE: usize = 1252;
 const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
+
+// TODO check where to add this
+// Probably will move this to another file later
+pub mod adcs_body {
+    pub const ON: &[u8] = b"ON";
+    pub const OFF: &[u8] = b"OFF";
+    pub const GET_STATE: &[u8] = b"GS";
+    pub const GET_WHEEL_SPEED: &[u8] = b"GWS";
+    pub const SET_WHEEL_SPEED: &[u8] = b"SWS";
+}
 
 struct ADCSHandler {
     toggle_adcs: bool, // TODO make this more related to booting-up possibly? (affects sim sub sys as well)
@@ -28,7 +39,7 @@ impl ADCSHandler {
     ) -> ADCSHandler {
         if adcs_interface.is_err() {
             println!(
-                "Error creating DFGM interface: {:?}",
+                "Error creating ADCS interface: {:?}",
                 adcs_interface.as_ref().err().unwrap()
             );
         }
@@ -58,11 +69,15 @@ impl ADCSHandler {
             opcodes::adcs::ON_OFF => match msg.msg_body[0] {
                 0 => {
                     self.toggle_adcs = false;
-                    Ok(())
+                    self.send_cmd(adcs_body::OFF)
                 }
                 1 => {
                     self.toggle_adcs = true;
-                    Ok(())
+                    self.send_cmd(adcs_body::ON)
+                }
+                2 => {
+                    self.toggle_adcs = true;
+                    self.send_cmd(adcs_body::GET_STATE)
                 }
                 _ => {
                     eprintln!("Error: Unknown msg body for opcode 2");
@@ -100,6 +115,23 @@ impl ADCSHandler {
                 }
             }
         }
+    }
+
+    fn build_cmd(&mut self, cmd: &[u8], msg: Msg) -> Result<Vec<u8>, Error> {
+        let mut data: Vec<u8>;
+        if msg.msg_body.len() < 2 {
+            Err(())
+        }
+        for val in msg.msg_body {
+            data.push(CMD_DELIMITER);
+            data.push(val);
+        }
+        Ok(data)
+    }
+
+    fn send_cmd(&mut self, command: &[u8]) -> Result<(), Error> {
+        self.peripheral_interface.as_mut().unwrap().send(command)?;
+        Ok(())
     }
 }
 
