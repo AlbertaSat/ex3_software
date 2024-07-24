@@ -32,7 +32,7 @@ use common::{ports, opcodes};
 use message_structure::*;
 
 
-const DFGM_DATA_DIR_PATH: &str = "dfgm_data";
+const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
 const DFGM_PACKET_SIZE: usize = 1252;
 const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
 
@@ -129,12 +129,12 @@ impl DFGMHandler {
                 msg_dispatcher_interface,
                 bulk_msg_dispatcher_interface,
             ];
-            poll_ipc_clients(&mut clients);
+            poll_ipc_clients(&mut clients)?;
             
             // Handling the bulk message dispatcher interface
-            if let Some(bulk_msg_dispatcher) = self.bulk_msg_dispatcher_interface.as_mut() {
-                if bulk_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
-                    let recv_msg: Msg = deserialize_msg(&bulk_msg_dispatcher.buffer).unwrap();
+            if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
+                if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
+                    let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
                     println!("Received and deserialized msg");
                     self.handle_msg_for_dfgm(recv_msg)?;
                     // TODO - clear the buffer!!
