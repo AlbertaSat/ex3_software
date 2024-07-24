@@ -29,6 +29,7 @@ fn create_socket() -> Result<i32, IoError> {
 }
 
 /// Client struct using a unix domain socket of type SOCKSEQ packet, that connects to a server socket
+#[derive(Clone)]
 pub struct IpcClient {
     pub socket_path: String,
     pub fd: Option<i32>,
