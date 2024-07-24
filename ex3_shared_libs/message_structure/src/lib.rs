@@ -27,7 +27,7 @@ pub trait SerializeAndDeserialize {
 pub enum MsgType {
     Cmd = 0,
     Ack = 1,
-    //...Bulk msg?
+    Bulk = 2,
     //.. Scheduled msg?
 }
 
@@ -36,6 +36,7 @@ impl fmt::Display for MsgType {
         match *self {
             MsgType::Cmd => write!(f, "Cmd"),
             MsgType::Ack => write!(f, "Ack"),
+            MsgType::Bulk => write!(f, "Bulk"),
         }
     }
 }
@@ -46,6 +47,7 @@ impl From<u8> for MsgType {
         match byte_val {
             0 => MsgType::Cmd,
             1 => MsgType::Ack,
+            2 => MsgType::Bulk,
             _ => panic!("Invalid MsgType byte value"),
         }
     }
