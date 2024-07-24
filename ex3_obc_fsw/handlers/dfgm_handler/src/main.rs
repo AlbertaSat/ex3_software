@@ -100,15 +100,12 @@ impl DFGMHandler {
                 }
             }
             opcodes::dfgm::GET_DFGM_DATA => {
-                let data_to_send: Vec<u8> = get_dfgm_data()?;
+                let data_to_send: Vec<u8> = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
                 let data_msg: Msg = Msg::new(0,0,GS,DFGM,0,data_to_send);
                 let serialized_data_msg: Vec<u8> = serialize_msg(&data_msg)?;
                 
-                println!("sending msg {:?}", data_msg);
-                println!("Length of data after serialization {} bytes", data_msg.msg_body.len() + 5);
-                println!("Sending {:?}", serialized_data_msg);
-                let n = ipc_write(self.msg_dispatcher_interface.as_ref().unwrap().fd, &serialized_data_msg)?;
-                println!("Sent data!");
+                ipc_write(self.bulk_msg_dispatcher_interface.as_ref().unwrap().fd, &serialized_data_msg)?;
+                println!("Sent path!");
                 Ok(())
             }
             _ => {
@@ -173,16 +170,6 @@ fn store_dfgm_data(data: &[u8]) -> std::io::Result<()> {
         .open(format!("{}/data", DFGM_DATA_DIR_PATH))?;
     file.write_all(data)?;
     Ok(())
-}
-/// This function will take all current data that is stored for the dfgm and
-/// write it to the message dispatcher. There it will be handled accordingly
-fn get_dfgm_data() -> Result<Vec<u8>, std::io::Error> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .open(format!("{}/data", DFGM_DATA_DIR_PATH))?;
-    let mut data = Vec::new();
-    file.read_to_end(&mut data)?;
-    Ok(data)
 }
 
 fn main() -> Result<(), Error> {
