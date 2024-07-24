@@ -14,8 +14,8 @@ use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
-use ipc_interface::{read_socket, send_over_socket, IPCInterface, IPC_BUFFER_SIZE};
-use message_structure::{deserialize_msg, serialize_msg, Msg};
+use ipc::*;
+use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 use bulk_msg_handler::*;
@@ -51,39 +51,23 @@ fn handle_msg_for_coms(msg: &Msg) {
 }
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking
-fn handle_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
-    let msg_len = msg.msg_body.len() + 5; // account for header bytes
-    if msg_len > UHF_MAX_MESSAGE_SIZE_BYTES.into() {
-        // If the message is a bulk message, then fragment it before downlinking
-        let messages: Vec<Msg> = handle_large_msg(msg.clone())?;
-        let serialized_first_msg: Vec<u8> = serialize_msg(&messages[0])?;
-        interface.send(&serialized_first_msg);
+fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+    
+    // Slice Msg before downlinking
+    let messages: Vec<Msg> = handle_large_msg(msg.clone())?;
+    // Send first Msg
+    write_msg_to_uhf_for_downlink(interface, messages[0].clone());
 
-        // TODO - wait for gs to respond with ACK to send next messages
-        println!("About to send {} messages", messages.len());
-        thread::sleep(Duration::from_secs(10));
-        for i in 1..messages.len() {
-            let serialized_msg_packet: Vec<u8> = serialize_msg(&messages[i])?;
-            interface.send(&serialized_msg_packet)?;
-        }
-    } else {
-    // TMP - Writes directly to gs. will write to sim UHF when done
-    let serialized_msg: Vec<u8> = serialize_msg(&msg)?;
-    interface.send(&serialized_msg)?;
+    // TODO - wait for gs to respond with ACK to send next messages
+
+    println!("About to send {} messages", messages.len());
+    thread::sleep(Duration::from_secs(10));
+    for i in 1..messages.len() {
+        write_msg_to_uhf_for_downlink(interface, messages[i].clone());
     }
+    
     Ok(())
 }
-
-/// Handle incomming messages from the UHF transceiver (uplinked stuff)
-/// Determines based on msg destination where to send it
-fn handle_msg_from_uhf(msg: &Msg, ipc_interface_fd: i32) {
-    // Check if the message is destined for the coms handler directly, or to be downlinked to the ground station=> {
-    println!("Sending msg to msg_dispatcher");
-    let serialized_msg_result = serialize_msg(msg).unwrap();
-    send_over_socket(ipc_interface_fd, serialized_msg_result).unwrap();
-}
-
-
 
 /// All things to be downlinked use this fxn (later on we want a sort of buffer to store what was downlinked until we get confirmation from the GS it was recevied)
 /// This will handle logging all messages attempted to be downlinked, and handle errors associated with writing data to the UHF transceiver for downlink
@@ -118,60 +102,43 @@ fn main() {
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
-    let ipc_gs_interface_res = IPCInterface::new_client("gs_bulk".to_string());
+    let ipc_gs_interface_res = IpcClient::new("gs_bulk".to_string());
     if ipc_gs_interface_res.is_err() {
         println!("Error creating IPC interface: {:?}", ipc_gs_interface_res.err());
         return;
     }
-    let ipc_gs_interface = ipc_gs_interface_res.unwrap();
+    let mut ipc_gs_interface = ipc_gs_interface_res.unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
     // Will have to be changed in msg_dispatcher as well
-    let ipc_coms_interface_res = IPCInterface::new_client("coms_handler".to_string());
+    let ipc_coms_interface_res = IpcClient::new("coms_handler".to_string());
     if ipc_coms_interface_res.is_err() {
         println!("Error creating IPC interface: {:?}", ipc_coms_interface_res.err());
         return;
     }
 
-    let ipc_coms_interface = ipc_coms_interface_res.unwrap();
-
-    let mut ipc_gs_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
-    let mut ipc_gs_num_bytes_read = 0;
-
-    let mut ipc_coms_buf = vec![0; IPC_BUFFER_SIZE]; //Buffer to read incoming messages from IPC
-    let mut ipc_coms_num_bytes_read = 0;
+    let mut ipc_coms_interface = ipc_coms_interface_res.unwrap();
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
 
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
-        let ipc_gs_bytes_read_result = read_socket(ipc_gs_interface.fd, &mut ipc_gs_buf);
-        match ipc_gs_bytes_read_result {
-            Ok(num_bytes_read) => {
-                ipc_gs_num_bytes_read = num_bytes_read;
+        let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
+        let _ = poll_ipc_clients(&mut clients);
 
-            }
-            Err(e) => {
-                println!("Error reading from GS IPC socket: {:?}", e);
-            }
-        }
-
-        if ipc_gs_num_bytes_read > 0 {
-            println!("Received GS IPC Msg bytes");
-            let deserialized_msg_result = deserialize_msg(&ipc_gs_buf.as_slice());
+        if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+            println!("Received IPC Msg bytes for GS");
+            let deserialized_msg_result = deserialize_msg(&ipc_gs_interface.buffer);
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
                     println!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                     // writes directly to GS, handling case if it's a bulk message
-                    match handle_msg_for_gs(&deserialized_msg, &mut tcp_interface) {
-                        Ok(_) => {
-                            println!("Msg sent to GS!");
-                        }
-                        Err(e) => {
-                            println!("Error sending Msg to GS: {:?}", e);
-                        }
+                    if deserialized_msg.header.msg_type == MsgType::Bulk as u8 {
+                        let _ = handle_bulk_msg_for_gs(&deserialized_msg, &mut tcp_interface);
+                    } else {
+                        let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
                     }
                 }
                 Err(e) => {
@@ -183,20 +150,9 @@ fn main() {
 
 
         // Poll the IPC unix domain socket for the COMS channel
-        let ipc_coms_bytes_read_result = read_socket(ipc_coms_interface.fd, &mut ipc_coms_buf);
-        match ipc_coms_bytes_read_result {
-            Ok(num_bytes_read) => {
-                ipc_coms_num_bytes_read = num_bytes_read;
-        
-            }
-            Err(e) => {
-                println!("Error reading from COMS IPC socket: {:?}", e);
-            }
-        }
-
-        if ipc_coms_num_bytes_read > 0 {
+        if ipc_coms_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
             println!("Received COMS IPC Msg bytes");
-            let deserialized_msg_result = deserialize_msg(&ipc_coms_buf.as_slice());
+            let deserialized_msg_result = deserialize_msg(&ipc_coms_interface.buffer);
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
                     println!("Dserd msg body len {}", deserialized_msg.msg_body.len());
@@ -230,7 +186,7 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    let _ = send_over_socket(ipc_coms_interface.fd, decrypted_byte_vec);
+                    let _ = ipc_write(ipc_coms_interface.fd, &decrypted_byte_vec);
                 }
                 Err(e) => {
                     println!("Error decrypting bytes from UHF: {:?}", e);

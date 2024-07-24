@@ -19,8 +19,6 @@ use ipc::ipc_write;
 use ipc::poll_ipc_clients;
 use ipc::IpcClient;
 use ipc::IPC_BUFFER_SIZE;
-use ipc_interface::read_socket;
-use ipc_interface::send_over_socket;
 use tcp_interface::BUFFER_SIZE;
 use tcp_interface::*;
 use message_structure::*;
