@@ -30,6 +30,7 @@ fn handle_client(server: &mut IpcServer) -> Result<(), std::io::Error> {
         let msg: Msg = deserialize_msg(&server.buffer)?;
         let path_bytes: Vec<u8> = msg.msg_body;
         let path = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
+        path = path.trim_matches(char::from(0));
         println!("Got path: {}", path);
         let bulk_msg: Msg = get_data_from_path(&path)?;
         // Start communication protocol for Bulk Msg with GS handler
