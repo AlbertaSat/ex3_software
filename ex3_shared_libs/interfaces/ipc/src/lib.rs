@@ -206,11 +206,11 @@ impl IpcServer {
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(mut servers: Vec<&mut IpcServer>) {
+pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut IpcServer>) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
-    for server in &mut servers {
+    for server in servers.iter_mut() {
         if let Some(fd) = server.conn_fd {
             if !server.connected {
                 // Poll conn_fd for incoming connections
@@ -295,7 +295,7 @@ mod tests {
         let mut ipc_server_socket_2 = IpcServer::new(server_socket_name_2.clone()).unwrap();
 
         loop {
-            poll_ipc_server_sockets(vec![&mut ipc_server_socket, &mut ipc_server_socket_2]);
+            poll_ipc_server_sockets(&mut vec![&mut ipc_server_socket, &mut ipc_server_socket_2]);
 
             if ipc_server_socket.buffer != [0u8; IPC_BUFFER_SIZE] {
                 println!(
