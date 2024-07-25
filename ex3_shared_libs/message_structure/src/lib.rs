@@ -158,6 +158,7 @@ impl SerializeAndDeserialize for CmdMsg {
 
 /// Inform a sender of a message that the message was received and processed successfully
 /// - This DOES NOT indicate the command was successful, just that the message was received and processed
+/// The ACK will have the same ID as the CmdMsg it's responding to
 pub struct AckMsg {
     header: MsgHeaderNew,
     ack_code: AckCode,     // Success or Failure
