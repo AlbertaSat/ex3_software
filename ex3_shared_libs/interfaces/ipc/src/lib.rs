@@ -186,7 +186,7 @@ impl IpcServer {
         });
         self.data_fd = Some(fd);
         self.connected = true;
-        println!("Accepted connection from client socket");
+        println!("Accepted connection from client socket {} on data fd {:?}", self.socket_path, self.data_fd);
         Ok(())
     }
 

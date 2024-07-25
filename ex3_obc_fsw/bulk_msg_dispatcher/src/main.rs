@@ -6,20 +6,20 @@ use bulk_msg_slicing::*;
 use message_structure::*;
 use std::io::Error as IoError;
 
-const DOWNLINK_MSG_BODY_SIZE: usize = 4096;
+const DOWNLINK_MSG_BODY_SIZE: usize = 4089; // 4KB - 5B (header) - 2B (sequence number)
 fn main() -> Result<(),IoError > {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
-    let gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
-    let mut gs_interface_clone: IpcServer = gs_interface.clone();
+    let mut gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
 
-    let mut servers: Vec<&mut IpcServer> = vec![&mut dfgm_interface, &mut gs_interface_clone];    
     loop {
+        let gs_interface_clone = gs_interface.clone();
+        let mut servers: Vec<&mut IpcServer> = vec![&mut dfgm_interface, &mut gs_interface];
         poll_ipc_server_sockets(&mut servers);
-        
-        for server in &mut servers {
+
+        for server in servers {
             if let Some(msg) = handle_client(server)? {
-                if msg.msg_body.len() > DOWNLINK_MSG_BODY_SIZE && msg.header.msg_type == MsgType::Bulk as u8 {
+                if msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body;
                     let mut path: &str = std::str::from_utf8(&path_bytes).expect("Found invalid UTF-8 in path.");
                     path = path.trim_matches(char::from(0));
@@ -29,7 +29,11 @@ fn main() -> Result<(),IoError > {
                     let messages: Vec<Msg> = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
-                    send_bulk_msg_to_gs(messages, gs_interface.data_fd)?;
+                    send_buffer_size_to_gs(messages.len() as u32, gs_interface_clone.data_fd)?;
+
+                    // 2. Wait for ACK from GS handler
+                    // 3. Send Msg's contained in messages
+                    // 4. Wait for ACK from GS it got all the messages
 
                     server.clear_buffer();
                 }
@@ -55,15 +59,12 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the GS handler for downlinking.
-fn send_bulk_msg_to_gs(messages: Vec<Msg>, fd: Option<i32>) -> Result<(), IoError> {
+fn send_buffer_size_to_gs(buffer_size: u32, fd: Option<i32>) -> Result<(), IoError> {
     println!("Exectuing bulk msg sending protocol");
     // 1. Send CmdMsg to GS handler indicating Bulk Msg and buffer size needed
-    let buffer_msg = CmdMsg::new(0,9,10,0,vec![messages.len() as u8]);
+    let buffer_bytes = buffer_size.to_le_bytes().to_vec();
+    let buffer_msg = CmdMsg::new(0,9,10,0,buffer_bytes);
     ipc_write(fd, &buffer_msg.serialize_to_bytes()?)?;
-
-    // 2. Wait for ACK from GS handler
-    // 3. Send Msg's contained in messages
-    // 4. Wait for ACK from GS it got all the messages
     Ok(())
 }
 

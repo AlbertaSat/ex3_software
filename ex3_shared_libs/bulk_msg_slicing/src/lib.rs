@@ -59,8 +59,8 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
         msg_body: body.to_vec(),
     };
 
-    println!("Sequence #{}", sequence_num);
-    println!("{:?}", sized_msg);
+    // println!("Sequence #{}", sequence_num);
+    // println!("{:?}", sized_msg);
 
     sized_msg
 }
