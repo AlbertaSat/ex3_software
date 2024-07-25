@@ -15,7 +15,7 @@ use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
 use ipc::*;
-use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
+use message_structure::{deserialize_msg, serialize_msg, AckMsg, CmdMsg, Msg, MsgType, SerializeAndDeserialize};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 use bulk_msg_slicing::*;
@@ -69,6 +69,17 @@ fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(),
     }
     
     Ok(())
+}
+
+fn make_buffer_and_send_ack(msg: &Msg, fd: Option<i32>) -> Result<Vec<u8>, std::io::Error> {
+    let buff_bytes = [msg.msg_body[0], msg.msg_body[1], msg.msg_body[2], msg.msg_body[3]];
+    let buffer_size = u32::from_le_bytes(buff_bytes);
+
+    let ack_msg = AckMsg::new(20,7,3,message_structure::AckCode::Success,vec![0]);
+    ipc_write(fd, &ack_msg.serialize_to_bytes()?)?;
+
+    println!("Allocating buffer with size {}", buffer_size);
+    Ok(Vec::with_capacity(buffer_size as usize))
 }
 
 /// All things to be downlinked use this fxn (later on we want a sort of buffer to store what was downlinked until we get confirmation from the GS it was recevied)
@@ -125,6 +136,8 @@ fn main() {
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
 
+    let mut received_bulk_ack = false;
+    let mut bulk_buffer = Vec::new();
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
@@ -137,7 +150,14 @@ fn main() {
                 Ok(deserialized_msg) => {
                     println!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                     // writes directly to GS, handling case if it's a bulk message
-                    if deserialized_msg.header.msg_type == MsgType::Bulk as u8 {
+                    if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack {
+                        // If we haven't received Bulk ACK, we need to allocate buffer and send ack
+                        bulk_buffer = make_buffer_and_send_ack(&deserialized_msg, ipc_gs_interface.fd).unwrap();
+                        println!("Received bulk ack");
+                        received_bulk_ack = true;
+                    } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && received_bulk_ack {
+                        // if we already received bulk ack, then we have buffer allocated and we can receive bulk Msgs
+                        // let bulk_msg = read_bulk_msgs(bulk_buffer);
                         let _ = handle_bulk_msg_for_gs(&deserialized_msg, &mut tcp_interface);
                     } else {
                         let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
@@ -148,6 +168,7 @@ fn main() {
                     //Handle deserialization of IPC msg failure
                 }
             };
+            ipc_gs_interface.clear_buffer();
         }
 
 
@@ -166,6 +187,7 @@ fn main() {
                     //Handle deserialization of IPC msg failure
                 }
             };
+            ipc_coms_interface.clear_buffer();
         }
 
 

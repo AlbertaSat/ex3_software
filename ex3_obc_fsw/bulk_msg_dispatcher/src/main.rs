@@ -1,3 +1,4 @@
+use component_ids::{DFGM, GS};
 use ipc::*;
 use std::fs::{OpenOptions, File};
 use std::io::Read;
@@ -19,6 +20,7 @@ fn main() -> Result<(),IoError > {
 
         for server in servers {
             if let Some(msg) = handle_client(server)? {
+                println!("got msg with type {}", msg.header.msg_type);
                 if msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body;
                     let mut path: &str = std::str::from_utf8(&path_bytes).expect("Found invalid UTF-8 in path.");
@@ -29,14 +31,16 @@ fn main() -> Result<(),IoError > {
                     let messages: Vec<Msg> = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
-                    send_buffer_size_to_gs(messages.len() as u32, gs_interface_clone.data_fd)?;
+                    send_buffer_size_to_gs((messages.len() * DOWNLINK_MSG_BODY_SIZE) as u32, gs_interface_clone.data_fd)?;
 
                     // 2. Wait for ACK from GS handler
                     // 3. Send Msg's contained in messages
                     // 4. Wait for ACK from GS it got all the messages
 
-                    server.clear_buffer();
+                } else if msg.header.msg_type == MsgType::Ack as u8 {
+                    todo!()
                 }
+                server.clear_buffer();
             }
         }
     }
@@ -63,8 +67,8 @@ fn send_buffer_size_to_gs(buffer_size: u32, fd: Option<i32>) -> Result<(), IoErr
     println!("Exectuing bulk msg sending protocol");
     // 1. Send CmdMsg to GS handler indicating Bulk Msg and buffer size needed
     let buffer_bytes = buffer_size.to_le_bytes().to_vec();
-    let buffer_msg = CmdMsg::new(0,9,10,0,buffer_bytes);
-    ipc_write(fd, &buffer_msg.serialize_to_bytes()?)?;
+    let buffer_msg = Msg::new(MsgType::Bulk as u8,GS,DFGM,2,0,buffer_bytes);
+    ipc_write(fd, &serialize_msg(&buffer_msg)?)?;
     Ok(())
 }
 
