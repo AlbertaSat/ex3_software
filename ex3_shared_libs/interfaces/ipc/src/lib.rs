@@ -128,7 +128,7 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io
     }
     Ok(())
 }
-
+#[derive(Clone)]
 pub struct IpcServer {
     pub socket_path: String,
     conn_fd: Option<i32>,

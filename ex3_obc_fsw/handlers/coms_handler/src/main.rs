@@ -18,7 +18,7 @@ use ipc::*;
 use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
-use bulk_msg_handler::*;
+use bulk_msg_slicing::*;
 
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
