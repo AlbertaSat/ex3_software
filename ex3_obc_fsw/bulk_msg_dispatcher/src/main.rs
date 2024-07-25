@@ -6,6 +6,7 @@ use bulk_msg_slicing::*;
 use message_structure::*;
 use std::io::Error as IoError;
 
+const DOWNLINK_MSG_BODY_SIZE: usize = 4096;
 fn main() -> Result<(),IoError > {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
@@ -18,14 +19,14 @@ fn main() -> Result<(),IoError > {
         
         for server in &mut servers {
             if let Some(msg) = handle_client(server)? {
-                if msg.msg_body.len() > MAX_SINGLE_BODY_SIZE && msg.header.msg_type == MsgType::Bulk as u8 {
+                if msg.msg_body.len() > DOWNLINK_MSG_BODY_SIZE && msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body;
                     let mut path: &str = std::str::from_utf8(&path_bytes).expect("Found invalid UTF-8 in path.");
                     path = path.trim_matches(char::from(0));
                     println!("Got path: {}", path);
                     let bulk_msg: Msg = get_data_from_path(&path)?;
                     // Slice bulk msg
-                    let messages: Vec<Msg> = handle_large_msg(bulk_msg)?;
+                    let messages: Vec<Msg> = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
                     send_bulk_msg_to_gs(messages, gs_interface.data_fd)?;
@@ -57,8 +58,8 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 fn send_bulk_msg_to_gs(messages: Vec<Msg>, fd: Option<i32>) -> Result<(), IoError> {
     println!("Exectuing bulk msg sending protocol");
     // 1. Send CmdMsg to GS handler indicating Bulk Msg and buffer size needed
-    // let buffer_msg = CmdMsg::new(0,9,10,0,"dummy".as_bytes().to_vec());
-    // ipc_write(fd, &buffer_msg.serialize_to_bytes()?)?;
+    let buffer_msg = CmdMsg::new(0,9,10,0,vec![messages.len() as u8]);
+    ipc_write(fd, &buffer_msg.serialize_to_bytes()?)?;
 
     // 2. Wait for ACK from GS handler
     // 3. Send Msg's contained in messages

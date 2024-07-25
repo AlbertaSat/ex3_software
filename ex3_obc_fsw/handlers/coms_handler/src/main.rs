@@ -20,6 +20,8 @@ use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 use bulk_msg_slicing::*;
 
+const DONWLINK_MSG_BODY_SIZE: usize = 121; // 128B - 5 (header) - 2 (sequence number)
+
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
 fn decrypt_bytes_from_gs(encrypted_bytes: &Vec<u8>) -> Result<Vec<u8>, std::io::Error> {
@@ -54,7 +56,7 @@ fn handle_msg_for_coms(msg: &Msg) {
 fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
     
     // Slice Msg before downlinking
-    let messages: Vec<Msg> = handle_large_msg(msg.clone())?;
+    let messages: Vec<Msg> = handle_large_msg(msg.clone(), DONWLINK_MSG_BODY_SIZE)?;
     // Send first Msg
     write_msg_to_uhf_for_downlink(interface, messages[0].clone());
 
