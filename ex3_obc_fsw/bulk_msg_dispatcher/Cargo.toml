@@ -7,4 +7,4 @@ edition = "2021"
 ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
 common = {path = "../../ex3_shared_libs/common"}
 message_structure = { path = "../../ex3_shared_libs/message_structure" }
-mio = { version = "0.8", features = ["os-poll", "os-ext"] }
+bulk_msg_slicing = { path = "../../ex3_shared_libs/bulk_msg_slicing" }
