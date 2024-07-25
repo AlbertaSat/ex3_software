@@ -5,6 +5,7 @@ pub mod ports {
     pub const SIM_EPS_PORT: u16 = 1804;
     pub const SIM_COMMS_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
+    pub const SIM_DUMMY_PORT: u16 = 1807;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
     pub const SCHEDULER_DISPATCHER_PORT: u16 = 1901;
@@ -18,6 +19,7 @@ pub mod component_ids {
     use std::fmt;
     use std::str::FromStr;
 
+    // ---------- Depricated but left to not break things -------- //
     pub const OBC: u8 = 0;
     pub const EPS: u8 = 1;
     pub const ADCS: u8 = 2;
@@ -27,6 +29,7 @@ pub mod component_ids {
     //.....
     pub const GS: u8 = 7;
     pub const COMS: u8 = 8;
+    // ----------------------------------------------------------- //
 
     #[derive(PartialEq, Debug)]
     pub enum ComponentIds {
@@ -41,7 +44,7 @@ pub mod component_ids {
         COMS = 8,
         //..
         //..
-        TEST = 99,
+        DUMMY = 99,
     }
 
     impl fmt::Display for ComponentIds {
@@ -55,7 +58,7 @@ pub mod component_ids {
                 ComponentIds::GPS => write!(f, "GPS"),
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
-                ComponentIds::TEST => write!(f, "TEST"),
+                ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
     }
@@ -71,12 +74,15 @@ pub mod component_ids {
                 "GPS" => Ok(ComponentIds::GPS),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
-                "TEST" => Ok(ComponentIds::TEST),
+                //...
+                "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
         }
     }
 
+    //TODO - Find a way to make this return a result type instead of panicking
+    //       - the 'From<u8> method from std::convert lib does not allow for returning a Result type
     impl From<u8> for ComponentIds {
         fn from(value: u8) -> Self {
             match value {
@@ -88,10 +94,11 @@ pub mod component_ids {
                 5 => ComponentIds::GPS,
                 7 => ComponentIds::GS,
                 8 => ComponentIds::COMS,
-                99 => ComponentIds::TEST,
+                //...
+                99 => ComponentIds::DUMMY,
                 _ => {
                     eprintln!("Invalid component id: {}", value);
-                    ComponentIds::TEST // or choose a default value or handle the error in a different way
+                    ComponentIds::DUMMY // or choose a default value or handle the error in a different way
                 }
             }
         }
@@ -115,6 +122,25 @@ pub mod opcodes {
     pub mod dfgm {
         pub const TOGGLE_DATA_COLLECTION: u8 = 0;
         pub const GET_DFGM_DATA: u8 = 1;
+    }
+
+    // For dummy subsystem - used in testing and development
+    pub enum DUMMY {
+        SetDummyVariable = 0,
+        GetDummyVariable = 1,
+    } 
+
+    impl From<u8> for DUMMY {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => DUMMY::SetDummyVariable,
+                1 => DUMMY::GetDummyVariable,
+                _ => {
+                    eprintln!("Invalid opcode: {}", value);
+                    DUMMY::GetDummyVariable // or choose a default value or handle the error in a different way
+                }
+            }
+        }
     }
 }
 
@@ -149,7 +175,7 @@ mod tests {
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
         let test = component_ids::ComponentIds::from(99);
-        assert_eq!(test, component_ids::ComponentIds::TEST);
+        assert_eq!(test, component_ids::ComponentIds::DUMMY);
 
         let obc = component_ids::ComponentIds::from(0);
         assert_eq!(obc, component_ids::ComponentIds::OBC);
@@ -178,8 +204,8 @@ mod tests {
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let test = component_ids::ComponentIds::from_str("TEST").unwrap();
-        assert_eq!(test, component_ids::ComponentIds::TEST);
+        let test = component_ids::ComponentIds::from_str("DUMMY").unwrap();
+        assert_eq!(test, component_ids::ComponentIds::DUMMY);
 
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
@@ -208,8 +234,8 @@ mod tests {
         let coms = component_ids::ComponentIds::COMS;
         assert_eq!(coms.to_string(), "COMS");
 
-        let test = component_ids::ComponentIds::TEST;
-        assert_eq!(test.to_string(), "TEST");
+        let test = component_ids::ComponentIds::DUMMY;
+        assert_eq!(test.to_string(), "DUMMY");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
