@@ -16,7 +16,7 @@ use std::io::Error as IoError;
 //TODO - add ref to common component id
 
 /// Used when passing messages between around - between components and between GS and SC
-trait SerializeAndDeserialize {
+pub trait SerializeAndDeserialize {
     fn serialize_to_bytes(&self) -> Result<Vec<u8>, IoError>;
     fn deserialize_from_bytes(byte_vec: Vec<u8>) -> Result<Self, IoError>
     where
