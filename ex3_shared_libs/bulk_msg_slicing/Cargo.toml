@@ -1,5 +1,5 @@
 [package]
-name = "bulk_msg_handler"
+name = "bulk_msg_slicing"
 version = "0.1.0"
 edition = "2021"
 
