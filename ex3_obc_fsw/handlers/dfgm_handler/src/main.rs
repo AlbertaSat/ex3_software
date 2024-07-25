@@ -82,6 +82,7 @@ impl DFGMHandler {
     }
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
+        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
         match msg.header.op_code {
             opcodes::dfgm::TOGGLE_DATA_COLLECTION => {
                 if msg.msg_body[0] == 0 {
@@ -132,7 +133,6 @@ impl DFGMHandler {
                     let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
                     println!("Received and deserialized msg");
                     self.handle_msg_for_dfgm(recv_msg)?;
-                    // TODO - clear the buffer!!
                 }
             }
         
