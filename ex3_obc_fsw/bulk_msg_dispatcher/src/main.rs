@@ -3,8 +3,9 @@ use std::fs::{OpenOptions, File};
 use std::io::Read;
 use common::*;
 use message_structure::*;
+use std::io::Error as IoError;
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(),IoError > {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
     let mut gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
@@ -19,7 +20,8 @@ fn main() -> Result<(), std::io::Error> {
     }
 }
 
-fn handle_client(server: &mut IpcServer) -> Result<(), std::io::Error> {
+/// In charge of getting the file path from a Msg sent to the Bulk dispatcher from a handler
+fn handle_client(server: &mut IpcServer) -> Result<(), IoError> {
     if server.buffer != [0u8; IPC_BUFFER_SIZE] {
         println!(
             "Server {} received data: {:?}",
@@ -33,10 +35,29 @@ fn handle_client(server: &mut IpcServer) -> Result<(), std::io::Error> {
         path = path.trim_matches(char::from(0));
         println!("Got path: {}", path);
         let bulk_msg: Msg = get_data_from_path(&path)?;
-        // Start communication protocol for Bulk Msg with GS handler
+        // Slice bulk msg
+
+
+        // Start coms protocol with GS handler to downlink
+
 
         server.clear_buffer();
     }
+    Ok(())
+}
+
+
+
+/// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
+/// to send a Bulk Msg to the GS handler for downlinking.
+fn send_bulk_msg_to_gs(messages: Vec<Msg>, fd: Option<i32>) -> Result<(), IoError> {
+    // 1. Send CmdMsg to GS handler indicating Bulk Msg and buffer size needed
+    let buffer_msg = CmdMsg::new(0,9,10,0,"dummy".as_bytes().to_vec());
+    ipc_write(fd, &buffer_msg.serialize_to_bytes()?)?;
+
+    // 2. Wait for ACK from GS handler
+    // 3. Send Msg's contained in messages
+    // 4. Wait for ACK from GS it got all the messages
     Ok(())
 }
 
