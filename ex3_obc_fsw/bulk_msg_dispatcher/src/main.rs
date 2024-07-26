@@ -20,13 +20,10 @@ fn main() -> Result<(),IoError > {
 
         for server in servers {
             if let Some(msg) = handle_client(server)? {
-                println!("got msg with type {}", msg.header.msg_type);
                 if msg.header.msg_type == MsgType::Bulk as u8 {
-                    let path_bytes: Vec<u8> = msg.msg_body;
-                    let mut path: &str = std::str::from_utf8(&path_bytes).expect("Found invalid UTF-8 in path.");
-                    path = path.trim_matches(char::from(0));
-                    println!("Got path: {}", path);
-                    let bulk_msg: Msg = get_data_from_path(&path)?;
+                    let path_bytes: Vec<u8> = msg.msg_body.clone();
+                    let path = get_path_from_bytes(path_bytes)?;
+                    let bulk_msg= get_data_from_path(&path)?;
                     // Slice bulk msg
                     let messages: Vec<Msg> = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
 
@@ -44,6 +41,13 @@ fn main() -> Result<(),IoError > {
             }
         }
     }
+}
+
+fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
+    let mut path: String = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
+    path = path.trim_matches(char::from(0)).to_string();
+    println!("Got path: {}", path);
+    Ok(path)
 }
 
 /// In charge of getting the file path from a Msg sent to the Bulk dispatcher from a handler
@@ -64,10 +68,10 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the GS handler for downlinking.
 fn send_buffer_size_to_gs(buffer_size: u32, fd: Option<i32>) -> Result<(), IoError> {
-    println!("Exectuing bulk msg sending protocol");
+    println!("Executing bulk msg sending protocol");
     // 1. Send CmdMsg to GS handler indicating Bulk Msg and buffer size needed
-    let buffer_bytes = buffer_size.to_le_bytes().to_vec();
-    let buffer_msg = Msg::new(MsgType::Bulk as u8,GS,DFGM,2,0,buffer_bytes);
+    let buffer_bytes: Vec<u8> = buffer_size.to_le_bytes().to_vec();
+    let buffer_msg: Msg = Msg::new(MsgType::Bulk as u8,GS,DFGM,2,0,buffer_bytes);
     ipc_write(fd, &serialize_msg(&buffer_msg)?)?;
     Ok(())
 }
