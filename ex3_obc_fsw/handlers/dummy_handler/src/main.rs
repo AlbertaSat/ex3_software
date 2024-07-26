@@ -104,7 +104,9 @@ fn main() {
         let dummy_bytes_read_res = dummy_subsystem_interface.read(&mut dummy_buf);
         match dummy_bytes_read_res {
             Ok(bytes_read) => {
-                handle_dummy_msg_in(dummy_buf.clone());
+                if bytes_read > 0 {
+                    handle_dummy_msg_in(dummy_buf.clone());
+                }
             }
             Err(e) => {
                 println!("Error reading from dummy subsystem: {:?}", e);
