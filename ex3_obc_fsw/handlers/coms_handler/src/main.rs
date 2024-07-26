@@ -75,8 +75,8 @@ fn make_buffer_and_send_ack(msg: &Msg, fd: Option<i32>) -> Result<Vec<u8>, std::
     let buff_bytes = [msg.msg_body[0], msg.msg_body[1], msg.msg_body[2], msg.msg_body[3]];
     let buffer_size = u32::from_le_bytes(buff_bytes);
 
-    let ack_msg = AckMsg::new(20,7,3,message_structure::AckCode::Success,vec![0]);
-    ipc_write(fd, &ack_msg.serialize_to_bytes()?)?;
+    let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
+    ipc_write(fd, &serialize_msg(&ack_msg)?)?;
 
     println!("Allocating buffer with size {}", buffer_size);
     Ok(Vec::with_capacity(buffer_size as usize))
