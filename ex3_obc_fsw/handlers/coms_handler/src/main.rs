@@ -52,6 +52,16 @@ fn handle_msg_for_coms(msg: &Msg) {
     }
 }
 
+/// Special read function that continuously reads sequenced messages from the bulk_msg_disp
+/// and once it has all of them, it reconstructs all the messages into one large bulk msg
+fn read_bulk_msgs(buffer: Vec<u8>, fd: Option<i32>) -> Result<Msg, std::io::Error> {
+    // read in msgs
+    // while bytes read < bytes received: read
+    // call reconstruct msg from bulk lib
+    // return it
+    // Ok(bulk_msg)
+}
+
 /// Fxn to write the a msg to the UHF transceiver for downlinking
 fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
     
@@ -157,7 +167,7 @@ fn main() {
                         received_bulk_ack = true;
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && received_bulk_ack {
                         // if we already received bulk ack, then we have buffer allocated and we can receive bulk Msgs
-                        // let bulk_msg = read_bulk_msgs(bulk_buffer);
+                        let bulk_msg = read_bulk_msgs(bulk_buffer.clone(), ipc_gs_interface.fd);
                         let _ = handle_bulk_msg_for_gs(&deserialized_msg, &mut tcp_interface);
                     } else {
                         let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
