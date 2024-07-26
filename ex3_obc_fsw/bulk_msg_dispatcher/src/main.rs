@@ -2,10 +2,12 @@ use component_ids::{DFGM, GS};
 use ipc::*;
 use std::fs::{OpenOptions, File};
 use std::io::Read;
+use std::time::Duration;
 use common::*;
 use bulk_msg_slicing::*;
 use message_structure::*;
 use std::io::Error as IoError;
+use std::thread;
 
 const DOWNLINK_MSG_BODY_SIZE: usize = 4089; // 4KB - 5B (header) - 2B (sequence number)
 fn main() -> Result<(),IoError > {
@@ -20,12 +22,13 @@ fn main() -> Result<(),IoError > {
 
         for server in servers {
             if let Some(msg) = handle_client(server)? {
+                let mut messages = Vec::new();
                 if msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body.clone();
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg= get_data_from_path(&path)?;
                     // Slice bulk msg
-                    let messages: Vec<Msg> = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
+                    messages = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
                     send_buffer_size_to_gs((messages.len() * DOWNLINK_MSG_BODY_SIZE) as u32, gs_interface_clone.data_fd)?;
@@ -35,7 +38,17 @@ fn main() -> Result<(),IoError > {
                     // 4. Wait for ACK from GS it got all the messages
 
                 } else if msg.header.msg_type == MsgType::Ack as u8 {
-                    todo!()
+                    // Is there a better way of differentiating between ACK's?
+                    if msg.msg_body[0] == 0 {
+                        println!("Sending msgs");
+                        for i in 1..messages.len() {
+                            ipc_write(gs_interface_clone.data_fd, &serialize_msg(&messages[i])?)?;
+                            println!("Sent msg #{}", i);
+                            thread::sleep(Duration::from_millis(1000));
+                        }
+                    } else {
+                        todo!()
+                    }
                 }
                 server.clear_buffer();
             }
