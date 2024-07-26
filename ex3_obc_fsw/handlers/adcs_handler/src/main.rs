@@ -5,7 +5,9 @@ use common::{opcodes, ports};
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
 use message_structure::*;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
+
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -19,11 +21,12 @@ const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 // TODO check where to add this
 // Probably will move this to another file later
 pub mod adcs_body {
-    pub const ON: &[u8] = b"ON";
-    pub const OFF: &[u8] = b"OFF";
-    pub const GET_STATE: &[u8] = b"GS";
-    pub const GET_WHEEL_SPEED: &[u8] = b"GWS";
-    pub const SET_WHEEL_SPEED: &[u8] = b"SWS";
+    struct ADCSCmdParam<'a>(&'a [u8], i32);
+    pub const ON: ADCSCmdParam = ADCSCmdParam(b"ON", 0);
+    pub const OFF: ADCSCmdParam = ADCSCmdParam(b"OFF", 0);
+    pub const GET_STATE: ADCSCmdParam = ADCSCmdParam(b"GS", 0);
+    pub const GET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam(b"GWS", 0);
+    pub const SET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam(b"SWS", 3);
 }
 
 struct ADCSHandler {
@@ -117,16 +120,20 @@ impl ADCSHandler {
         }
     }
 
-    fn build_cmd(&mut self, cmd: &[u8], msg: Msg) -> Result<Vec<u8>, Error> {
+    fn build_cmd(&mut self, cmd: &[u8], msg: Msg) -> Result<Vec<u8>, ()> {
         let mut data: Vec<u8>;
-        if msg.msg_body.len() < 2 {
+        if let Some(num_params) = ADCS_PARAMS.get(cmd) {
+            if msg.msg_body.len() < (1 + *num_params).try_into().unwrap() {
+                return Err(());
+            }
+            for val in msg.msg_body {
+                data.push(CMD_DELIMITER);
+                data.push(val);
+            }
+            Ok(data)
+        } else {
             Err(())
         }
-        for val in msg.msg_body {
-            data.push(CMD_DELIMITER);
-            data.push(val);
-        }
-        Ok(data)
     }
 
     fn send_cmd(&mut self, command: &[u8]) -> Result<(), Error> {
