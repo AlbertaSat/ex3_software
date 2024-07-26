@@ -6,14 +6,20 @@ Create an ipc server on the path specified as an arg - and send hardcoded data b
 
 */
 
+use common::component_ids::{self, ComponentIds};
 use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
+use message_structure::{CmdMsg, SerializeAndDeserialize};
 
 use nix::poll::{poll, PollFd, PollFlags};
 use std::io::{self, Read};
 
 const STDIN_POLL_TIMEOUT_MS: i32 = 100;
 
-fn handle_user_input(read_data: &[u8]) {
+/// Write a messaage to the IPC - user enteres number to send assoicated example message
+fn handle_user_input(
+    read_data: &[u8],
+    ipc_server: &mut IpcServer,
+) -> Result<usize, std::io::Error> {
     let first_byte = read_data[0];
     let first_byte_char = first_byte as char;
     println!("First byte: {}", first_byte_char);
@@ -21,11 +27,25 @@ fn handle_user_input(read_data: &[u8]) {
     match first_byte_char {
         '1' => {
             println!("Sending msg 1");
-            //write first hardcoded msg to ipc client 
+            //write first hardcoded msg to ipc client
+            let msg = CmdMsg::new(1, ComponentIds::DUMMY.into(), 3, 0, vec![5, 6, 7, 8, 9, 10]);
+            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
+            ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
-        '2' => println!("Sending msg 2"),
-        '3' => println!("Sending msg 3"),
-        _ => println!("Invalid input"),
+        '2' => {
+            println!("Sending msg 2");
+            //write first hardcoded msg to ipc client
+            let msg = CmdMsg::new(2, ComponentIds::DUMMY.into(), 3, 1, vec![5, 6, 7, 8, 9, 10]);
+            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
+            ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
+        }
+        _ => {
+            println!("Invalid input");
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid input",
+            ))
+        }
     }
 }
 
@@ -67,8 +87,8 @@ fn main() {
         match stdin_read_res {
             Some(bytes_read) => {
                 if bytes_read > 0 {
-                    println!("Received user input: {:?}", stdin_buf);   
-                    handle_user_input(stdin_buf.as_slice());
+                    println!("Received user input: {:?}", stdin_buf);
+                    handle_user_input(stdin_buf.as_slice(), &mut ipc_server);
                 }
             }
             None => (),

@@ -13,17 +13,19 @@ use message_structure::{AckMsg, CmdMsg, SerializeAndDeserialize};
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use tcp_interface::{Interface, TcpInterface};
 
-const DUMMY_MAX_MSG_SIZE_BYTES: u8 = 128;
+const DUMMY_MAX_MSG_SIZE_BYTES: u8 = 128; //largest size of a data packet from dummy subsystem sim
 
 /*
  * Here goes functions related uniquely to the subsystem the handler is associated with (i.e. decryption for GS handler, )
 */
 // ----------------------------------------------------------------------------------------------------------------------
 fn set_dummy_subsystem_variable() {
-    // - write to the interface for the subsystem (tcp for sims)
+    println!("Set dummy subsystem variable called");
+    //TODO - Implement this with a dummy subsystem sim 
 }
 fn get_dummy_subsystem_variable() {
-    // - write to and then read from the interface for the subsystem (tcp for sims)
+    println!("Get dummy subsystem variable called");
+    //TODO - Implement this with a dummy subsystem sim 
 }
 
 /*
@@ -62,8 +64,8 @@ fn main() {
 
     // Setup interfaces for communicating with other FSW components (typically IPC for communication between processes)
     let mut ipc_cmd_msg_dispatcher = IpcClient::new("cmd_msg_dummy_handler".to_string()).unwrap();
-    // Setup vector of ipc clients for polling all for input data
     let mut ipc_client_vec = vec![&mut ipc_cmd_msg_dispatcher];
+    // As our design grows and handlers talk to more processes - this vec will grow to include other interfaces
 
     //Enter main loop here to poll for incoming messages from previously setup interfaces
     loop {
@@ -96,7 +98,6 @@ fn main() {
                         // - (include error code, and where this failure occured i.e. the dummy_handler)
                     }
                 }
-
                 ipc_client.clear_buffer();
             }
         }
