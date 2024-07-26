@@ -103,6 +103,24 @@ pub mod component_ids {
             }
         }
     }
+
+    impl Into<u8> for ComponentIds {
+        fn into(self) -> u8 {
+            match self {
+                ComponentIds::OBC => 0,
+                ComponentIds::EPS => 1,
+                ComponentIds::ADCS => 2,
+                ComponentIds::DFGM => 3,
+                ComponentIds::IRIS => 4,
+                ComponentIds::GPS => 5,
+                //...
+                ComponentIds::GS => 7,
+                ComponentIds::COMS => 8,
+                //...
+                ComponentIds::DUMMY => 99,
+            }
+        }
+    }
 }
 
 /// For constants that are used across the entire project
