@@ -16,7 +16,7 @@ TODOs:
 
 */
 
-use log::LevelFilter;
+use log::{Level, LevelFilter};
 use log::{debug, error, info, trace, warn};
 use log4rs::filter::threshold::ThresholdFilter;
 use log4rs::{
@@ -41,7 +41,7 @@ fn configure_logger(all_log_level: LevelFilter, filtered_log_level: LevelFilter)
     // Create a file appender for warning and error logs
     let filtered_file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {l} - {m}{n}")))
-        .build("logs/filtered_logs.log")
+        .build("logs/error_and_warning_logs.log")
         .unwrap();
 
     let filtered_file = Appender::builder()
@@ -75,8 +75,12 @@ fn configure_logger(all_log_level: LevelFilter, filtered_log_level: LevelFilter)
         .unwrap()
 }
 
-fn init_logger(all_log_level: LevelFilter, filtered_log_level: LevelFilter) {
-    let config = configure_logger(all_log_level, filtered_log_level);
+pub fn init_logger() {
+    let all_log_levels = LevelFilter::Trace;
+    let warnings_and_error_log_levels = LevelFilter::Warn;
+
+    let config = configure_logger(all_log_levels, warnings_and_error_log_levels);
+
     // Initialize the logger
     let _handle = log4rs::init_config(config).unwrap();
 }
@@ -87,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_log_severities() {
-        init_logger(LevelFilter::Trace, LevelFilter::Warn);
+        init_logger();
         error!("This is an error message");
         info!("This is an info message");
         debug!("This is a debug message");

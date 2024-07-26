@@ -8,6 +8,12 @@ Duplicate logs not of a high severity should be aggregated, such that they do no
 
 Right now the logger creates a 'log' directory in the project directory that the init_logger fxn is called in.
 
+To use this library include it in your modules Cargo.toml file, and just call the 'init_logger' fxn at the beginning of the main loop of the program. After this is done you can then use the associated log macros to both store the log in a file, and print the log to stdin.
+
+```@Rust
+error!("Put your error message here");
+```
+
 ## Log4rs
 
 Log4rs has an architecture that is allows our logs to be written to various locations, formatted, and filtered conventiently.
