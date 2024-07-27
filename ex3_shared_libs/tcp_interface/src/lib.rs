@@ -114,32 +114,57 @@ impl Interface for TcpInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{process::Command, thread, time::Duration};
+    use std::{
+        process::{Command, Stdio},
+        thread,
+        time::Duration,
+    };
+
+    // Rust tests are done in parallel. Port must unique for the testcases
+    const BASE_TEST_PORT: u16 = 43000;
 
     // These tests are meant to be run with a netcat TCP server to
     // ensure the functionality of read and write
 
     #[test]
     fn test_handler_write() {
+        let test_port = BASE_TEST_PORT + 1;
+        let expected = [48, 48, 48, 48, 48];
+
+        // Setting up nc listener
         let mut ncat = if cfg!(target_os = "windows") {
-            panic!()
+            panic!() // Windows user can implement
         } else {
             Command::new("nc")
-                .args(["-l", "-s", "127.0.0.1", "-p", "8080"])
+                .args(["-l", "-s", "127.0.0.1", "-p", &test_port.to_string()])
+                .stdout(Stdio::piped())
                 .spawn()
-                .expect("netcat failed to start")
+                .expect("Could not start")
         };
         thread::sleep(Duration::from_millis(250));
-        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
-        if let Ok(n) = TcpInterface::send(&mut client_interface, &[48, 48, 48, 48, 48]) {
-            println!("Sent {} bytes", n);
-        } else {
-            // couldn't send bytes
+        let mut client_interface =
+            TcpInterface::new_client("127.0.0.1".to_string(), test_port).unwrap();
+        match TcpInterface::send(&mut client_interface, &expected) {
+            Ok(n) => println!("Sent {} bytes", n),
+            Err(why) => panic!("Failed to send bytes: {}", why),
         }
+        thread::sleep(Duration::from_millis(250));
+
+        // Checking if transfer was successful
+        let nc_result = ncat.stdout.as_mut().unwrap();
+        let mut read_buf: [u8; 5] = [0; 5];
+        let status = nc_result.read_exact(&mut read_buf);
+        match status {
+            Err(why) => panic!("Failed to read from netcat: {}", why),
+            Ok(_) => assert_eq!(read_buf, expected),
+        }
+
+        // Cleaning up resources
         ncat.kill().unwrap();
     }
     #[test]
     fn test_handler_read() {
+        let test_port = BASE_TEST_PORT + 2;
         let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
         let mut buffer = [0u8; BUFFER_SIZE];
         loop {
