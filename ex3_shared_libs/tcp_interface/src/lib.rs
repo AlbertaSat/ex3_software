@@ -114,17 +114,14 @@ impl Interface for TcpInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use std::{
         process::{Command, Stdio},
-        thread,
+        str, thread,
         time::Duration,
     };
 
-    // Rust tests are done in parallel. Port must unique for the testcases
     const BASE_TEST_PORT: u16 = 43000;
-
-    // These tests are meant to be run with a netcat TCP server to
-    // ensure the functionality of read and write
 
     #[test]
     fn test_handler_write() {
@@ -165,8 +162,28 @@ mod tests {
     #[test]
     fn test_handler_read() {
         let test_port = BASE_TEST_PORT + 2;
-        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
+        let test_input = "0xDEADBEEF";
+        // Setting up nc server
+        let mut ncat = if cfg!(target_os = "windows") {
+            panic!() // Windows user can implement
+        } else {
+            Command::new("nc")
+                .args(["-l", "-s", "127.0.0.1", "-p", &test_port.to_string()])
+                .stdin(Stdio::piped())
+                .spawn()
+                .expect("Could not start")
+        };
+
+        thread::sleep(Duration::from_millis(250));
+
+        let mut client_interface =
+            TcpInterface::new_client("127.0.0.1".to_string(), test_port).unwrap();
         let mut buffer = [0u8; BUFFER_SIZE];
+
+        let send_nc = ncat.stdin.as_mut().unwrap();
+        send_nc
+            .write_all(test_input.as_bytes())
+            .expect("Failed to write to nc");
         loop {
             if let Ok(n) = TcpInterface::read(&mut client_interface, &mut buffer) {
                 println!("got dem bytes: {:?}", buffer);
@@ -179,5 +196,10 @@ mod tests {
                 println!("No bytes to read");
             }
         }
+        assert_eq!(
+            str::from_utf8(&buffer[..test_input.len()]).expect("Failed to convert msg to &str"),
+            test_input
+        );
+        ncat.kill().expect("Unable to kill netcat");
     }
 }
