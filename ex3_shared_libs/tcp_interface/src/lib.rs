@@ -93,16 +93,20 @@ impl Interface for TcpInterface {
             return Err(Error::new(io::ErrorKind::Other, "poll error"));
         }
 
-        if self.fd[0].revents != 0{
+        if self.fd[0].revents != 0 {
             if self.fd[0].revents & libc::POLLIN != 0 {
                 let n = self.stream.read(buffer)?;
                 return Ok(n);
+            } else if self.fd[0].revents & libc::POLLHUP != 0
+                || self.fd[0].revents & libc::POLLERR != 0
+            {
+                return Err(Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Connection Closed",
+                ));
             }
-            else if self.fd[0].revents & libc::POLLHUP != 0 || self.fd[0].revents & libc::POLLERR != 0{
-                return Err(Error::new(io::ErrorKind::ConnectionAborted, "Connection Closed"));
-            } 
         }
-        Ok(0) 
+        Ok(0)
         //Err(Error::new(io::ErrorKind::WouldBlock, "No Data Available"))
     }
 }
@@ -110,18 +114,29 @@ impl Interface for TcpInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{process::Command, thread, time::Duration};
 
     // These tests are meant to be run with a netcat TCP server to
     // ensure the functionality of read and write
 
     #[test]
     fn test_handler_write() {
+        let mut ncat = if cfg!(target_os = "windows") {
+            panic!()
+        } else {
+            Command::new("nc")
+                .args(["-l", "-s", "127.0.0.1", "-p", "8080"])
+                .spawn()
+                .expect("netcat failed to start")
+        };
+        thread::sleep(Duration::from_millis(250));
         let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
         if let Ok(n) = TcpInterface::send(&mut client_interface, &[48, 48, 48, 48, 48]) {
             println!("Sent {} bytes", n);
         } else {
             // couldn't send bytes
         }
+        ncat.kill().unwrap();
     }
     #[test]
     fn test_handler_read() {
