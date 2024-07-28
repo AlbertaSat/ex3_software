@@ -168,10 +168,9 @@ pub mod opcodes {
         pub const GET_N_IMAGES_AVAILABLE: u8 = 4;
         pub const SET_TIME: u8 = 5;
         pub const GET_TIME: u8 = 6;
-        pub const SET_CONFIGS: u8 = 7;
-        pub const GET_CONFIGS: u8 = 8;
-        pub const RESET: u8 = 9;
-        pub const GET_IMAGE_SIZE: u8 = 10;
+        pub const RESET: u8 = 7;
+        pub const DEL_IMAGE: u8 = 8;
+        pub const GET_IMAGE_SIZE: u8 = 9;
 
     }
 }

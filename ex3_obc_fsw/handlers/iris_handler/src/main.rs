@@ -71,31 +71,71 @@ impl IRISHandler {
         }
     }
 
-    fn handle_msg_for_iris(&mut self, msg: Msg) -> Result<(), Error> {
-        match msg.header.op_code {
+    fn handle_msg_for_iris(&mut self, msg: Msg){
+        
+        let (command_msg, success) = match msg.header.op_code {
+            opcodes::iris::RESET=> {
+                ("RST", true)
+            }
+            // Image commands
             opcodes::iris::TOGGLE_SENSOR=> {
-                if msg.msg_body[0] == 0 {
-                    self.toggle_sensor = false;
-                    Ok(())
-                } else if msg.msg_body[0] == 1 {
-                    self.toggle_sensor = true;
-                    Ok(())
+                if msg.msg_body[0] == 1 {
+                    ("ON", true)
+                } else if msg.msg_body[0] == 0 {
+                    ("OFF", true)
                 } else {
-                    eprintln!("Error: invalid msg body for opcode 0");
-                    Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "Invalid msg body for opcode 0 on IRIS",
-                    ))
+                    ("Error: invalid msg body for opcode 1", false)
                 }
             }
-            _ => {
-                eprintln!("Error: invalid msg body for opcode 0");
-                Err(Error::new(
-                    ErrorKind::NotFound,
-                    format!("Opcode {} not found for IRIS", msg.header.op_code),
-                ))
+            opcodes::iris::CAPTURE_IMAGE=> {
+                ("TKI", true)
             }
+            opcodes::iris::FETCH_IMAGE=> {
+                // Assumes that there are not more than 255 images being request at any one time
+                (&*format!("FTI:{}", msg.msg_body[0]),true)
+            }
+            opcodes::iris::GET_IMAGE_SIZE=> {
+                // Currently can only access the first 255 images stored on IRIS, will be updated if needed
+                (&*format!("FSI:{}", msg.msg_body[0]),true)
+            }
+            opcodes::iris::GET_N_IMAGES_AVAILABLE=> {
+                ("FNI", true)
+            }
+            opcodes::iris::DEL_IMAGE=> {
+                (&*format!("DTI:{}", msg.msg_body[0]),true)
+            }
+            // Housekeeping commands
+            opcodes::iris::GET_TIME=> {
+                ("FTT", true)
+            }
+            opcodes::iris::SET_TIME=> {
+                // Placeholder for reading the total time need to determine how we will handle >255 values (ie. epoch time)
+                (&*format!("STT:{}", msg.msg_body[0]),true)
+            }
+            opcodes::iris::GET_HK=> {
+                ("FTH", true)
+            }
+            _ => {
+                (&*format!("Opcode {} not found for IRIS", msg.header.op_code), false)
+                
+            }
+        };
+        if success {
+            let status = TcpInterface::send(&mut self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
+            if write_status(status, command_msg) {
+                // Read response from the subsystem
+                let mut tcp_buf = [0u8; BUFFER_SIZE];
+                let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+                match status {
+                    Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&tcp_buf)); }
+                    Err(e) => { println!("Error: {}", e); }
+                }
+
+            }
+            return;
         }
+        eprintln!("{}", command_msg);
+
     }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
@@ -108,26 +148,9 @@ impl IRISHandler {
             ) {
                 if n > 0 {
                     let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    self.handle_msg_for_iris(recv_msg)?;
-                    println!("Data toggle set to {}", self.toggle_sensor);
+                    self.handle_msg_for_iris(recv_msg);
+
                     socket_buf.flush()?;
-                }
-            }
-            if self.toggle_sensor == true {
-                // TODO: Swap out dfgm code for IRIS code
-                let mut tcp_buf = [0u8; BUFFER_SIZE];
-                let status = TcpInterface::read(
-                    &mut self.peripheral_interface.as_mut().unwrap(),
-                    &mut tcp_buf,
-                );
-                match status {
-                    Ok(data_len) => {
-                        println!("Got data {:?}", tcp_buf);
-                        store_iris_data(&tcp_buf)?;
-                    }
-                    Err(e) => {
-                        println!("Error: {}", e);
-                    }
                 }
             }
         }
@@ -151,6 +174,19 @@ fn store_iris_data(data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+fn write_status(status: Result<usize, Error>, cmd: &str) -> bool{
+    match status {
+        Ok(_data_len) => {
+            println!("Command {} successfully sent", cmd);
+            true
+        }
+        Err(e) => {
+            println!("Error: {}", e);
+            false
+        }
+    }
+}
+
 fn main() {
     println!("Beginning IRIS Handler...");
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
@@ -158,7 +194,7 @@ fn main() {
     //Create TCP interface for IRIS handler to talk to simulated IRIS
     let iris_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_IRIS_PORT);
 
-    //Create TCP interface for IRIS handler to talk to message dispatcher
+    //Create IPC interface for IRIS handler to talk to message dispatcher
     let dispatcher_interface = IPCInterface::new("iris_handler".to_string());
 
     //Create IRIS handler
