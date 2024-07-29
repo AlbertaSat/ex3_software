@@ -40,7 +40,6 @@ const IRIS_INTERFACE_BUFFER_SIZE: usize = IRIS_PACKET_SIZE;
 
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct IRISHandler {
-    toggle_sensor: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the IRIS peripheral [external to OBC]. Will be dynamic
     dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
@@ -65,7 +64,7 @@ impl IRISHandler {
         }
 
         IRISHandler {
-            toggle_sensor: false,
+
             peripheral_interface: iris_interface.ok(),
             dispatcher_interface: dispatcher_interface.ok(),
         }
@@ -121,13 +120,16 @@ impl IRISHandler {
             }
         };
         if success {
+            // Send command message to IRIS
             let status = TcpInterface::send(&mut self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
-            if write_status(status, command_msg) {
-                // Read response from the subsystem
-                let mut tcp_buf = [0u8; BUFFER_SIZE];
-                let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+
+            if write_status(status, command_msg) { // Write succeeded
+                let mut response = [0u8; BUFFER_SIZE];
+                let status = receive_response(self.peripheral_interface.as_mut().unwrap(), &mut response);
+                
                 match status {
-                    Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&tcp_buf)); }
+                    // Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&response)); }
+                    Ok(_data_len) => { println!("Got data {:?}", response); }
                     Err(e) => { println!("Error: {}", e); }
                 }
 
@@ -174,6 +176,54 @@ fn store_iris_data(data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+
+/// Receives and translates IRIS packet, currently the IRIS simulated subsystem sends packets in the following format:
+/// FLAG:length:...data...|END|, where length is replaced with the length of data
+/// Until we know for certain the commands and their response structures this will have to make do
+
+fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface,  response:  &mut [u8; BUFFER_SIZE]) ->  Result<usize, Error>{
+    let flag: [u8; 4] = [70, 76, 65, 71]; // is "FLAG" in bytes
+    let end: [u8; 5] = [124, 69, 78, 68, 124]; // is "|END|" in bytes
+    let delim = 58; // is the delimiter for the simulated subsystem ":"
+    let mut packet_length: u32 = 0;
+    // let mut translated_response = Vec::with_capacity(1024);
+    let mut end_index: usize = 0;
+
+    // ****** NEED TO DETERMINE IF OUR STANDARD CAN READ > 1024 BYTES AT A TIME, IF SO JUST READ ALL AT ONCE *****
+    // Check for flag
+    let status = TcpInterface::read(peripheral_interface, response);
+    // Get packet length
+
+    // Read packet
+
+
+    // Verify End
+
+
+    if response[0..3] != flag {
+        // ERROR the packet has no initial flag set
+    }
+    // Determine the length of the packet
+    let mut start_index = 0;
+    for i in 5..BUFFER_SIZE { 
+        if response[i] == delim{
+            start_index = i+1;
+        }
+        packet_length = packet_length * 10 + ((response[i]-48) as u32); // Increase packet length             
+    }
+    // Determine whether multiple packets have been sent
+    let mut anotherpacket: bool = false;
+    end_index = start_index+(packet_length as usize);
+
+    // translated_response = response[start_index..].to_vec();
+
+
+
+    return status;
+}
+
+/// Verify that a command was successfully sent via checking the return status of a tcp write
+/// Returns either true on successful send or false on failed send
 fn write_status(status: Result<usize, Error>, cmd: &str) -> bool{
     match status {
         Ok(_data_len) => {
