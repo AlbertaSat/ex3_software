@@ -1,5 +1,5 @@
 /*
-Written by Devin Headrick
+Written by Rowan Rasmusson Devin Headrick
 Summer 2024
 
 So how should this work?? - other processes call the init logger fxn to init a logger for their process
