@@ -21,12 +21,55 @@ const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 // TODO check where to add this
 // Probably will move this to another file later
 pub mod adcs_body {
-    struct ADCSCmdParam<'a>(&'a [u8], i32);
-    pub const ON: ADCSCmdParam = ADCSCmdParam(b"ON", 0);
-    pub const OFF: ADCSCmdParam = ADCSCmdParam(b"OFF", 0);
-    pub const GET_STATE: ADCSCmdParam = ADCSCmdParam(b"GS", 0);
-    pub const GET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam(b"GWS", 0);
-    pub const SET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam(b"SWS", 3);
+    // struct ADCSCmdParam<'a>(&'a [u8], i32);
+    struct ADCSCmdParam<'a> {
+        data: &'a [u8],
+        params: i32,
+    }
+    pub const ON: ADCSCmdParam = ADCSCmdParam {
+        data: b"ON",
+        params: 0,
+    };
+    pub const OFF: ADCSCmdParam = ADCSCmdParam {
+        data: b"OFF",
+        params: 0,
+    };
+    pub const GET_STATE: ADCSCmdParam = ADCSCmdParam {
+        data: b"GS",
+        params: 0,
+    };
+    pub const GET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam {
+        data: b"GWS",
+        params: 0,
+    };
+    pub const SET_WHEEL_SPEED: ADCSCmdParam = ADCSCmdParam {
+        data: b"SWS",
+        params: 3,
+    };
+    pub const STATUS_CHECK: ADCSCmdParam = ADCSCmdParam {
+        data: b"SC",
+        params: 0,
+    };
+    pub const SET_MAGNETORQUER_CURRENT: ADCSCmdParam = ADCSCmdParam {
+        data: b"SC",
+        params: 3,
+    };
+    pub const GET_MAGNETORQUER_CURRENT: ADCSCmdParam = ADCSCmdParam {
+        data: b"SC",
+        params: 0,
+    };
+    pub const GET_TIME: ADCSCmdParam = ADCSCmdParam {
+        data: b"GT",
+        params: 0,
+    };
+    pub const SET_TIME: ADCSCmdParam = ADCSCmdParam {
+        data: b"ST",
+        params: 1,
+    };
+    pub const GET_ORIENTATION: ADCSCmdParam = ADCSCmdParam {
+        data: b"GOR",
+        params: 0,
+    };
 }
 
 struct ADCSHandler {
@@ -123,7 +166,7 @@ impl ADCSHandler {
     fn build_cmd(&mut self, cmd: &[u8], msg: Msg) -> Result<Vec<u8>, ()> {
         let mut data: Vec<u8>;
         if let Some(num_params) = ADCS_PARAMS.get(cmd) {
-            if msg.msg_body.len() < (1 + *num_params).try_into().unwrap() {
+            if msg.msg_body.len() != (1 + *num_params).try_into().unwrap() {
                 return Err(());
             }
             for val in msg.msg_body {
