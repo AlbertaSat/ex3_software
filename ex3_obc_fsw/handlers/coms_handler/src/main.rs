@@ -97,7 +97,7 @@ fn make_buffer_and_send_ack(msg: &Msg, fd: Option<i32>) -> Result<Vec<u8>, std::
     ipc_write(fd, &serialize_msg(&ack_msg)?)?;
 
     println!("Allocating buffer with size {}", buffer_size);
-    Ok(Vec::with_capacity(buffer_size as usize))
+    Ok(vec![0;buffer_size as usize])
 }
 
 /// All things to be downlinked use this fxn (later on we want a sort of buffer to store what was downlinked until we get confirmation from the GS it was recevied)
@@ -156,6 +156,8 @@ fn main() {
 
     let mut received_bulk_ack = false;
     let mut bulk_buffer = Vec::new();
+    let mut messages = Vec::new();
+    let mut bulk_bytes_read = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
@@ -166,19 +168,23 @@ fn main() {
             let deserialized_msg_result = deserialize_msg(&ipc_gs_interface.buffer);
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
-                    println!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                     // writes directly to GS, handling case if it's a bulk message
                     if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack {
                         // If we haven't received Bulk ACK, we need to allocate buffer and send ack
                         bulk_buffer = make_buffer_and_send_ack(&deserialized_msg, ipc_gs_interface.fd).unwrap();
-                        println!("Received bulk ack");
                         received_bulk_ack = true;
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && received_bulk_ack {
-                        // if we already received bulk ack, then we have buffer allocated and we can receive bulk Msgs
-                        println!("Reading bulk msgs");
-                        let bulk_msg = read_bulk_msgs(bulk_buffer.clone(), ipc_gs_interface.clone()).unwrap();
-                        println!("Slicing and sending to GS");
-                        let _ = handle_bulk_msg_for_gs(&deserialized_msg, &mut tcp_interface);
+                        let mut bulk_msg = Msg::new(0,0,0,0,0,vec![]);
+                        if bulk_bytes_read < bulk_buffer.len() {
+                            let cur_buf = ipc_gs_interface.read_buffer();
+                            let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                            messages.push(cur_msg);
+                            bulk_bytes_read += cur_buf.len();
+                        } else {
+                            bulk_msg = reconstruct_msg(messages.clone()).unwrap();
+                            let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
+                        }
+                
                     } else {
                         let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
                     }
@@ -188,6 +194,7 @@ fn main() {
                     //Handle deserialization of IPC msg failure
                 }
             };
+            println!("Bulk bytes read: {}", bulk_bytes_read);
             ipc_gs_interface.clear_buffer();
         }
 
