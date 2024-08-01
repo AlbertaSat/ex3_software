@@ -14,6 +14,7 @@ fn main() -> Result<(),IoError > {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
     let mut gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
+    let mut messages = Vec::new();
 
     loop {
         let gs_interface_clone = gs_interface.clone();
@@ -22,7 +23,6 @@ fn main() -> Result<(),IoError > {
 
         for server in servers {
             if let Some(msg) = handle_client(server)? {
-                let mut messages = Vec::new();
                 if msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body.clone();
                     let path = get_path_from_bytes(path_bytes)?;

@@ -1,5 +1,3 @@
-use core::num;
-
 /*  Writte by Rowan Rasmusson
     Summer 2024
     This program is meant to take serialized Msg Struct and determine
@@ -8,7 +6,7 @@ use core::num;
     will assign the packets a sequence number at msg_body[0]
  */
 use message_structure::*;
-
+pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number) = 121
 pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
 
     let body_len: usize = large_msg.msg_body.len();

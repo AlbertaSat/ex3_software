@@ -54,15 +54,23 @@ fn handle_msg_for_coms(msg: &Msg) {
 
 /// Special read function that continuously reads sequenced messages from the bulk_msg_disp
 /// and once it has all of them, it reconstructs all the messages into one large bulk msg
-fn read_bulk_msgs(buffer: Vec<u8>, fd: Option<i32>) -> Result<Msg, std::io::Error> {
+fn read_bulk_msgs(buffer: Vec<u8>, interface: IpcClient) -> Result<Msg, std::io::Error> {
     // read in msgs
+    // TMP - use the nix::libc read, will later use a read from the ipc library
+    let mut bytes_read = 0;
+    while bytes_read < buffer.len() {
+        
+    }
     // while bytes read < bytes received: read
     // call reconstruct msg from bulk lib
     // return it
     // Ok(bulk_msg)
+    todo!()
 }
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking
+/// Slices the Msg it's passed into the appropriate size for the UHF to handle
+/// Also sends the messages to the UHF/GS
 fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
     
     // Slice Msg before downlinking
@@ -167,7 +175,9 @@ fn main() {
                         received_bulk_ack = true;
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && received_bulk_ack {
                         // if we already received bulk ack, then we have buffer allocated and we can receive bulk Msgs
-                        let bulk_msg = read_bulk_msgs(bulk_buffer.clone(), ipc_gs_interface.fd);
+                        println!("Reading bulk msgs");
+                        let bulk_msg = read_bulk_msgs(bulk_buffer.clone(), ipc_gs_interface.clone()).unwrap();
+                        println!("Slicing and sending to GS");
                         let _ = handle_bulk_msg_for_gs(&deserialized_msg, &mut tcp_interface);
                     } else {
                         let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
