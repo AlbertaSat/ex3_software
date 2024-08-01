@@ -81,8 +81,8 @@ fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(),
     // TODO - wait for gs to respond with ACK to send next messages
 
     println!("About to send {} messages", messages.len());
-    thread::sleep(Duration::from_secs(10));
-    for i in 1..messages.len() {
+    thread::sleep(Duration::from_secs(5));
+    for i in 0..messages.len() {
         write_msg_to_uhf_for_downlink(interface, messages[i].clone());
     }
     
@@ -158,6 +158,7 @@ fn main() {
     let mut bulk_buffer = Vec::new();
     let mut messages = Vec::new();
     let mut bulk_bytes_read = 0;
+    let mut bulk_msg = Msg::new(0,0,0,0,0,vec![]);
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
@@ -174,15 +175,11 @@ fn main() {
                         bulk_buffer = make_buffer_and_send_ack(&deserialized_msg, ipc_gs_interface.fd).unwrap();
                         received_bulk_ack = true;
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && received_bulk_ack {
-                        let mut bulk_msg = Msg::new(0,0,0,0,0,vec![]);
                         if bulk_bytes_read < bulk_buffer.len() {
                             let cur_buf = ipc_gs_interface.read_buffer();
                             let cur_msg = deserialize_msg(&cur_buf).unwrap();
                             messages.push(cur_msg);
                             bulk_bytes_read += cur_buf.len();
-                        } else {
-                            bulk_msg = reconstruct_msg(messages.clone()).unwrap();
-                            let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
                         }
                 
                     } else {
@@ -196,6 +193,16 @@ fn main() {
             };
             println!("Bulk bytes read: {}", bulk_bytes_read);
             ipc_gs_interface.clear_buffer();
+        }
+        if received_bulk_ack {
+            // if we are done reading bulk msgs
+            if bulk_bytes_read >= bulk_buffer.len() {
+                bulk_msg = reconstruct_msg(messages.clone()).unwrap();
+                let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
+                bulk_bytes_read = 0;
+                bulk_buffer = Vec::new();
+                received_bulk_ack = false;
+            }
         }
 
 
