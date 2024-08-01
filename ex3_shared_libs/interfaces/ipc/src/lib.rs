@@ -13,7 +13,7 @@ use std::process;
 use std::{fs, io};
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
-pub const IPC_BUFFER_SIZE: usize = 500;
+pub const IPC_BUFFER_SIZE: usize = 4096;
 const POLL_TIMEOUT_MS: i32 = 100;
 
 /// Create a unix domain socket with a type of SOCKSEQ packet.
@@ -71,10 +71,15 @@ impl IpcClient {
     }
 
     /// Users of this lib can call this to clear the buffer - otherwise the preivous read data will remain
-    ///  the IPC client has no way of knowing when the user is done with the data in its buffer, so it is the responsibility of the user to clear it
+    /// the IPC client has no way of knowing when the user is done with the data in its buffer, so it is the responsibility of the user to clear it
     pub fn clear_buffer(&mut self) {
         self.buffer = [0u8; IPC_BUFFER_SIZE];
         println!("Buffer cleared");
+    }
+
+    /// Returns the buffer in its current state for directly reading values in real time
+    pub fn read_buffer(&mut self) -> Vec<u8> {
+        self.buffer.to_vec()
     }
 }
 
@@ -201,6 +206,10 @@ impl IpcServer {
     pub fn clear_buffer(&mut self) {
         self.buffer = [0u8; IPC_BUFFER_SIZE];
         println!("Buffer cleared");
+    }
+
+    pub fn read_buffer(&mut self) -> Vec<u8> {
+        self.buffer.to_vec()
     }
 }
 
