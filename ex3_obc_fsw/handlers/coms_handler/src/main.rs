@@ -194,15 +194,14 @@ fn main() {
             println!("Bulk bytes read: {}", bulk_bytes_read);
             ipc_gs_interface.clear_buffer();
         }
-        if received_bulk_ack {
-            // if we are done reading bulk msgs
-            if bulk_bytes_read >= bulk_buffer.len() {
-                bulk_msg = reconstruct_msg(messages.clone()).unwrap();
-                let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
-                bulk_bytes_read = 0;
-                bulk_buffer = Vec::new();
-                received_bulk_ack = false;
-            }
+        // If we are done reading bulk msgs, start protocol with GS
+        if received_bulk_ack && bulk_bytes_read >= bulk_buffer.len() {
+            bulk_msg = reconstruct_msg(messages.clone()).unwrap();
+            let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
+            bulk_bytes_read = 0;
+            bulk_buffer = Vec::new();
+            received_bulk_ack = false;
+            
         }
 
 
