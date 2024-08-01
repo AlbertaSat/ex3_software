@@ -41,10 +41,10 @@ fn main() -> Result<(),IoError > {
                     // Is there a better way of differentiating between ACK's?
                     if msg.msg_body[0] == 0 {
                         println!("Sending msgs");
-                        for i in 1..messages.len() {
+                        for i in 0..messages.len() {
                             ipc_write(gs_interface_clone.data_fd, &serialize_msg(&messages[i])?)?;
                             println!("Sent msg #{}", i);
-                            thread::sleep(Duration::from_millis(1000));
+                            thread::sleep(Duration::from_millis(500));
                         }
                     } else {
                         todo!()
