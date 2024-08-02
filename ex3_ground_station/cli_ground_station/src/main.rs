@@ -19,6 +19,7 @@ use tcp_interface::*;
 
 use chrono::prelude::*;
 use serde_json::json;
+use core::num;
 use std::io::{BufWriter, Write};
 
 use std::str::FromStr;
@@ -135,9 +136,10 @@ async fn main() {
         TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
     println!("Connected to Coms handler via TCP ");
 
+    let mut receiving_bulk = false;
     //Once connection is established, loop and read stdin, build a msg from operator entered data, send to coms handler via TCP socket, await an ACK
     loop {
-        let input = get_operator_input_line(); //Bl;ocking read on stdin until operator hits 'enter' key
+        let input = get_operator_input_line(); //Blocking read on stdin until operator hits 'enter' key
 
         let msg_build_res = build_msg_from_operator_input(input);
 
@@ -156,8 +158,17 @@ async fn main() {
                 while *awaiting_ack.lock().await == true {
                     let bytes_read = tcp_interface.read(&mut buf).unwrap();
                     if bytes_read > 0 {
-                        let ack_msg = deserialize_msg(&buf).unwrap();
-                        let _ = handle_ack(ack_msg, &mut *awaiting_ack.lock().await);
+                        let recvd_msg = deserialize_msg(&buf).unwrap();
+                        // TODO - change 200 to mean ACK
+                        if recvd_msg.header.op_code == 200 {
+                            let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
+                        } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
+                            let num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0],recvd_msg.msg_body[1]]);
+                            println!("Num of msgs incoming: {}", num_msgs_to_recv);
+                            receiving_bulk = true;
+                        } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && receiving_bulk {
+                            todo!()
+                        }
                     }
                 }
             }
@@ -165,12 +176,12 @@ async fn main() {
                 eprintln!("Error building message: {}", e);
             }
         }
-        let mut read_buf = [0; 128];
-        let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
-        if bytes_received > 0 {
-            println!("Received Data: {:?}", read_buf);
-        } else {
-            continue;
-        }
+        // let mut read_buf = [0; 128];
+        // let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
+        // if bytes_received > 0 {
+        //     println!("Received Data: {:?}", read_buf);
+        // } else {
+        //     continue;
+        // }
     }
 }

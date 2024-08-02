@@ -80,10 +80,11 @@ fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(),
 
     // TODO - wait for gs to respond with ACK to send next messages
 
-    println!("About to send {} messages", messages.len());
+    println!("About to send {} messages", messages.len()-1);
     thread::sleep(Duration::from_secs(5));
-    for i in 0..messages.len() {
+    for i in 1..messages.len() {
         write_msg_to_uhf_for_downlink(interface, messages[i].clone());
+        thread::sleep(Duration::from_millis(10));
     }
     
     Ok(())
