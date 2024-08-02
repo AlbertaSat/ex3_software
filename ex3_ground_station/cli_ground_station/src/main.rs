@@ -19,16 +19,16 @@ use tcp_interface::*;
 
 use chrono::prelude::*;
 use serde_json::json;
-use core::num;
+use std::thread;
 use std::io::{BufWriter, Write};
 
 use std::str::FromStr;
 use std::time::Duration;
 use tokio;
-
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
+static BULK_RECEIVING: AtomicBool = AtomicBool::new(false);
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 
 //TOOD - create a new file for each time the program is run
@@ -137,8 +137,33 @@ async fn main() {
     println!("Connected to Coms handler via TCP ");
 
     let mut receiving_bulk = false;
+    let mut num_msgs_to_recv: u16 = 0;
+    let mut bulk_messages: Vec<Msg> = Vec::new();
+    let mut bytes_read = 0;
     //Once connection is established, loop and read stdin, build a msg from operator entered data, send to coms handler via TCP socket, await an ACK
     loop {
+
+        println!("Starting loop");
+        // TODO - add timeout for reading bulk msgs
+        // TODO - add way to check we got all sequenced msgs
+        if receiving_bulk {
+            println!("Bulking it up");
+            let mut bulk_buf = [0u8; 128];
+            bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
+            if bytes_read > 0 {
+                if (bytes_read as u16) < num_msgs_to_recv*128 {
+                    let cur_msg = deserialize_msg(&bulk_buf).unwrap();
+                    println!("Recieved msg #{}", u16::from_le_bytes([cur_msg.msg_body[0],cur_msg.msg_body[1]]));
+                    bulk_messages.push(cur_msg.clone());
+                    thread::sleep(Duration::from_millis(10));
+                    continue;
+                } else {
+                    todo!()
+                }
+            } else {
+                continue;
+            }
+        }
         let input = get_operator_input_line(); //Blocking read on stdin until operator hits 'enter' key
 
         let msg_build_res = build_msg_from_operator_input(input);
@@ -163,11 +188,10 @@ async fn main() {
                         if recvd_msg.header.op_code == 200 {
                             let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
                         } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
-                            let num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0],recvd_msg.msg_body[1]]);
+                            num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0],recvd_msg.msg_body[1]]);
                             println!("Num of msgs incoming: {}", num_msgs_to_recv);
                             receiving_bulk = true;
-                        } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && receiving_bulk {
-                            todo!()
+                            println!("Receiving bulk: {}", receiving_bulk);
                         }
                     }
                 }
