@@ -93,16 +93,20 @@ impl Interface for TcpInterface {
             return Err(Error::new(io::ErrorKind::Other, "poll error"));
         }
 
-        if self.fd[0].revents != 0{
+        if self.fd[0].revents != 0 {
             if self.fd[0].revents & libc::POLLIN != 0 {
                 let n = self.stream.read(buffer)?;
                 return Ok(n);
+            } else if self.fd[0].revents & libc::POLLHUP != 0
+                || self.fd[0].revents & libc::POLLERR != 0
+            {
+                return Err(Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Connection Closed",
+                ));
             }
-            else if self.fd[0].revents & libc::POLLHUP != 0 || self.fd[0].revents & libc::POLLERR != 0{
-                return Err(Error::new(io::ErrorKind::ConnectionAborted, "Connection Closed"));
-            } 
         }
-        Ok(0) 
+        Ok(0)
         //Err(Error::new(io::ErrorKind::WouldBlock, "No Data Available"))
     }
 }
@@ -110,23 +114,76 @@ impl Interface for TcpInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
+    use std::{
+        process::{Command, Stdio},
+        str, thread,
+        time::Duration,
+    };
 
-    // These tests are meant to be run with a netcat TCP server to
-    // ensure the functionality of read and write
+    const BASE_TEST_PORT: u16 = 43000;
 
     #[test]
     fn test_handler_write() {
-        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
-        if let Ok(n) = TcpInterface::send(&mut client_interface, &[48, 48, 48, 48, 48]) {
-            println!("Sent {} bytes", n);
+        let test_port = BASE_TEST_PORT + 1;
+        let expected = [48, 48, 48, 48, 48];
+
+        // Setting up nc listener
+        let mut ncat = if cfg!(target_os = "windows") {
+            panic!() // Windows user can implement
         } else {
-            // couldn't send bytes
+            Command::new("nc")
+                .args(["-l", "-s", "127.0.0.1", "-p", &test_port.to_string()])
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("Could not start")
+        };
+        thread::sleep(Duration::from_millis(250));
+        let mut client_interface =
+            TcpInterface::new_client("127.0.0.1".to_string(), test_port).unwrap();
+        match TcpInterface::send(&mut client_interface, &expected) {
+            Ok(n) => println!("Sent {} bytes", n),
+            Err(why) => panic!("Failed to send bytes: {}", why),
         }
+        thread::sleep(Duration::from_millis(250));
+
+        // Checking if transfer was successful
+        let nc_result = ncat.stdout.as_mut().unwrap();
+        let mut read_buf: [u8; 5] = [0; 5];
+        let status = nc_result.read_exact(&mut read_buf);
+        match status {
+            Err(why) => panic!("Failed to read from netcat: {}", why),
+            Ok(_) => assert_eq!(read_buf, expected),
+        }
+
+        // Cleaning up resources
+        ncat.kill().unwrap();
     }
     #[test]
     fn test_handler_read() {
-        let mut client_interface = TcpInterface::new_client("127.0.0.1".to_string(), 8080).unwrap();
+        let test_port = BASE_TEST_PORT + 2;
+        let test_input = "0xDEADBEEF";
+        // Setting up nc server
+        let mut ncat = if cfg!(target_os = "windows") {
+            panic!() // Windows user can implement
+        } else {
+            Command::new("nc")
+                .args(["-l", "-s", "127.0.0.1", "-p", &test_port.to_string()])
+                .stdin(Stdio::piped())
+                .spawn()
+                .expect("Could not start")
+        };
+
+        thread::sleep(Duration::from_millis(250));
+
+        let mut client_interface =
+            TcpInterface::new_client("127.0.0.1".to_string(), test_port).unwrap();
         let mut buffer = [0u8; BUFFER_SIZE];
+
+        let send_nc = ncat.stdin.as_mut().unwrap();
+        send_nc
+            .write_all(test_input.as_bytes())
+            .expect("Failed to write to nc");
         loop {
             if let Ok(n) = TcpInterface::read(&mut client_interface, &mut buffer) {
                 println!("got dem bytes: {:?}", buffer);
@@ -139,5 +196,10 @@ mod tests {
                 println!("No bytes to read");
             }
         }
+        assert_eq!(
+            str::from_utf8(&buffer[..test_input.len()]).expect("Failed to convert msg to &str"),
+            test_input
+        );
+        ncat.kill().expect("Unable to kill netcat");
     }
 }
