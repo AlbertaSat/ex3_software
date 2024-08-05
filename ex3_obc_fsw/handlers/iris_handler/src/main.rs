@@ -124,12 +124,11 @@ impl IRISHandler {
             let status = TcpInterface::send(&mut self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
 
             if write_status(status, command_msg) { // Write succeeded
-                let mut response = [0u8; BUFFER_SIZE];
-                let status = receive_response(self.peripheral_interface.as_mut().unwrap(), &mut response);
+                let status = receive_response(self.peripheral_interface.as_mut().unwrap());
                 
                 match status {
                     // Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&response)); }
-                    Ok(_data_len) => { println!("Got data {:?}", response); }
+                    Ok(response) => { println!("Got data {:?}", response); }
                     Err(e) => { println!("Error: {}", e); }
                 }
 
@@ -166,60 +165,111 @@ impl IRISHandler {
 /// Write IRIS data to a file (for now --- this may changer later if we use a db or other storage)
 /// Later on we likely want to specify a path to specific storage medium (sd card 1 or 2)
 /// We may also want to implement something generic to handle 'payload data' storage so we can have it duplicated, stored in multiple locations, or compressed etc.
-fn store_iris_data(data: &[u8]) -> std::io::Result<()> {
+fn store_iris_data(filename: &str, data: &[u8]) -> std::io::Result<()> {
     std::fs::create_dir_all(IRIS_DATA_DIR_PATH)?;
     let mut file = OpenOptions::new()
         .append(true)
         .create(true)
-        .open(format!("{}/data", IRIS_DATA_DIR_PATH))?;
+        .open(format!("{}/{}", IRIS_DATA_DIR_PATH, filename))?;
     file.write_all(data)?;
     Ok(())
 }
 
 
+fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  Result<String, Error>{
+    let mut packet_content = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
+    let packet_len = parse_packet(peripheral_interface, &mut packet_content, false,"None")?;
+   
+    if packet_len < 8 {}
+    else if packet_content[0..7] == *"IMAGES:".as_bytes(){
+        let mut n_images = 0;
+        for i in 7..packet_len{
+            n_images = n_images * 10 + packet_content[i]-48;
+        }
+        print!("\n{}\n", n_images);
+        for _ in 0..n_images{
+            parse_packet(peripheral_interface, &mut packet_content, false, "None")?;
+            let status = std::str::from_utf8(&packet_content);
+            let image: &str;
+            match status {
+                Ok(image_name) => { image = image_name.trim_matches(char::from(0)); }
+                Err(_) => {  return Err(Error::new(ErrorKind::InvalidData, "image name improper")); }
+            }
+            // println!("{:?}", image);
+            let mut image_success = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
+            parse_packet(peripheral_interface, &mut image_success, true, image)?;
+            
+        }
+        return Ok("All images fetched".to_string());
+    }
+    let status = String::from_utf8(packet_content.to_vec());
+    let response: String;
+    match status {
+        Ok(result) => { response = result.trim_matches(char::from(0)).to_string(); }
+        Err(_) => {  return Err(Error::new(ErrorKind::InvalidData, "image name improper")); }
+    }
+
+    
+    return Ok(response);
+
+}
+
 /// Receives and translates IRIS packet, currently the IRIS simulated subsystem sends packets in the following format:
 /// FLAG:length:...data...|END|, where length is replaced with the length of data
 /// Until we know for certain the commands and their response structures this will have to make do
-
-fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface,  response:  &mut [u8; BUFFER_SIZE]) ->  Result<usize, Error>{
+fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  response:  &mut [u8; IRIS_INTERFACE_BUFFER_SIZE], is_image:  bool, image_name: &str) ->  Result<usize, Error>{
     let flag: [u8; 4] = [70, 76, 65, 71]; // is "FLAG" in bytes
-    let end: [u8; 5] = [124, 69, 78, 68, 124]; // is "|END|" in bytes
+    let mut flag_match: usize = 0;
     let delim = 58; // is the delimiter for the simulated subsystem ":"
-    let mut packet_length: u32 = 0;
-    // let mut translated_response = Vec::with_capacity(1024);
-    let mut end_index: usize = 0;
 
-    // ****** NEED TO DETERMINE IF OUR STANDARD CAN READ > 1024 BYTES AT A TIME, IF SO JUST READ ALL AT ONCE *****
+    // Packet buffers
+    let mut packet_length: usize = 0;
+    let mut packet_byte = vec![0u8; 1]; // For reading one byte at a time
+    let mut packet_buffer = vec![0u8; IRIS_INTERFACE_BUFFER_SIZE]; // For reading a full packet
+
+    
     // Check for flag
-    let status = TcpInterface::read(peripheral_interface, response);
-    // Get packet length
-
-    // Read packet
-
-
-    // Verify End
-
-
-    if response[0..3] != flag {
-        // ERROR the packet has no initial flag set
-    }
-    // Determine the length of the packet
-    let mut start_index = 0;
-    for i in 5..BUFFER_SIZE { 
-        if response[i] == delim{
-            start_index = i+1;
+    while flag_match < flag.len() {
+        TcpInterface::read(peripheral_interface, &mut packet_byte)?;
+        if packet_byte[0] == flag[flag_match]{
+            flag_match = flag_match + 1;
         }
-        packet_length = packet_length * 10 + ((response[i]-48) as u32); // Increase packet length             
+        else { flag_match = 0; }
     }
-    // Determine whether multiple packets have been sent
-    let mut anotherpacket: bool = false;
-    end_index = start_index+(packet_length as usize);
+    TcpInterface::read(peripheral_interface, &mut packet_byte)?; // Consume delimiter
+    TcpInterface::read(peripheral_interface, &mut packet_byte)?; // Read first int of packet length
+    
 
-    // translated_response = response[start_index..].to_vec();
+    // Get packet length
+    while packet_byte[0] != delim {
+        packet_length = (packet_length*10) + ((packet_byte[0]-48) as usize); // Increase packet length  (Assumes there is a present for packet length)    
+        TcpInterface::read(peripheral_interface, &mut packet_byte)?;
+    }
 
+    // Read packet, currently only images are > 1 packet
+    if is_image {
+        let mut temp_length = packet_length;
+        while temp_length > IRIS_INTERFACE_BUFFER_SIZE{ // Read in full packets
+            TcpInterface::read(peripheral_interface, &mut packet_buffer)?;
+            store_iris_data(image_name, &packet_buffer)?;
+            temp_length = temp_length - IRIS_INTERFACE_BUFFER_SIZE;
+        }
+        for index in 0..temp_length { // Read the final partial packet
+            TcpInterface::read(peripheral_interface, &mut packet_byte)?; 
+            packet_buffer[index] = packet_byte[0];
+        }
+        store_iris_data(image_name, &packet_buffer)?; // Append packet to image file
+    }
+    else {
+        for index in 0..packet_length {
+            TcpInterface::read(peripheral_interface, &mut packet_byte)?; 
+            response[index] = packet_byte[0];
+            // print!("{}", packet_byte[0] as char);
+        }
+    }
 
+    return Ok(packet_length);
 
-    return status;
 }
 
 /// Verify that a command was successfully sent via checking the return status of a tcp write
@@ -250,5 +300,5 @@ fn main() {
     //Create IRIS handler
     let mut iris_handler = IRISHandler::new(iris_interface, dispatcher_interface);
 
-    iris_handler.run();
+    let _ = iris_handler.run();
 }
