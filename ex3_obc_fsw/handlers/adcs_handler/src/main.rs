@@ -21,10 +21,9 @@ const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 // TODO check where to add this
 // Probably will move this to another file later
 pub mod adcs_body {
-    // struct ADCSCmdParam<'a>(&'a [u8], i32);
-    struct ADCSCmdParam<'a> {
-        data: &'a [u8],
-        params: i32,
+    pub struct ADCSCmdParam<'a> {
+        pub data: &'a [u8],
+        pub params: i32,
     }
     pub const ON: ADCSCmdParam = ADCSCmdParam {
         data: b"ON",
@@ -115,16 +114,24 @@ impl ADCSHandler {
             opcodes::adcs::ON_OFF => match msg.msg_body[0] {
                 0 => {
                     self.toggle_adcs = false;
-                    self.send_cmd(adcs_body::OFF)
+                    self.send_cmd(adcs_body::OFF, msg)
                 }
                 1 => {
                     self.toggle_adcs = true;
-                    self.send_cmd(adcs_body::ON)
+                    self.send_cmd(adcs_body::ON, msg)
                 }
-                2 => {
-                    self.toggle_adcs = true;
-                    self.send_cmd(adcs_body::GET_STATE)
+                2 => self.send_cmd(adcs_body::GET_STATE, msg),
+                _ => {
+                    eprintln!("Error: Unknown msg body for opcode 1");
+                    Err(Error::new(
+                        ErrorKind::NotFound,
+                        "Error: Unknown msg body for opcode 1",
+                    ))
                 }
+            },
+            opcodes::adcs::WHEEL_SPEED => match msg.msg_body[0] {
+                0 => self.send_cmd(adcs_body::GET_WHEEL_SPEED, msg),
+                1 => self.send_cmd(adcs_body::SET_WHEEL_SPEED, msg),
                 _ => {
                     eprintln!("Error: Unknown msg body for opcode 2");
                     Err(Error::new(
@@ -163,24 +170,43 @@ impl ADCSHandler {
         }
     }
 
-    fn build_cmd(&mut self, cmd: &[u8], msg: Msg) -> Result<Vec<u8>, ()> {
-        let mut data: Vec<u8>;
-        if let Some(num_params) = ADCS_PARAMS.get(cmd) {
-            if msg.msg_body.len() != (1 + *num_params).try_into().unwrap() {
-                return Err(());
-            }
-            for val in msg.msg_body {
-                data.push(CMD_DELIMITER);
-                data.push(val);
-            }
-            Ok(data)
-        } else {
-            Err(())
+    fn build_cmd(&mut self, cmd: adcs_body::ADCSCmdParam, msg: Msg) -> Result<Vec<u8>, Error> {
+        let mut data: Vec<u8> = vec![];
+        data.extend_from_slice(cmd.data);
+        println!("{:#?}", data);
+
+        // TODO: later figure out how to check we've sent the correct amount of parameters using an end-body flag maybe use 0xFF?
+        // // Check if correct number of args was passed
+        // if msg.msg_body.len() != (1 + cmd.params).try_into().unwrap() {
+        //     eprintln!(
+        //         "Expected {} argument(s) but received {} instead",
+        //         1 + cmd.params,
+        //         msg.msg_body.len()
+        //     );
+        //     return Err(Error::new(
+        //         ErrorKind::InvalidInput,
+        //         format!(
+        //             "Expected {} argument(s) but received {} instead",
+        //             1 + cmd.params,
+        //             msg.msg_body.len()
+        //         ),
+        //     ));
+        // }
+
+        // First param in msg body will specify the operation type
+        for i in 1..(cmd.params as usize) {
+            data.push(CMD_DELIMITER);
+            data.push(msg.msg_body[i]);
         }
+
+        println!("{:#?}", data);
+        Ok(data)
     }
 
-    fn send_cmd(&mut self, command: &[u8]) -> Result<(), Error> {
-        self.peripheral_interface.as_mut().unwrap().send(command)?;
+    fn send_cmd(&mut self, command: adcs_body::ADCSCmdParam, msg: Msg) -> Result<(), Error> {
+        let cmd = self.build_cmd(command, msg)?;
+        self.peripheral_interface.as_mut().unwrap().send(&cmd)?;
+
         Ok(())
     }
 }
