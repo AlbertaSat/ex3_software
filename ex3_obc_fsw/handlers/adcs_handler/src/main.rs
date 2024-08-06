@@ -194,9 +194,9 @@ impl ADCSHandler {
         // }
 
         // First param in msg body will specify the operation type
-        for i in 1..(cmd.params as usize) {
+        for i in 1..((cmd.params + 1) as usize) {
             data.push(CMD_DELIMITER);
-            data.push(msg.msg_body[i]);
+            data.extend_from_slice(msg.msg_body[i].to_string().as_bytes());
         }
 
         println!("{:#?}", data);
