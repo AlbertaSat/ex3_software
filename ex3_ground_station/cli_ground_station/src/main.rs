@@ -17,20 +17,20 @@ use common::ports::SIM_COMMS_PORT;
 use message_structure::*;
 use tcp_interface::*;
 
+use chrono::prelude::*;
 use libc::{poll, POLLIN};
+use serde_json::json;
 use std::io::prelude::*;
+use std::io::Write;
 use std::os::unix::io::AsRawFd;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
+use tokio;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufWriter};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use chrono::prelude::*;
-use serde_json::json;
-use std::thread;
-use tokio;
-use tokio::io::{self, AsyncBufReadExt, BufWriter, AsyncWriteExt};
-use std::io::Write;
-use std::str::FromStr;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 
@@ -80,7 +80,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
         msg_body.push(data_byte.parse::<u8>().unwrap());
     }
 
-    let msg = Msg::new(0,0, dest_id, GS, opcode, msg_body);
+    let msg = Msg::new(0, 0, dest_id, GS, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }
@@ -132,25 +132,47 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
     println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
 }
 /// Function to represent the state of reading bulk msgs continuously.
-/// It modifies the 
-fn read_bulk_msgs(tcp_interface: &mut TcpInterface, mut bulk_messages: Vec<Msg>, num_msgs_to_recv: u16) {
+/// It modifies the
+fn read_bulk_msgs(
+    tcp_interface: &mut TcpInterface,
+    mut bulk_messages: Vec<Msg>,
+    num_msgs_to_recv: u16,
+) {
     let mut bytes_read = 0;
-    loop{
-        println!("Bulking it up");
+    println!("Ready to receive Bulk Msgs");
+    loop {
         let mut bulk_buf = [0u8; 128];
         bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
         if bytes_read > 0 {
-            if (bytes_read as u16) < num_msgs_to_recv*128 {
+            if (bytes_read as u16) < num_msgs_to_recv * 128 {
                 let cur_msg = deserialize_msg(&bulk_buf).unwrap();
-                println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
+                println!(
+                    "Received msg #{}",
+                    u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
+                );
                 bulk_messages.push(cur_msg.clone());
                 thread::sleep(Duration::from_millis(5));
                 continue;
             } else {
                 todo!()
             }
-        } continue;
+        }
+        continue;
     }
+}
+
+/// Generic function that builds and sends an ACK on whatever interface is passed
+fn build_and_send_ack(
+    interface: &mut TcpInterface,
+    id: u8,
+    dest: u8,
+    src: u8,
+) -> Result<(), std::io::Error> {
+    let ack_msg = Msg::new(MsgType::Ack as u8, id, dest, src, 200, vec![]);
+    let ack_bytes = serialize_msg(&ack_msg)?;
+    interface.send(&ack_bytes)?;
+    println!("Sent ack to SC");
+    Ok(())
 }
 
 #[tokio::main]
@@ -161,34 +183,13 @@ async fn main() {
         TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
     println!("Connected to Coms handler via TCP ");
 
-    let mut receiving_bulk = false;
     let mut num_msgs_to_recv: u16 = 0;
-    let mut bulk_messages: Vec<Msg> = Vec::new();
-    let mut bytes_read = 0;
+    let bulk_messages: Vec<Msg> = Vec::new();
 
     let stdin_fd = std::io::stdin().as_raw_fd();
 
     loop {
         println!("Starting loop");
-
-        // if receiving_bulk {
-        //     println!("Bulking it up");
-        //     let mut bulk_buf = [0u8; 128];
-        //     bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
-        //     if bytes_read > 0 {
-        //         if (bytes_read as u16) < num_msgs_to_recv*128 {
-        //             let cur_msg = deserialize_msg(&bulk_buf).unwrap();
-        //             println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
-        //             bulk_messages.push(cur_msg.clone());
-        //             sleep(Duration::from_millis(10)).await;
-        //             continue;
-        //         } else {
-        //             todo!()
-        //         }
-        //     } else {
-        //         continue;
-        //     }
-        // }
 
         let mut fds = [libc::pollfd {
             fd: stdin_fd,
@@ -237,12 +238,27 @@ async fn main() {
             let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
             if bytes_received > 0 {
                 let recvd_msg = deserialize_msg(&read_buf).unwrap();
-                if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
-                    num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
+                if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
+                    num_msgs_to_recv =
+                        u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
                     println!("Num of msgs incoming: {}", num_msgs_to_recv);
-                    receiving_bulk = true;
-                    println!("Receiving bulk: {}", receiving_bulk);
-                    read_bulk_msgs(&mut tcp_interface, bulk_messages.clone(), num_msgs_to_recv);
+                    match build_and_send_ack(
+                        &mut tcp_interface,
+                        recvd_msg.header.msg_id.clone(),
+                        recvd_msg.header.source_id,
+                        recvd_msg.header.dest_id,
+                    ) {
+                        Ok(()) => {
+                            read_bulk_msgs(
+                                &mut tcp_interface,
+                                bulk_messages.clone(),
+                                num_msgs_to_recv,
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error sending ACK: {}", e);
+                        }
+                    }
                 }
                 println!("Received Data: {:?}", read_buf);
             } else {
