@@ -131,6 +131,27 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
     *lock = false;
     println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
 }
+/// Function to represent the state of reading bulk msgs continuously.
+/// It modifies the 
+fn read_bulk_msgs(tcp_interface: &mut TcpInterface, mut bulk_messages: Vec<Msg>, num_msgs_to_recv: u16) {
+    let mut bytes_read = 0;
+    loop{
+        println!("Bulking it up");
+        let mut bulk_buf = [0u8; 128];
+        bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
+        if bytes_read > 0 {
+            if (bytes_read as u16) < num_msgs_to_recv*128 {
+                let cur_msg = deserialize_msg(&bulk_buf).unwrap();
+                println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
+                bulk_messages.push(cur_msg.clone());
+                thread::sleep(Duration::from_millis(5));
+                continue;
+            } else {
+                todo!()
+            }
+        } continue;
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -150,24 +171,24 @@ async fn main() {
     loop {
         println!("Starting loop");
 
-        if receiving_bulk {
-            println!("Bulking it up");
-            let mut bulk_buf = [0u8; 128];
-            bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
-            if bytes_read > 0 {
-                if (bytes_read as u16) < num_msgs_to_recv*128 {
-                    let cur_msg = deserialize_msg(&bulk_buf).unwrap();
-                    println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
-                    bulk_messages.push(cur_msg.clone());
-                    sleep(Duration::from_millis(10)).await;
-                    continue;
-                } else {
-                    todo!()
-                }
-            } else {
-                continue;
-            }
-        }
+        // if receiving_bulk {
+        //     println!("Bulking it up");
+        //     let mut bulk_buf = [0u8; 128];
+        //     bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
+        //     if bytes_read > 0 {
+        //         if (bytes_read as u16) < num_msgs_to_recv*128 {
+        //             let cur_msg = deserialize_msg(&bulk_buf).unwrap();
+        //             println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
+        //             bulk_messages.push(cur_msg.clone());
+        //             sleep(Duration::from_millis(10)).await;
+        //             continue;
+        //         } else {
+        //             todo!()
+        //         }
+        //     } else {
+        //         continue;
+        //     }
+        // }
 
         let mut fds = [libc::pollfd {
             fd: stdin_fd,
@@ -176,7 +197,7 @@ async fn main() {
         }];
 
         // Poll stdin for input
-        let ret = unsafe { poll(fds.as_mut_ptr(), 1, 5000) }; // 5-second timeout
+        let ret = unsafe { poll(fds.as_mut_ptr(), 1, 3000) }; // 3-second timeout
         if ret > 0 && fds[0].revents & POLLIN as i16 != 0 {
             let mut input = String::new();
             let mut stdin = std::io::stdin().lock();
@@ -203,11 +224,6 @@ async fn main() {
                             let recvd_msg = deserialize_msg(&buf).unwrap();
                             if recvd_msg.header.op_code == 200 {
                                 let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
-                            } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
-                                num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
-                                println!("Num of msgs incoming: {}", num_msgs_to_recv);
-                                receiving_bulk = true;
-                                println!("Receiving bulk: {}", receiving_bulk);
                             }
                         }
                     }
@@ -215,6 +231,22 @@ async fn main() {
                 Err(e) => {
                     eprintln!("Error building message: {}", e);
                 }
+            }
+        } else {
+            let mut read_buf = [0; 128];
+            let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
+            if bytes_received > 0 {
+                let recvd_msg = deserialize_msg(&read_buf).unwrap();
+                if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
+                    num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
+                    println!("Num of msgs incoming: {}", num_msgs_to_recv);
+                    receiving_bulk = true;
+                    println!("Receiving bulk: {}", receiving_bulk);
+                    read_bulk_msgs(&mut tcp_interface, bulk_messages.clone(), num_msgs_to_recv);
+                }
+                println!("Received Data: {:?}", read_buf);
+            } else {
+                continue;
             }
         }
     }
