@@ -17,18 +17,21 @@ use common::ports::SIM_COMMS_PORT;
 use message_structure::*;
 use tcp_interface::*;
 
+use libc::{poll, POLLIN};
+use std::io::prelude::*;
+use std::os::unix::io::AsRawFd;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::time::sleep;
 use chrono::prelude::*;
 use serde_json::json;
 use std::thread;
-use std::io::{BufWriter, Write};
-
-use std::str::FromStr;
-use std::time::Duration;
 use tokio;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-static BULK_RECEIVING: AtomicBool = AtomicBool::new(false);
+use tokio::io::{self, AsyncBufReadExt, BufWriter, AsyncWriteExt};
+use std::io::Write;
+use std::str::FromStr;
+
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 
 //TOOD - create a new file for each time the program is run
@@ -36,25 +39,25 @@ const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait
 //TODO - get the current users name
 //TODO - Store the associated build msg with the operator entered string (if the msg is built successfully)
 /// Store string entered by operator in a JSON file, with other metadata like timestamp, operator name, TBD ...
-fn store_operator_entered_string(operator_str: String) {
-    // Write the operator entered string to a file using JSON, with a time stamp
-    let utc: DateTime<Utc> = Utc::now();
-    let operator_json = json!({
-        "time": utc.to_string(),
-        "operator_input": operator_str,
-        "user: " : "Default Operator"
-    });
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .append(true)
-        .create(true)
-        .open("operator_input.json")
-        .unwrap();
+// fn store_operator_entered_string(operator_str: String) {
+//     // Write the operator entered string to a file using JSON, with a time stamp
+//     let utc: DateTime<Utc> = Utc::now();
+//     let operator_json = json!({
+//         "time": utc.to_string(),
+//         "operator_input": operator_str,
+//         "user: " : "Default Operator"
+//     });
+//     let file = std::fs::OpenOptions::new()
+//         .write(true)
+//         .append(true)
+//         .create(true)
+//         .open("operator_input.json")
+//         .unwrap();
 
-    let mut writer = BufWriter::new(&file);
-    serde_json::to_writer(&mut writer, &operator_json).unwrap();
-    let _ = writer.flush();
-}
+//     let mut writer = BufWriter::new(&file);
+//     serde_json::to_writer(&mut writer, &operator_json).unwrap();
+//     let _ = writer.flush();
+// }
 
 /// Build a message from operator input string, where values are delimited by spaces.
 /// 1st value is the destination component string - converted to equivalent component id.
@@ -83,22 +86,23 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
 }
 
 /// Blocking io read operator input from stdin, trim, and store command in JSON
-fn get_operator_input_line() -> String {
+async fn get_operator_input_line() -> String {
     let mut input = String::new();
     print!("Ex3 CLI GS > ");
-    std::io::stdout().flush().unwrap();
-    std::io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-    let input = input.trim().to_string();
+    io::stdout().flush().await.unwrap();
+    let stdin = io::BufReader::new(io::stdin());
+    let mut lines = stdin.lines();
+    if let Some(line) = lines.next_line().await.unwrap() {
+        input = line.trim().to_string();
+    }
 
     // store_operator_entered_string(input.clone());
-    return input;
+    input
 }
 
 /// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
 fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
-    //TODO - hanlde if the Ack is OK or ERR , OR not an ACK at all
+    //TODO - handle if the Ack is OK or ERR , OR not an ACK at all
     println!("Received ACK: {:?}", msg);
     *awaiting_ack = false;
     Ok(())
@@ -131,7 +135,7 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
 #[tokio::main]
 async fn main() {
     println!("Beginning CLI Ground Station...");
-    println!("Waiting for connection to Coms handler via TCP..."); // bypass the UHF transceiver and direct to coms handler for now
+    println!("Waiting for connection to Coms handler via TCP...");
     let mut tcp_interface =
         TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
     println!("Connected to Coms handler via TCP ");
@@ -140,12 +144,12 @@ async fn main() {
     let mut num_msgs_to_recv: u16 = 0;
     let mut bulk_messages: Vec<Msg> = Vec::new();
     let mut bytes_read = 0;
-    //Once connection is established, loop and read stdin, build a msg from operator entered data, send to coms handler via TCP socket, await an ACK
-    loop {
 
+    let stdin_fd = std::io::stdin().as_raw_fd();
+
+    loop {
         println!("Starting loop");
-        // TODO - add timeout for reading bulk msgs
-        // TODO - add way to check we got all sequenced msgs
+
         if receiving_bulk {
             println!("Bulking it up");
             let mut bulk_buf = [0u8; 128];
@@ -153,9 +157,9 @@ async fn main() {
             if bytes_read > 0 {
                 if (bytes_read as u16) < num_msgs_to_recv*128 {
                     let cur_msg = deserialize_msg(&bulk_buf).unwrap();
-                    println!("Recieved msg #{}", u16::from_le_bytes([cur_msg.msg_body[0],cur_msg.msg_body[1]]));
+                    println!("Received msg #{}", u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]));
                     bulk_messages.push(cur_msg.clone());
-                    thread::sleep(Duration::from_millis(10));
+                    sleep(Duration::from_millis(10)).await;
                     continue;
                 } else {
                     todo!()
@@ -164,48 +168,54 @@ async fn main() {
                 continue;
             }
         }
-        let input = get_operator_input_line(); //Blocking read on stdin until operator hits 'enter' key
 
-        let msg_build_res = build_msg_from_operator_input(input);
+        let mut fds = [libc::pollfd {
+            fd: stdin_fd,
+            events: POLLIN as i16,
+            revents: 0,
+        }];
 
-        match msg_build_res {
-            Ok(msg) => {
-                send_msg_to_sc(msg, &mut tcp_interface);
+        // Poll stdin for input
+        let ret = unsafe { poll(fds.as_mut_ptr(), 1, 5000) }; // 5-second timeout
+        if ret > 0 && fds[0].revents & POLLIN as i16 != 0 {
+            let mut input = String::new();
+            let mut stdin = std::io::stdin().lock();
+            stdin.read_line(&mut input).unwrap();
+            let input = input.trim().to_string();
 
-                let mut buf = [0u8; 128];
-                let awaiting_ack = Arc::new(Mutex::new(true));
-                let awaiting_ack_clone = Arc::clone(&awaiting_ack);
+            let msg_build_res = build_msg_from_operator_input(input);
 
-                tokio::task::spawn(async move {
-                    awaiting_ack_timeout_task(awaiting_ack_clone).await;
-                });
+            match msg_build_res {
+                Ok(msg) => {
+                    send_msg_to_sc(msg, &mut tcp_interface);
 
-                while *awaiting_ack.lock().await == true {
-                    let bytes_read = tcp_interface.read(&mut buf).unwrap();
-                    if bytes_read > 0 {
-                        let recvd_msg = deserialize_msg(&buf).unwrap();
-                        // TODO - change 200 to mean ACK
-                        if recvd_msg.header.op_code == 200 {
-                            let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
-                        } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
-                            num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0],recvd_msg.msg_body[1]]);
-                            println!("Num of msgs incoming: {}", num_msgs_to_recv);
-                            receiving_bulk = true;
-                            println!("Receiving bulk: {}", receiving_bulk);
+                    let mut buf = [0u8; 128];
+                    let awaiting_ack = Arc::new(Mutex::new(true));
+                    let awaiting_ack_clone = Arc::clone(&awaiting_ack);
+
+                    tokio::task::spawn(async move {
+                        awaiting_ack_timeout_task(awaiting_ack_clone).await;
+                    });
+
+                    while *awaiting_ack.lock().await == true {
+                        let bytes_read = tcp_interface.read(&mut buf).unwrap();
+                        if bytes_read > 0 {
+                            let recvd_msg = deserialize_msg(&buf).unwrap();
+                            if recvd_msg.header.op_code == 200 {
+                                let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
+                            } else if recvd_msg.header.msg_type == MsgType::Bulk as u8 && !receiving_bulk {
+                                num_msgs_to_recv = u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
+                                println!("Num of msgs incoming: {}", num_msgs_to_recv);
+                                receiving_bulk = true;
+                                println!("Receiving bulk: {}", receiving_bulk);
+                            }
                         }
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error building message: {}", e);
+                Err(e) => {
+                    eprintln!("Error building message: {}", e);
+                }
             }
         }
-        // let mut read_buf = [0; 128];
-        // let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
-        // if bytes_received > 0 {
-        //     println!("Received Data: {:?}", read_buf);
-        // } else {
-        //     continue;
-        // }
     }
 }
