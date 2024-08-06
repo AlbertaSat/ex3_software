@@ -14,6 +14,7 @@ pub fn nav_bar() -> Html {
                 <li><Link<Route> to={Route::Home} classes="text-white hover:text-gray-300">{ "Home" }</Link<Route>></li>
                 <li><Link<Route> to={Route::SendCommand} classes="text-white hover:text-gray-300">{ "Send Command" }</Link<Route>></li>
                 <li><Link<Route> to={Route::CommandHistory} classes="text-white hover:text-gray-300">{ "Command History" }</Link<Route>></li>
+                <li><Link<Route> to={Route::Terminal} classes="text-white hover:text-gray-300">{ "Terminal" }</Link<Route>></li>
             </ul>
         </nav>
     }

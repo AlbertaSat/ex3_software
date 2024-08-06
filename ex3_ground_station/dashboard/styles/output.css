@@ -794,9 +794,7 @@ video {
   --tw-ring-offset-width: 2px;
 }
 
-@media (min-width: 640px) {
-  .sm\:text-sm {
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-  }
+.sm\:text-sm {
+  line-height: 1.25rem;
+  font-size: 0.875rem;
 }

@@ -4,7 +4,8 @@ use yew_router::Routable;
 use crate::pages::{
     home_page::HomePage, 
     send_command_page::SendCommandPage, 
-    command_history_page::CommandHistoryPage
+    command_history_page::CommandHistoryPage,
+    terminal_page::TerminalPage
 };
 
 #[derive(Routable, PartialEq, Clone)]
@@ -14,13 +15,16 @@ pub enum Route {
     #[at("/send_command")]
         SendCommand,
     #[at("/command_history")]
-        CommandHistory
+        CommandHistory,
+    #[at("/terminal")]
+        Terminal
 }
 
 pub fn switch(route: Route) -> Html {
     match route {
         Route::Home => html!{<HomePage />},
         Route::SendCommand => html!{<SendCommandPage />},
-        Route::CommandHistory => html!{<CommandHistoryPage />}
+        Route::CommandHistory => html!{<CommandHistoryPage />},
+        Route::Terminal => html!{<TerminalPage />}
     }
 }
