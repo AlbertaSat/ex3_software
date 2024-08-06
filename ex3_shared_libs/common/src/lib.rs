@@ -216,9 +216,10 @@ pub mod opcodes {
         pub const WHEEL_SPEED: u8 = 2;
         pub const GET_HK: u8 = 3;
         pub const MAGNETORQUER_CURRENT: u8 = 4;
-        pub const GET_ORIENTATION: u8 = 5;
-        pub const RESET: u8 = 6;
-        pub const ORIENT_TO_SBAND: u8 = 7;
+        pub const ONBOARD_TIME: u8 = 5;
+        pub const GET_ORIENTATION: u8 = 6;
+        pub const RESET: u8 = 7;
+        pub const ORIENT_TO_SBAND: u8 = 9;
     }
 }
 
