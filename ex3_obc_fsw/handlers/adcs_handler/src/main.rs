@@ -50,23 +50,27 @@ pub mod adcs_body {
         params: 0,
     };
     pub const SET_MAGNETORQUER_CURRENT: ADCSCmdParam = ADCSCmdParam {
-        data: b"SC",
+        data: b"SMC",
         params: 3,
     };
     pub const GET_MAGNETORQUER_CURRENT: ADCSCmdParam = ADCSCmdParam {
-        data: b"SC",
+        data: b"GMC",
         params: 0,
     };
     pub const GET_TIME: ADCSCmdParam = ADCSCmdParam {
-        data: b"GT",
+        data: b"GTM",
         params: 0,
     };
     pub const SET_TIME: ADCSCmdParam = ADCSCmdParam {
-        data: b"ST",
+        data: b"STM",
         params: 1,
     };
     pub const GET_ORIENTATION: ADCSCmdParam = ADCSCmdParam {
         data: b"GOR",
+        params: 0,
+    };
+    pub const RESET: ADCSCmdParam = ADCSCmdParam {
+        data: b"RESET",
         params: 0,
     };
 }
@@ -122,10 +126,10 @@ impl ADCSHandler {
                 }
                 2 => self.send_cmd(adcs_body::GET_STATE, msg),
                 _ => {
-                    eprintln!("Error: Unknown msg body for opcode 1");
+                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
                     Err(Error::new(
                         ErrorKind::NotFound,
-                        "Error: Unknown msg body for opcode 1",
+                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
                     ))
                 }
             },
@@ -133,13 +137,38 @@ impl ADCSHandler {
                 0 => self.send_cmd(adcs_body::GET_WHEEL_SPEED, msg),
                 1 => self.send_cmd(adcs_body::SET_WHEEL_SPEED, msg),
                 _ => {
-                    eprintln!("Error: Unknown msg body for opcode 2");
+                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
                     Err(Error::new(
                         ErrorKind::NotFound,
-                        "Error: Unknown msg body for opcode 2",
+                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
                     ))
                 }
             },
+            opcodes::adcs::GET_HK => self.send_cmd(adcs_body::STATUS_CHECK, msg),
+            opcodes::adcs::MAGNETORQUER_CURRENT => match msg.msg_body[0] {
+                0 => self.send_cmd(adcs_body::GET_MAGNETORQUER_CURRENT, msg),
+                1 => self.send_cmd(adcs_body::SET_MAGNETORQUER_CURRENT, msg),
+                _ => {
+                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
+                    Err(Error::new(
+                        ErrorKind::NotFound,
+                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
+                    ))
+                }
+            },
+            opcodes::adcs::ONBOARD_TIME => match msg.msg_body[0] {
+                0 => self.send_cmd(adcs_body::GET_TIME, msg),
+                1 => self.send_cmd(adcs_body::SET_TIME, msg),
+                _ => {
+                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
+                    Err(Error::new(
+                        ErrorKind::NotFound,
+                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
+                    ))
+                }
+            },
+            opcodes::adcs::GET_ORIENTATION => self.send_cmd(adcs_body::GET_ORIENTATION, msg),
+            opcodes::adcs::RESET => self.send_cmd(adcs_body::RESET, msg),
             _ => {
                 eprintln!(
                     "{}",
@@ -173,7 +202,6 @@ impl ADCSHandler {
     fn build_cmd(&mut self, cmd: adcs_body::ADCSCmdParam, msg: Msg) -> Result<Vec<u8>, Error> {
         let mut data: Vec<u8> = vec![];
         data.extend_from_slice(cmd.data);
-        println!("{:#?}", data);
 
         // TODO: later figure out how to check we've sent the correct amount of parameters using an end-body flag maybe use 0xFF?
         // // Check if correct number of args was passed
@@ -199,7 +227,6 @@ impl ADCSHandler {
             data.extend_from_slice(msg.msg_body[i].to_string().as_bytes());
         }
 
-        println!("{:#?}", data);
         Ok(data)
     }
 
