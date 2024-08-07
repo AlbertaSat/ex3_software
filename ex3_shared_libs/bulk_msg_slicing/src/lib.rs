@@ -75,6 +75,7 @@ pub fn reconstruct_msg(messages: Vec<Msg>) -> Result<Msg, &'static str> {
 
     let total_packets = u16::from_le_bytes([messages[0].msg_body[0], messages[0].msg_body[1]]) as usize;
     if total_packets != messages.len() - 1 {
+        println!("total {total_packets}, msgs len {}",messages.len());
         return Err("Mismatch between number of packets and message count");
     }
     let mut full_body: Vec<u8> = Vec::new();

@@ -22,7 +22,8 @@ use std::time::Duration;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
-const DONWLINK_MSG_BODY_SIZE: usize = 121; // 128B - 5 (header) - 2 (sequence number)
+// Something up with the slicing makes this number be the size that each packet ends up 128B
+const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
 
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
@@ -70,12 +71,10 @@ fn read_bulk_msgs(buffer: Vec<u8>, interface: IpcClient) -> Result<Msg, std::io:
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking. It will wait to receive an ACK
 /// before sending the msgs down to the GS.
-/// Slices the Msg it's passed into the appropriate size for the UHF to handle
+/// It expects a vector of 4KB BUlk Msgs. It slices each Msg it's passed into the appropriate size for the UHF to handle
 /// Also sends the messages to the UHF/GS
-fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
-    // Slice Msg before downlinking
-    let messages: Vec<Msg> = handle_large_msg(msg.clone(), DONWLINK_MSG_BODY_SIZE)?;
-    // Send first Msg
+fn handle_bulk_msg_for_gs(messages: Vec<Msg>, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+    // Send first Header Msg containing how many messages there are
     write_msg_to_uhf_for_downlink(interface, messages[0].clone());
     // Wait for an ACK
     loop {
@@ -92,13 +91,19 @@ fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(),
     }
 
     println!(
-        "Got ACK. Sending {} messages invluding header msg",
-        messages.len()
+        "Got ACK. Sending {} messages",
+        messages.len() - 1 // excluding header
     );
     thread::sleep(Duration::from_secs(2));
     for i in 1..messages.len() {
-        write_msg_to_uhf_for_downlink(interface, messages[i].clone());
-        thread::sleep(Duration::from_millis(10));
+        let cur_msg = messages[i].clone();
+        let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;
+        // TODO - Want to send msgs_to_send[0] which contains how many 128B packets there are.
+        // Necessary for reconstruction of msgs on GS.
+        for j in 1..msgs_to_send.len() {
+            write_msg_to_uhf_for_downlink(interface, msgs_to_send[j].clone());
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     Ok(())
@@ -231,8 +236,7 @@ fn main() {
         }
         // If we are done reading bulk msgs, start protocol with GS
         if received_bulk_ack && bulk_msgs_read >= expected_bytes {
-            bulk_msg = reconstruct_msg(messages.clone()).unwrap();
-            let _ = handle_bulk_msg_for_gs(&bulk_msg, &mut tcp_interface);
+            let _ = handle_bulk_msg_for_gs(messages.clone(), &mut tcp_interface);
             bulk_msgs_read = 0;
             expected_bytes = 0;
             received_bulk_ack = false;
