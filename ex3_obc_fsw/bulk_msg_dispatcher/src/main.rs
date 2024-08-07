@@ -9,7 +9,7 @@ use message_structure::*;
 use std::io::Error as IoError;
 use std::thread;
 
-const DOWNLINK_MSG_BODY_SIZE: usize = 4089; // 4KB - 5B (header) - 2B (sequence number)
+const DOWNLINK_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) - 2 (sequence nums) being passed internally
 fn main() -> Result<(),IoError > {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
@@ -27,11 +27,13 @@ fn main() -> Result<(),IoError > {
                     let path_bytes: Vec<u8> = msg.msg_body.clone();
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg= get_data_from_path(&path)?;
+                    println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
                     // Slice bulk msg
                     messages = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
+                    println!("Sliced msg size = {}", serialize_msg(&messages[4])?.len());
 
                     // Start coms protocol with GS handler to downlink
-                    send_buffer_size_to_gs((messages.len() * DOWNLINK_MSG_BODY_SIZE) as u32, gs_interface_clone.data_fd)?;
+                    send_buffer_size_to_gs((messages.len() * 4096) as u32, gs_interface_clone.data_fd)?;
 
                     // 2. Wait for ACK from GS handler
                     // 3. Send Msg's contained in messages

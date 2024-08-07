@@ -68,7 +68,8 @@ fn read_bulk_msgs(buffer: Vec<u8>, interface: IpcClient) -> Result<Msg, std::io:
     todo!()
 }
 
-/// Fxn to write the a msg to the UHF transceiver for downlinking
+/// Fxn to write the a msg to the UHF transceiver for downlinking. It will wait to receive an ACK
+/// before sending the msgs down to the GS.
 /// Slices the Msg it's passed into the appropriate size for the UHF to handle
 /// Also sends the messages to the UHF/GS
 fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
@@ -77,12 +78,23 @@ fn handle_bulk_msg_for_gs(msg: &Msg, interface: &mut TcpInterface) -> Result<(),
     let messages: Vec<Msg> = handle_large_msg(msg.clone(), DONWLINK_MSG_BODY_SIZE)?;
     // Send first Msg
     write_msg_to_uhf_for_downlink(interface, messages[0].clone());
+    // Wait for an ACK
+    loop {
+        let mut buffer = [0; 128];
+        let ack_bytes = interface.read(&mut buffer)?;
+        if ack_bytes > 0 {
+            let ack_msg = deserialize_msg(&buffer)?;
+            if ack_msg.header.msg_type == MsgType::Ack as u8 {
+                break;
+            } else {
+                eprintln!("Didn't receive ACK type msg for Bulk Downlink");
+            }
+        }
+    }
 
-    // TODO - wait for gs to respond with ACK to send next messages
-
-    println!("About to send {} messages", messages.len()-1);
+    println!("Got ACK. Sending {} messages invluding header msg", messages.len());
     thread::sleep(Duration::from_secs(5));
-    for i in 1..messages.len() {
+    for i in 0..messages.len() {
         write_msg_to_uhf_for_downlink(interface, messages[i].clone());
         thread::sleep(Duration::from_millis(10));
     }

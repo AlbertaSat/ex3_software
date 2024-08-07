@@ -132,33 +132,31 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
     println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
 }
 /// Function to represent the state of reading bulk msgs continuously.
-/// It modifies the
+/// It modifies the bulk_messages in place by taking a mutable reference.
 fn read_bulk_msgs(
     tcp_interface: &mut TcpInterface,
-    mut bulk_messages: Vec<Msg>,
+    bulk_messages: &mut Vec<Msg>,
     num_msgs_to_recv: u16,
-) {
+) -> Result<(), std::io::Error> {
+    println!("Expecting {} bytes", num_msgs_to_recv*128);
     let mut bytes_read = 0;
+    let mut bulk_buf = [0u8; 128];
     println!("Ready to receive Bulk Msgs");
-    loop {
-        let mut bulk_buf = [0u8; 128];
+    while (bytes_read as u16) < num_msgs_to_recv*128 {
+        println!("Got {} B so far", bytes_read);
         bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
         if bytes_read > 0 {
-            if (bytes_read as u16) < num_msgs_to_recv * 128 {
-                let cur_msg = deserialize_msg(&bulk_buf).unwrap();
-                println!(
-                    "Received msg #{}",
-                    u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
-                );
-                bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(5));
-                continue;
-            } else {
-                todo!()
-            }
+            let cur_msg = deserialize_msg(&bulk_buf).unwrap();
+            println!(
+                "Received msg #{}",
+                u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
+            );
+            bulk_messages.push(cur_msg.clone());
+            thread::sleep(Duration::from_millis(5));
         }
-        continue;
     }
+    
+    Ok(())
 }
 
 /// Generic function that builds and sends an ACK on whatever interface is passed
@@ -184,7 +182,7 @@ async fn main() {
     println!("Connected to Coms handler via TCP ");
 
     let mut num_msgs_to_recv: u16 = 0;
-    let bulk_messages: Vec<Msg> = Vec::new();
+    let mut bulk_messages: Vec<Msg> = Vec::new();
 
     let stdin_fd = std::io::stdin().as_raw_fd();
 
@@ -238,22 +236,26 @@ async fn main() {
             let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
             if bytes_received > 0 {
                 let recvd_msg = deserialize_msg(&read_buf).unwrap();
+                // Bulk Msg Downlink Mode. Will stay in this mode until all packets are received (as of now).
                 if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
                     num_msgs_to_recv =
                         u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
                     println!("Num of msgs incoming: {}", num_msgs_to_recv);
+                    bulk_messages.push(recvd_msg.clone());
                     match build_and_send_ack(
                         &mut tcp_interface,
                         recvd_msg.header.msg_id.clone(),
                         recvd_msg.header.source_id,
-                        recvd_msg.header.dest_id,
+                        recvd_msg.header.dest_id.clone(),
                     ) {
                         Ok(()) => {
                             read_bulk_msgs(
                                 &mut tcp_interface,
-                                bulk_messages.clone(),
+                                &mut bulk_messages,
                                 num_msgs_to_recv,
                             );
+                            
+                            println!("We have {} bulk msgs including initial header msg", bulk_messages.len());
                         }
                         Err(e) => {
                             eprintln!("Error sending ACK: {}", e);

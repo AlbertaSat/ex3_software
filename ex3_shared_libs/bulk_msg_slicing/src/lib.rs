@@ -22,7 +22,6 @@ pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>
         // First message with the number of packets
         let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(number_of_packets_u16), max_body_size);
         messages.push(first_msg.clone());
-        println!("Messages to be sent: {}", number_of_packets);
         assert_eq!(u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]), number_of_packets_u16);
         // Subsequent messages with chunks of the body
         for i in 0..number_of_packets {
