@@ -73,15 +73,17 @@ pub fn reconstruct_msg(messages: Vec<Msg>) -> Result<Msg, &'static str> {
         return Err("First message body empty");
     }
 
-    let total_packets = first_msg.msg_body[0] as usize;
+    let total_packets = u16::from_le_bytes([messages[0].msg_body[0], messages[0].msg_body[1]]) as usize;
     if total_packets != messages.len() - 1 {
         return Err("Mismatch between number of packets and message count");
     }
     let mut full_body: Vec<u8> = Vec::new();
 
     for (i,msg) in messages.iter().skip(1).enumerate() {
-        if msg.msg_body.is_empty() || u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]) as usize != i + 1 {
-            return Err("Invalid sequence number or empty message body");
+        if msg.msg_body.is_empty() {
+            return Err("Empty message body");
+        } else if u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]) as usize != i + 1 {
+            eprintln!("Invalid sequence number {}", u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]));
         }
         full_body.extend_from_slice(&msg.msg_body[2..]);
     }

@@ -16,10 +16,14 @@ use common::component_ids::*;
 use common::ports::SIM_COMMS_PORT;
 use message_structure::*;
 use tcp_interface::*;
+use bulk_msg_slicing::*;
+use std::path::Path;
+use std::fs::File;
 
 use chrono::prelude::*;
 use libc::{poll, POLLIN};
 use serde_json::json;
+use std::fs;
 use std::io::prelude::*;
 use std::io::Write;
 use std::os::unix::io::AsRawFd;
@@ -142,20 +146,48 @@ fn read_bulk_msgs(
     let mut bytes_read = 0;
     let mut bulk_buf = [0u8; 128];
     println!("Ready to receive Bulk Msgs");
-    while (bytes_read as u16) < num_msgs_to_recv*128 {
+    // TMP - hardcoded count to check diff of received data
+    let mut count = 0;
+    while count < 338 {
         println!("Got {} B so far", bytes_read);
-        bytes_read += tcp_interface.read(&mut bulk_buf).unwrap();
-        if bytes_read > 0 {
-            let cur_msg = deserialize_msg(&bulk_buf).unwrap();
+        bytes_read += tcp_interface.read(&mut bulk_buf)?;
+        let cur_msg = deserialize_msg(&bulk_buf)?;
+        if bytes_read > 0 && cur_msg.header.msg_type == MsgType::Bulk as u8 {
             println!(
                 "Received msg #{}",
                 u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
             );
             bulk_messages.push(cur_msg.clone());
             thread::sleep(Duration::from_millis(5));
+            count += 1;
         }
     }
     
+    Ok(())
+}
+
+/// Function to save downlinked data to a file
+fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
+    // ADD future dir names here depending on source
+    let dir_name = if src == DFGM {
+        "dfgm"
+    } else {
+        "misc"
+    };
+
+    fs::create_dir_all(dir_name)?;
+    let mut file_path = Path::new(dir_name).join("data");
+
+    // Append number to file name if it already exists
+    let mut count = 0;
+    while file_path.exists() {
+        count += 1;
+        file_path = Path::new(dir_name).join(format!("data{}", count));
+    }
+    let mut file = File::create(file_path)?;
+
+    file.write_all(&data)?;
+
     Ok(())
 }
 
@@ -254,7 +286,16 @@ async fn main() {
                                 &mut bulk_messages,
                                 num_msgs_to_recv,
                             );
-                            
+                            let downlinked_data = reconstruct_msg(bulk_messages.clone()).unwrap();
+                            match save_data_to_file(downlinked_data.msg_body, downlinked_data.header.source_id) {
+                                Ok(_) => {
+                                    println!("Data saved to file");
+                                }
+                                Err(e) => {
+                                    eprintln!("Error writing data to file: {}", e);
+                                }
+                            }
+
                             println!("We have {} bulk msgs including initial header msg", bulk_messages.len());
                         }
                         Err(e) => {
