@@ -140,16 +140,14 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
 fn read_bulk_msgs(
     tcp_interface: &mut TcpInterface,
     bulk_messages: &mut Vec<Msg>,
-    num_4k_msgs_to_recv: u16,
+    num_msgs_to_recv: u16,
 ) -> Result<(), std::io::Error> {
-    println!("Expecting {} bytes", num_4k_msgs_to_recv*4096);
-    let mut bytes_read = 0;
+    
     let mut bulk_buf = [0u8; 128];
-    let num_msgs_to_recv = num_4k_msgs_to_recv * 32;
     let mut num_msgs_recvd = 0;
-    // TMP - hardcoded count to check diff of received data
+    println!("Num msgs incoming: {}", num_msgs_to_recv);
     while num_msgs_recvd < num_msgs_to_recv {
-        bytes_read += tcp_interface.read(&mut bulk_buf)?;
+        let bytes_read = tcp_interface.read(&mut bulk_buf)?;
         let cur_msg = deserialize_msg(&bulk_buf)?;
         if bytes_read > 0 && cur_msg.header.msg_type == MsgType::Bulk as u8 {
             println!(
@@ -212,7 +210,7 @@ async fn main() {
         TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
     println!("Connected to Coms handler via TCP ");
 
-    let mut num_4k_msgs_to_recv: u16 = 0;
+    let mut num_msgs_to_recv: u16 = 0;
     let mut bulk_messages: Vec<Msg> = Vec::new();
 
     let stdin_fd = std::io::stdin().as_raw_fd();
@@ -269,9 +267,9 @@ async fn main() {
                 let recvd_msg = deserialize_msg(&read_buf).unwrap();
                 // Bulk Msg Downlink Mode. Will stay in this mode until all packets are received (as of now).
                 if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
-                    num_4k_msgs_to_recv =
+                    num_msgs_to_recv =
                         u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
-                    println!("Num of msgs 4KB incoming: {}", num_4k_msgs_to_recv);
+                    bulk_messages.push(recvd_msg.clone());
                     match build_and_send_ack(
                         &mut tcp_interface,
                         recvd_msg.header.msg_id.clone(),
@@ -282,7 +280,7 @@ async fn main() {
                             read_bulk_msgs(
                                 &mut tcp_interface,
                                 &mut bulk_messages,
-                                num_4k_msgs_to_recv,
+                                num_msgs_to_recv,
                             );
                             let downlinked_data = reconstruct_msg(bulk_messages.clone()).unwrap();
                             match save_data_to_file(downlinked_data.msg_body, downlinked_data.header.source_id) {

@@ -73,8 +73,15 @@ fn read_bulk_msgs(buffer: Vec<u8>, interface: IpcClient) -> Result<Msg, std::io:
 /// before sending the msgs down to the GS.
 /// It expects a vector of 4KB BUlk Msgs. It slices each Msg it's passed into the appropriate size for the UHF to handle
 /// Also sends the messages to the UHF/GS
-fn handle_bulk_msg_for_gs(messages: Vec<Msg>, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+    // Calculate num of 128B msgs
+    let last_msg = messages.last().unwrap();
+    let last_msg_vec = handle_large_msg(last_msg.clone(), DONWLINK_MSG_BODY_SIZE).unwrap();
+    let num_of_msgs_in_last_4kb = u16::from_le_bytes([last_msg_vec[0].msg_body[0],last_msg_vec[0].msg_body[1]]);
+    let num_small_msgs = (u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]) - 1) * 32 + num_of_msgs_in_last_4kb;
+    println!("# of 128B msgs: {}", num_small_msgs);
     // Send first Header Msg containing how many messages there are
+    messages[0].msg_body = num_small_msgs.to_le_bytes().to_vec();
     write_msg_to_uhf_for_downlink(interface, messages[0].clone());
     // Wait for an ACK
     loop {
@@ -97,9 +104,11 @@ fn handle_bulk_msg_for_gs(messages: Vec<Msg>, interface: &mut TcpInterface) -> R
     thread::sleep(Duration::from_secs(2));
     for i in 1..messages.len() {
         let cur_msg = messages[i].clone();
+        // Handle_large_msg puts another 'header' msg at the beginning of the Vec<Msg> saying how many bulk msgs there are.
         let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;
         // TODO - Want to send msgs_to_send[0] which contains how many 128B packets there are.
         // Necessary for reconstruction of msgs on GS.
+
         for j in 1..msgs_to_send.len() {
             write_msg_to_uhf_for_downlink(interface, msgs_to_send[j].clone());
             thread::sleep(Duration::from_millis(10));
@@ -190,7 +199,7 @@ fn main() {
     let mut messages = Vec::new();
     let mut bulk_msgs_read = 0;
     let mut bulk_msg = Msg::new(0, 0, 0, 0, 0, vec![]);
-    let mut expected_bytes = 0;
+    let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
@@ -204,20 +213,22 @@ fn main() {
                     // writes directly to GS, handling case if it's a bulk message
                     if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
                     {
-                        // If we haven't received Bulk ACK, we need to allocate buffer and send ack
+                        // If we haven't received Bulk ACK, we need to send ack
                         send_bulk_ack(ipc_gs_interface.fd);
-                        let expected_bytes_bytes = [
+                        received_bulk_ack = true;
+                        let expected_msgs_bytes = [
                             deserialized_msg.msg_body[0],
                             deserialized_msg.msg_body[1],
                         ];
-                        expected_bytes = u16::from_le_bytes(expected_bytes_bytes);
-                        println!("Expected: {}", expected_bytes);
-                        received_bulk_ack = true;
+                        expected_msgs = u16::from_le_bytes(expected_msgs_bytes) + 1; // Account for header msg
+                        println!("Expected: {}", expected_msgs);
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
                         && received_bulk_ack
                     {
-                        if bulk_msgs_read < expected_bytes {
+                        // Here where we read incoming bulk msgs from bulk_msg_disp
+                        if bulk_msgs_read < expected_msgs {
                             let cur_buf = ipc_gs_interface.read_buffer();
+                            println!("Bytes read: {}", cur_buf.len());
                             let cur_msg = deserialize_msg(&cur_buf).unwrap();
                             messages.push(cur_msg);
                             bulk_msgs_read += 1;
@@ -235,11 +246,12 @@ fn main() {
             ipc_gs_interface.clear_buffer();
         }
         // If we are done reading bulk msgs, start protocol with GS
-        if received_bulk_ack && bulk_msgs_read >= expected_bytes {
+        if received_bulk_ack && bulk_msgs_read >= expected_msgs {
             let _ = handle_bulk_msg_for_gs(messages.clone(), &mut tcp_interface);
             bulk_msgs_read = 0;
-            expected_bytes = 0;
+            expected_msgs = 0;
             received_bulk_ack = false;
+            ipc_gs_interface.clear_buffer();
         }
 
         // Poll the IPC unix domain socket for the COMS channel
