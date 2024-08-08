@@ -1,5 +1,5 @@
 /*
-Written by Devin Headrick
+Written by Devin Headrick and Rowan Rasmusson
 Summer 2024
 
 
@@ -17,6 +17,7 @@ use common::ports::SIM_COMMS_PORT;
 use message_structure::*;
 use tcp_interface::*;
 use bulk_msg_slicing::*;
+use core::num;
 use std::path::Path;
 use std::fs::File;
 
@@ -141,8 +142,8 @@ fn read_bulk_msgs(
     tcp_interface: &mut TcpInterface,
     bulk_messages: &mut Vec<Msg>,
     num_msgs_to_recv: u16,
+    num_4k_msgs: &mut u16
 ) -> Result<(), std::io::Error> {
-    
     let mut bulk_buf = [0u8; 128];
     let mut num_msgs_recvd = 0;
     println!("Num msgs incoming: {}", num_msgs_to_recv);
@@ -150,10 +151,11 @@ fn read_bulk_msgs(
         let bytes_read = tcp_interface.read(&mut bulk_buf)?;
         let cur_msg = deserialize_msg(&bulk_buf)?;
         if bytes_read > 0 && cur_msg.header.msg_type == MsgType::Bulk as u8 {
-            println!(
-                "Received msg #{}",
-                u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
-            );
+            let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
+            println!("Received msg #{}", seq_id);
+            if seq_id == 1 {
+                *num_4k_msgs += 1;
+            }
             bulk_messages.push(cur_msg.clone());
             thread::sleep(Duration::from_millis(5));
             num_msgs_recvd += 1;
@@ -212,7 +214,7 @@ async fn main() {
 
     let mut num_msgs_to_recv: u16 = 0;
     let mut bulk_messages: Vec<Msg> = Vec::new();
-
+    let mut num_4k_msgs = 0;
     let stdin_fd = std::io::stdin().as_raw_fd();
 
     loop {
@@ -281,7 +283,9 @@ async fn main() {
                                 &mut tcp_interface,
                                 &mut bulk_messages,
                                 num_msgs_to_recv,
+                                &mut num_4k_msgs
                             );
+                            println!("num of 4k msgs: {}", num_4k_msgs);
                             let downlinked_data = reconstruct_msg(bulk_messages.clone()).unwrap();
                             match save_data_to_file(downlinked_data.msg_body, downlinked_data.header.source_id) {
                                 Ok(_) => {

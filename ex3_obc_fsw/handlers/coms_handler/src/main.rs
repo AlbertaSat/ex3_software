@@ -106,10 +106,8 @@ fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) 
         let cur_msg = messages[i].clone();
         // Handle_large_msg puts another 'header' msg at the beginning of the Vec<Msg> saying how many bulk msgs there are.
         let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;
-        // TODO - Want to send msgs_to_send[0] which contains how many 128B packets there are.
-        // Necessary for reconstruction of msgs on GS.
 
-        for j in 1..msgs_to_send.len() {
+        for j in 0..msgs_to_send.len() {
             write_msg_to_uhf_for_downlink(interface, msgs_to_send[j].clone());
             thread::sleep(Duration::from_millis(10));
         }
