@@ -160,6 +160,19 @@ pub mod opcodes {
             }
         }
     }
+    pub mod iris {
+        pub const CAPTURE_IMAGE: u8 = 0;
+        pub const TOGGLE_SENSOR: u8 = 1;
+        pub const FETCH_IMAGE: u8 = 2;
+        pub const GET_HK: u8 = 3;
+        pub const GET_N_IMAGES_AVAILABLE: u8 = 4;
+        pub const SET_TIME: u8 = 5;
+        pub const GET_TIME: u8 = 6;
+        pub const RESET: u8 = 7;
+        pub const DEL_IMAGE: u8 = 8;
+        pub const GET_IMAGE_SIZE: u8 = 9;
+
+    }
 }
 
 #[cfg(test)]
