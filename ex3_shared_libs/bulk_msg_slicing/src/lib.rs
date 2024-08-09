@@ -20,7 +20,8 @@ pub fn handle_large_msg(large_msg: Msg, mut max_body_size: usize) -> Result<Vec<
     if body_len <= max_body_size {
         let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(1), max_body_size);
         messages.push(first_msg.clone());
-        messages.push(large_msg);
+        let small_msg = deconstruct_msg(large_msg.clone(), 1, None, max_body_size);
+        messages.push(small_msg);
     } else {
         let number_of_packets: usize = body_len.div_ceil(max_body_size);
         let number_of_packets_u16: u16 = number_of_packets as u16;
@@ -49,7 +50,11 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
 
     if let Some(total) = total_packets {
         let len_bytes = total.to_le_bytes();
-        msg.msg_body = vec![len_bytes[0], len_bytes[1]];
+        let mut new_body = Vec::with_capacity(msg.msg_body.len() + 2);
+        new_body.push(len_bytes[0]);
+        new_body.push(len_bytes[1]);
+        new_body.extend_from_slice(&msg.msg_body);
+        msg.msg_body = new_body;
     } else {
         let sequence_bytes = sequence_num.to_le_bytes();
         msg.msg_body.insert(0, sequence_bytes[0]);
@@ -61,9 +66,6 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
         header: head,
         msg_body: body.to_vec(),
     };
-
-    // println!("Sequence #{}", sequence_num);
-    // println!("{:?}", sized_msg);
 
     sized_msg
 }
@@ -90,7 +92,8 @@ pub fn reconstruct_msg(messages: Vec<Msg>) -> Result<Msg, &'static str> {
         if msg.msg_body.is_empty() {
             return Err("Empty message body");
         } else if u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]) as usize != i + 1 {
-            eprintln!("Invalid sequence number {}", u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]));
+            eprintln!("Invalid sequence number {}.\nExpected sequence number of {}", u16::from_le_bytes([msg.msg_body[0], msg.msg_body[1]]), i+1);
+            return Err("Invalid sequence number");
         }
         full_body.extend_from_slice(&msg.msg_body[2..]);
     }
@@ -121,5 +124,16 @@ mod tests {
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone(), max_body_size).unwrap();
         let number_of_packets: usize = (large_msg.msg_body.len() + max_body_size - 1) / max_body_size;
         assert_eq!(messages.len(), number_of_packets + 1);
+    }
+
+    #[test]
+    fn test_small_msg() {
+        let max_body_size = 128;
+        let small_msg = Msg::new(2,0,7,3,0,vec![10,0]);
+        let sliced_small = handle_large_msg(small_msg.clone(), max_body_size).unwrap();
+        println!("Small vec: {:?}", sliced_small);
+        assert_eq!(sliced_small[0].msg_body[0],1);
+        assert_eq!(u16::from_le_bytes([sliced_small[1].msg_body[0],sliced_small[1].msg_body[1]]), 1);
+        assert_eq!(sliced_small[1].msg_body[2], 10);
     }
 }

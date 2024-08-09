@@ -153,7 +153,7 @@ fn read_bulk_msgs(
         if bytes_read > 0 && cur_msg.header.msg_type == MsgType::Bulk as u8 {
             let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
             println!("Received msg #{}", seq_id);
-            if seq_id == 1 {
+            if seq_id == 34 {
                 *num_4k_msgs += 1;
             }
             bulk_messages.push(cur_msg.clone());
@@ -161,6 +161,8 @@ fn read_bulk_msgs(
             num_msgs_recvd += 1;
         }
     }
+    *num_4k_msgs /= 2;
+    *num_4k_msgs += 1;
     
     Ok(())
 }
@@ -212,19 +214,34 @@ fn process_bulk_messages(
     msgs_4k: &mut Vec<Msg>,
 ) -> Result<Msg, &'static str> {
     let chunk_size = 35;
-    
-    for chunk in bulk_messages.chunks(chunk_size) {
-        // Ensure the chunk has exactly 35 messages (skip if not)
-        if chunk.len() == chunk_size {
-            let reconstructed_msg = reconstruct_msg(chunk.to_vec())?;
-            msgs_4k.push(reconstructed_msg);
-        } else {
-            println!("Skipped incomplete chunk of size {}", chunk.len());
-        }
+
+    // Handle the first message separately (it consists of only 2 Msgs)
+    if bulk_messages.len() >= 2 {
+        let first_msg_chunk = &bulk_messages[0..2];
+        let first_msg = reconstruct_msg(first_msg_chunk.to_vec())?;
+        msgs_4k.push(first_msg);
     }
-    let reconstructed_large_msg = reconstruct_msg(msgs_4k.to_vec())?;
-    
-    Ok(reconstructed_large_msg)
+
+    // Process middle chunks of size `chunk_size`
+    let total_middle_chunks = (bulk_messages.len() - 2) / chunk_size;
+    for i in 0..total_middle_chunks {
+        let start_index = 2 + i * chunk_size;
+        let end_index = start_index + chunk_size;
+        let chunk = &bulk_messages[start_index..end_index];
+        let reconstructed_msg = reconstruct_msg(chunk.to_vec())?;
+        msgs_4k.push(reconstructed_msg);
+    }
+
+    // Handle the last message separately (it may be less than `chunk_size`)
+    let remaining_msgs = bulk_messages.len() - 2 - (total_middle_chunks * chunk_size);
+    if remaining_msgs > 0 {
+        let start_index = 2 + total_middle_chunks * chunk_size;
+        let last_chunk = &bulk_messages[start_index..];
+        let last_msg = reconstruct_msg(last_chunk.to_vec())?;
+        msgs_4k.push(last_msg);
+    }
+    let reconstructed_large_msg = reconstruct_msg(msgs_4k.to_vec());
+    reconstructed_large_msg
 }
 
 #[tokio::main]
@@ -295,7 +312,6 @@ async fn main() {
                 if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
                     num_msgs_to_recv =
                         u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
-                    bulk_messages.push(recvd_msg.clone());
                     match build_and_send_ack(
                         &mut tcp_interface,
                         recvd_msg.header.msg_id.clone(),
