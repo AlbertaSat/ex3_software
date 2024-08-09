@@ -78,13 +78,17 @@ fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) 
     let last_msg = messages.last().unwrap();
     let last_msg_vec = handle_large_msg(last_msg.clone(), DONWLINK_MSG_BODY_SIZE).unwrap();
     let num_of_msgs_in_last_4kb = last_msg_vec.len() as u16;
-    let num_small_msgs = (u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]) - 1) * 35 + num_of_msgs_in_last_4kb;
+
+    let first_msg = messages[0].clone();
+    let first_msg_vec = handle_large_msg(first_msg.clone(), DONWLINK_MSG_BODY_SIZE).unwrap();
+    let num_of_msgs_in_first_4kb = first_msg_vec.len() as u16;
+
+    let num_small_msgs = (u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]) - 1) * 35 + num_of_msgs_in_last_4kb + num_of_msgs_in_first_4kb;
     println!("Num of 4k msgs: {}", u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]));
-    println!("{}", num_of_msgs_in_last_4kb);
     println!("# of 128B msgs: {}", num_small_msgs);
-    // Send first Header Msg containing how many messages there are
-    messages[0].msg_body = num_small_msgs.to_le_bytes().to_vec();
-    write_msg_to_uhf_for_downlink(interface, messages[0].clone());
+    // Send first Header Msg containing how many 128B messages there are
+    let num_128_msg = Msg::new(2,0,7,3,0,num_small_msgs.to_le_bytes().to_vec());
+    write_msg_to_uhf_for_downlink(interface, num_128_msg);
     // Wait for an ACK
     loop {
         let mut buffer = [0; 128];
@@ -104,7 +108,7 @@ fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) 
         num_small_msgs
     );
     thread::sleep(Duration::from_secs(2));
-    for i in 1..messages.len() {
+    for i in 0..messages.len() {
         let cur_msg = messages[i].clone();
         // Handle_large_msg puts another 'header' msg at the beginning of the Vec<Msg> saying how many bulk msgs there are.
         let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;

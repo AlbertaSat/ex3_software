@@ -204,6 +204,29 @@ fn build_and_send_ack(
     Ok(())
 }
 
+/// Function for rebuilding msgs that have been downlinked from the SC
+/// First, it takes a chunk of 128B msgs and makes a 4KB packet out of that
+/// Then, takes the vector of 4KB packets and makes one large msg using it
+fn process_bulk_messages(
+    bulk_messages: Vec<Msg>,
+    msgs_4k: &mut Vec<Msg>,
+) -> Result<Msg, &'static str> {
+    let chunk_size = 35;
+    
+    for chunk in bulk_messages.chunks(chunk_size) {
+        // Ensure the chunk has exactly 35 messages (skip if not)
+        if chunk.len() == chunk_size {
+            let reconstructed_msg = reconstruct_msg(chunk.to_vec())?;
+            msgs_4k.push(reconstructed_msg);
+        } else {
+            println!("Skipped incomplete chunk of size {}", chunk.len());
+        }
+    }
+    let reconstructed_large_msg = reconstruct_msg(msgs_4k.to_vec())?;
+    
+    Ok(reconstructed_large_msg)
+}
+
 #[tokio::main]
 async fn main() {
     println!("Beginning CLI Ground Station...");
@@ -214,6 +237,7 @@ async fn main() {
 
     let mut num_msgs_to_recv: u16 = 0;
     let mut bulk_messages: Vec<Msg> = Vec::new();
+    let mut msgs_4k = Vec::new();
     let mut num_4k_msgs = 0;
     let stdin_fd = std::io::stdin().as_raw_fd();
 
@@ -284,18 +308,22 @@ async fn main() {
                                 &mut bulk_messages,
                                 num_msgs_to_recv,
                                 &mut num_4k_msgs
-                            );
+                            ).unwrap();
                             println!("num of 4k msgs: {}", num_4k_msgs);
-                            let num_small_msgs = bulk_messages[0].clone();
-                            let first_4k_msg = bulk_messages[1..=35].to_vec();
-                            let downlinked_data = reconstruct_msg(first_4k_msg).unwrap();
-                            match save_data_to_file(downlinked_data.msg_body, downlinked_data.header.source_id) {
-                                Ok(_) => {
-                                    println!("Data saved to file");
+                            // clone bulk_messages BUT maybe hurts performance if there's tons of packets
+                            match process_bulk_messages(bulk_messages.clone(), &mut msgs_4k) {
+                                Ok(large_msg) => {
+                                    println!("Successfully reconstructed 4K messages");
+                                    match save_data_to_file(large_msg.msg_body, large_msg.header.source_id) {
+                                        Ok(_) => {
+                                            println!("Data saved to file");
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Error writing data to file: {}", e);
+                                        }
+                                    }
                                 }
-                                Err(e) => {
-                                    eprintln!("Error writing data to file: {}", e);
-                                }
+                                Err(e) => eprintln!("Error reconstructing 4K messages: {}", e),
                             }
 
                             println!("We have {} bulk msgs including initial header msg", bulk_messages.len());

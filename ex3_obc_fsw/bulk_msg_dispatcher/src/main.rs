@@ -28,9 +28,8 @@ fn main() -> Result<(), IoError> {
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg = get_data_from_path(&path)?;
                     println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
-                                                                                       // Slice bulk msg
+                    // Slice bulk msg
                     messages = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
-                    println!("{:?}", messages[0]);
 
                     // Start coms protocol with GS handler to downlink
                     send_num_msgs_to_gs(
