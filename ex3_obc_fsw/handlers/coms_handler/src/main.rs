@@ -77,8 +77,10 @@ fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) 
     // Calculate num of 128B msgs
     let last_msg = messages.last().unwrap();
     let last_msg_vec = handle_large_msg(last_msg.clone(), DONWLINK_MSG_BODY_SIZE).unwrap();
-    let num_of_msgs_in_last_4kb = u16::from_le_bytes([last_msg_vec[0].msg_body[0],last_msg_vec[0].msg_body[1]]);
-    let num_small_msgs = (u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]) - 1) * 32 + num_of_msgs_in_last_4kb;
+    let num_of_msgs_in_last_4kb = last_msg_vec.len() as u16;
+    let num_small_msgs = (u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]) - 1) * 35 + num_of_msgs_in_last_4kb;
+    println!("Num of 4k msgs: {}", u16::from_le_bytes([messages[0].msg_body[0],messages[0].msg_body[1]]));
+    println!("{}", num_of_msgs_in_last_4kb);
     println!("# of 128B msgs: {}", num_small_msgs);
     // Send first Header Msg containing how many messages there are
     messages[0].msg_body = num_small_msgs.to_le_bytes().to_vec();
@@ -99,7 +101,7 @@ fn handle_bulk_msg_for_gs(mut messages: Vec<Msg>, interface: &mut TcpInterface) 
 
     println!(
         "Got ACK. Sending {} messages",
-        messages.len() - 1 // excluding header
+        num_small_msgs
     );
     thread::sleep(Duration::from_secs(2));
     for i in 1..messages.len() {
@@ -201,7 +203,7 @@ fn main() {
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
-        let _ = poll_ipc_clients(&mut clients);
+        let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
             println!("Received IPC Msg bytes for GS");
@@ -225,11 +227,15 @@ fn main() {
                     {
                         // Here where we read incoming bulk msgs from bulk_msg_disp
                         if bulk_msgs_read < expected_msgs {
-                            let cur_buf = ipc_gs_interface.read_buffer();
-                            println!("Bytes read: {}", cur_buf.len());
-                            let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                            messages.push(cur_msg);
-                            bulk_msgs_read += 1;
+                            if let Ok(ipc_bytes_read) = ipc_bytes_read_res {
+                                let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
+                                println!("Bytes read: {}", cur_buf.len());
+                                let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                                messages.push(cur_msg);
+                                bulk_msgs_read += 1;
+                            } else {
+                                eprintln!("Error reading bytes from poll.");
+                            }
                         }
                     } else {
                         let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);

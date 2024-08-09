@@ -286,7 +286,9 @@ async fn main() {
                                 &mut num_4k_msgs
                             );
                             println!("num of 4k msgs: {}", num_4k_msgs);
-                            let downlinked_data = reconstruct_msg(bulk_messages.clone()).unwrap();
+                            let num_small_msgs = bulk_messages[0].clone();
+                            let first_4k_msg = bulk_messages[1..=35].to_vec();
+                            let downlinked_data = reconstruct_msg(first_4k_msg).unwrap();
                             match save_data_to_file(downlinked_data.msg_body, downlinked_data.header.source_id) {
                                 Ok(_) => {
                                     println!("Data saved to file");

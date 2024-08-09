@@ -51,7 +51,7 @@ fn main() -> Result<(), IoError> {
                             let serialized_msgs = serialize_msg(&messages[i])?;
                             println!("Sending {} B", serialized_msgs.len());
                             ipc_write(gs_interface_clone.data_fd, &serialized_msgs)?;
-                            println!("Sent msg #{}", i);
+                            println!("Sent msg #{}", i+1);
                             thread::sleep(Duration::from_millis(500));
                         }
                     } else {

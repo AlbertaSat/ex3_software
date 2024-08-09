@@ -7,13 +7,19 @@
  */
 use message_structure::*;
 pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number) = 121
-pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
+pub fn handle_large_msg(large_msg: Msg, mut max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
 
     let body_len: usize = large_msg.msg_body.len();
-    assert!(max_body_size < body_len);
+    // If the message being passed has a size less than the specified max body size,
+    // reassign the max body size for this slice to be the current body len
+    if max_body_size > body_len {
+        max_body_size = body_len;
+    }
     let mut messages: Vec<Msg> = Vec::new();
 
     if body_len <= max_body_size {
+        let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(1), max_body_size);
+        messages.push(first_msg.clone());
         messages.push(large_msg);
     } else {
         let number_of_packets: usize = body_len.div_ceil(max_body_size);
