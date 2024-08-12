@@ -8,8 +8,10 @@ use std::io::Error as IoError;
 use std::io::Read;
 use std::thread;
 use std::time::Duration;
-// TODO - This number makes the packets size 4096B, 4096 - 7 doesn't for some reason. 
-const INTERNAL_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) - 2 (sequence nums) being passed internally
+use std::path::Path;
+use std::fs;
+use std::io::Write;
+const INTERNAL_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
@@ -28,15 +30,12 @@ fn main() -> Result<(), IoError> {
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg = get_data_from_path(&path)?;
                     println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
-                    // Slice bulk msg
+                                                                                       // Slice bulk msg
                     messages = handle_large_msg(bulk_msg, INTERNAL_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
                     send_num_msgs_to_gs(
-                        u16::from_le_bytes([
-                            messages[0].msg_body[0],
-                            messages[0].msg_body[1],
-                        ]),
+                        u16::from_le_bytes([messages[0].msg_body[0], messages[0].msg_body[1]]),
                         gs_interface_clone.data_fd,
                     )?;
 
@@ -50,7 +49,8 @@ fn main() -> Result<(), IoError> {
                             let serialized_msgs = serialize_msg(&messages[i])?;
                             println!("Sending {} B", serialized_msgs.len());
                             ipc_write(gs_interface_clone.data_fd, &serialized_msgs)?;
-                            println!("Sent msg #{}", i+1);
+                            println!("Sent msg #{}", i + 1);
+                            save_data_to_file(messages[i].msg_body.clone(), 0);
                             thread::sleep(Duration::from_millis(500));
                         }
                     } else {
@@ -104,4 +104,32 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
     file.read_to_end(&mut data)?;
     let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, 3, 0, data);
     Ok(bulk_msg)
+}
+
+// TMP Stolen from gs_cli. Used for testing to run diffs between
+// Files before and after they're downlinked
+fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
+    // ADD future dir names here depending on source
+    let dir_name = if src == DFGM {
+        "dfgm"
+    } else if src == 99 {
+        "test"
+    } else {
+        "misc"
+    };
+
+    fs::create_dir_all(dir_name)?;
+    let mut file_path = Path::new(dir_name).join("data");
+
+    // Append number to file name if it already exists
+    let mut count = 0;
+    while file_path.exists() {
+        count += 1;
+        file_path = Path::new(dir_name).join(format!("data{}", count));
+    }
+    let mut file = File::create(file_path)?;
+
+    file.write_all(&data)?;
+
+    Ok(())
 }

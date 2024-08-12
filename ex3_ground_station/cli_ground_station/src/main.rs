@@ -172,6 +172,8 @@ fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     // ADD future dir names here depending on source
     let dir_name = if src == DFGM {
         "dfgm"
+    } else if src == 99 {
+        "test"
     } else {
         "misc"
     };
@@ -219,7 +221,8 @@ fn process_bulk_messages(
     if bulk_messages.len() >= 2 {
         let first_msg_chunk = &bulk_messages[0..2];
         let first_msg = reconstruct_msg(first_msg_chunk.to_vec())?;
-        msgs_4k.push(first_msg);
+        msgs_4k.push(first_msg.clone());
+        save_data_to_file(first_msg.msg_body, 99);
     }
 
     // Process middle chunks of size `chunk_size`
@@ -229,7 +232,8 @@ fn process_bulk_messages(
         let end_index = start_index + chunk_size;
         let chunk = &bulk_messages[start_index..end_index];
         let reconstructed_msg = reconstruct_msg(chunk.to_vec())?;
-        msgs_4k.push(reconstructed_msg);
+        msgs_4k.push(reconstructed_msg.clone());
+        save_data_to_file(reconstructed_msg.msg_body, 99);
     }
 
     // Handle the last message separately (it may be less than `chunk_size`)
@@ -238,7 +242,8 @@ fn process_bulk_messages(
         let start_index = 2 + total_middle_chunks * chunk_size;
         let last_chunk = &bulk_messages[start_index..];
         let last_msg = reconstruct_msg(last_chunk.to_vec())?;
-        msgs_4k.push(last_msg);
+        msgs_4k.push(last_msg.clone());
+        save_data_to_file(last_msg.msg_body, 99);
     }
     let reconstructed_large_msg = reconstruct_msg(msgs_4k.to_vec());
     reconstructed_large_msg
