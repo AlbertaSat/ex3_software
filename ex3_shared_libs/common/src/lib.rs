@@ -5,7 +5,8 @@ pub mod ports {
     pub const SIM_EPS_PORT: u16 = 1804;
     pub const SIM_COMMS_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
-    pub const SIM_DUMMY_PORT: u16 = 1807;
+    //....
+    pub const SIM_DUMMY_PORT: u16 = 1899;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
     pub const SCHEDULER_DISPATCHER_PORT: u16 = 1901;
@@ -181,7 +182,7 @@ pub mod opcodes {
     pub enum DUMMY {
         SetDummyVariable = 0,
         GetDummyVariable = 1,
-    } 
+    }
 
     impl From<u8> for DUMMY {
         fn from(value: u8) -> Self {

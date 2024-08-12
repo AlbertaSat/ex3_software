@@ -33,10 +33,10 @@ int main(int argc, char *argv[])
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
-    ComponentStruct *test_handler = component_factory("test_handler", TEST);
+    ComponentStruct *dummy_handler = component_factory("dummy_handler", DUMMY);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[4] = {dfgm_handler, coms_handler, iris_handler, test_handler};
+    ComponentStruct *components[4] = {dfgm_handler, coms_handler, iris_handler, dummy_handler};
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling

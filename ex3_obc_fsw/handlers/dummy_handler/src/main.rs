@@ -8,7 +8,7 @@ TODO - Setup handler to re-attempt connection to subsystem if it fails or connec
 
 use common::opcodes;
 use common::ports;
-use message_structure::{AckMsg, CmdMsg, SerializeAndDeserialize};
+use message_structure::{deserialize_msg, AckMsg, CmdMsg, Msg, SerializeAndDeserialize};
 
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use tcp_interface::{Interface, TcpInterface};
@@ -21,11 +21,11 @@ const DUMMY_MAX_MSG_SIZE_BYTES: u8 = 128; //largest size of a data packet from d
 // ----------------------------------------------------------------------------------------------------------------------
 fn set_dummy_subsystem_variable() {
     println!("Set dummy subsystem variable called");
-    //TODO - Implement this with a dummy subsystem sim 
+    //TODO - Implement this with a dummy subsystem sim
 }
 fn get_dummy_subsystem_variable() {
     println!("Get dummy subsystem variable called");
-    //TODO - Implement this with a dummy subsystem sim 
+    //TODO - Implement this with a dummy subsystem sim
 }
 
 /*
@@ -33,7 +33,7 @@ fn get_dummy_subsystem_variable() {
  * Typically these parse the message, and use a match case on the opcode or other message fields determine what to do (what above fxns to call)
 */
 // ----------------------------------------------------------------------------------------------------------------------
-/// Handle a message received from the subsystem associated with this handler
+/// Handle a message received from the peripheral associated with this handler
 fn handle_dummy_msg_in(dummy_msg: Vec<u8>) {
     // This is where we convert the subsystem messages into a meaningful format for the rest of the FSW and for operators to understand
 
@@ -42,9 +42,9 @@ fn handle_dummy_msg_in(dummy_msg: Vec<u8>) {
     println!("Received message from dummy subsystem: {:?}", dummy_msg);
 }
 // Here goes 'handle' functions which are called upon receiving a message from an IPC interface - they are unique to the particular interface they are associated with
-fn handle_command_msg_in(msg: CmdMsg) {
+fn handle_command_msg_in(msg: Msg) {
     // Parse the incoming message - use the 'From<u8>' trait implemented for the subsystems associated opcode enum
-    let opcode = opcodes::DUMMY::from(msg.opcode);
+    let opcode = opcodes::DUMMY::from(msg.header.op_code);
 
     // Call the appropriate function to handle the command
     match opcode {
@@ -63,7 +63,7 @@ fn main() {
     let mut dummy_buf = vec![0u8; DUMMY_MAX_MSG_SIZE_BYTES as usize];
 
     // Setup interfaces for communicating with other FSW components (typically IPC for communication between processes)
-    let mut ipc_cmd_msg_dispatcher = IpcClient::new("cmd_msg_dummy_handler".to_string()).unwrap();
+    let mut ipc_cmd_msg_dispatcher = IpcClient::new("dummy_handler".to_string()).unwrap();
     let mut ipc_client_vec = vec![&mut ipc_cmd_msg_dispatcher];
     // As our design grows and handlers talk to more processes - this vec will grow to include other interfaces
 
@@ -86,8 +86,7 @@ fn main() {
 
                 //------------------------------------------------------------------------------
                 // for now we know in command message uplink tall-thin its a command type message
-                let deserialized_msg_res =
-                    CmdMsg::deserialize_from_bytes(ipc_client.buffer.to_vec());
+                let deserialized_msg_res = deserialize_msg(&ipc_client.buffer);
                 match deserialized_msg_res {
                     Ok(deserialized_msg) => {
                         handle_command_msg_in(deserialized_msg);
