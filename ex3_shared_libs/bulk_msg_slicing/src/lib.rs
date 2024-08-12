@@ -13,8 +13,6 @@ pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence num
 pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
     let body_len: usize = large_msg.msg_body.len();
     let mut messages: Vec<Msg> = Vec::new();
-    println!("Handling large message of body length: {}", body_len);
-    println!("Body before slicing: {:?}", large_msg.msg_body);
 
     // Adjust for the space required by sequence numbers
     let max_body_size_adjusted = max_body_size - 2;
@@ -33,7 +31,6 @@ pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>
         // First message with the number of packets
         let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(number_of_packets_u16), max_body_size);
         messages.push(first_msg.clone());
-        println!("Number of packets: {}", number_of_packets_u16);
 
         // Subsequent messages with chunks of the body
         for i in 0..number_of_packets {
@@ -45,8 +42,6 @@ pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>
 
             let chunk_msg: Msg = deconstruct_msg(msg_part, (i + 1) as u16, None, max_body_size);
             messages.push(chunk_msg.clone());
-
-            println!("Packet {}: start={}, end={}, length={}", i + 1, start, end, chunk_msg.msg_body.len());
         }
     }
     Ok(messages)
@@ -72,8 +67,6 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
         header: head,
         msg_body: body.to_vec(),
     };
-    println!("Sequence #{}", sequence_num);
-    println!("{:?}", sized_msg);
     sized_msg
 }
 
@@ -103,7 +96,6 @@ pub fn reconstruct_msg(messages: Vec<Msg>) -> Result<Msg, &'static str> {
             return Err("Invalid sequence number");
         }
         full_body.extend_from_slice(&msg.msg_body[2..]);
-        println!("Body after extension #{}: {:?}", i+1, full_body);
     }
     Ok(Msg {
         header: first_msg.header.clone(),
