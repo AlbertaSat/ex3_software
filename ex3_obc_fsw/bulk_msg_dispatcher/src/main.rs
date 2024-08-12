@@ -9,7 +9,7 @@ use std::io::Read;
 use std::thread;
 use std::time::Duration;
 // TODO - This number makes the packets size 4096B, 4096 - 7 doesn't for some reason. 
-const DOWNLINK_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) - 2 (sequence nums) being passed internally
+const INTERNAL_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) - 2 (sequence nums) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
@@ -29,7 +29,7 @@ fn main() -> Result<(), IoError> {
                     let bulk_msg = get_data_from_path(&path)?;
                     println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
                     // Slice bulk msg
-                    messages = handle_large_msg(bulk_msg, DOWNLINK_MSG_BODY_SIZE)?;
+                    messages = handle_large_msg(bulk_msg, INTERNAL_MSG_BODY_SIZE)?;
 
                     // Start coms protocol with GS handler to downlink
                     send_num_msgs_to_gs(
@@ -102,6 +102,6 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
         .open(format!("{}/data", path))?;
     let mut data: Vec<u8> = Vec::new();
     file.read_to_end(&mut data)?;
-    let bulk_msg: Msg = Msg::new(2, 0, 7, 3, 0, data);
+    let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, 3, 0, data);
     Ok(bulk_msg)
 }

@@ -7,20 +7,21 @@
  */
 use message_structure::*;
 pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number) = 121
-pub fn handle_large_msg(large_msg: Msg, mut max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
+pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>, std::io::Error> {
 
-    let body_len: usize = large_msg.msg_body.len();
-    // If the message being passed has a size less than the specified max body size,
-    // reassign the max body size for this slice to be the current body len
-    if max_body_size > body_len {
-        max_body_size = body_len;
-    }
+    let mut body_len: usize = large_msg.msg_body.len();
     let mut messages: Vec<Msg> = Vec::new();
 
+    // Might be where bytes aren't being inserted properly
     if body_len <= max_body_size {
-        let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(1), max_body_size);
+        // Account for sequence numbers to be added
+        // 
+        body_len += 2;
+        let first_msg = deconstruct_msg(large_msg.clone(), 0, Some(1), body_len);
+        println!("First: {:?}", first_msg);
         messages.push(first_msg.clone());
-        let small_msg = deconstruct_msg(large_msg.clone(), 1, None, max_body_size);
+        let small_msg = deconstruct_msg(large_msg.clone(), 1, None, body_len);
+        println!("Second: {:?}", small_msg);
         messages.push(small_msg);
     } else {
         let number_of_packets: usize = body_len.div_ceil(max_body_size);
@@ -50,10 +51,9 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
 
     if let Some(total) = total_packets {
         let len_bytes = total.to_le_bytes();
-        let mut new_body = Vec::with_capacity(msg.msg_body.len() + 2);
+        let mut new_body = Vec::new();
         new_body.push(len_bytes[0]);
         new_body.push(len_bytes[1]);
-        new_body.extend_from_slice(&msg.msg_body);
         msg.msg_body = new_body;
     } else {
         let sequence_bytes = sequence_num.to_le_bytes();
@@ -61,6 +61,7 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
         msg.msg_body.insert(1, sequence_bytes[1]);
     }
 
+    // TODO - is this necessary?
     let body: &[u8] = &msg.msg_body[0..max_body_size.min(msg.msg_body.len())];
     let sized_msg = Msg {
         header: head,
@@ -112,9 +113,14 @@ mod tests {
     fn large_msg_copying() {
         let large_msg: Msg = Msg::new(0,2,5,1,5,vec![0; 409]);
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone(), 408).unwrap();
+        // Sequence numbers
         assert_eq!(messages[1].msg_body[0], 1);
         assert_eq!(messages[2].msg_body[0], 2);
+        // same dest id
         assert!(messages[0].header.dest_id == messages[1].header.dest_id);
+        println!("{:?}",messages[2]);
+        // Make sure we don't lose last zero. 2 for seq, +1 for data
+        assert_eq!(messages[2].msg_body.len(), 3);
     }
 
     #[test]
@@ -129,11 +135,17 @@ mod tests {
     #[test]
     fn test_small_msg() {
         let max_body_size = 128;
-        let small_msg = Msg::new(2,0,7,3,0,vec![10,0]);
+        let small_msg = Msg::new(2,0,7,3,0,vec![2,5]);
         let sliced_small = handle_large_msg(small_msg.clone(), max_body_size).unwrap();
         println!("Small vec: {:?}", sliced_small);
+        // 1 message in vec
+        // TODO - create enum for easing readability of bytes for bulk msgs
         assert_eq!(sliced_small[0].msg_body[0],1);
+        // Check initial packet length
+        assert_eq!(sliced_small[0].msg_body.len(), 2);
+        // Sequence number 1 of data packet
         assert_eq!(u16::from_le_bytes([sliced_small[1].msg_body[0],sliced_small[1].msg_body[1]]), 1);
-        assert_eq!(sliced_small[1].msg_body[2], 10);
+        // check data within packet
+        assert_eq!(sliced_small[1].msg_body[2], 2);
     }
 }
