@@ -196,6 +196,34 @@ impl ADCSHandler {
                     socket_buf.flush()?;
                 }
             }
+
+            if self.toggle_adcs == true {
+                let mut tcp_buf = [0u8; BUFFER_SIZE];
+                let status = TcpInterface::read(
+                    &mut self.peripheral_interface.as_mut().unwrap(),
+                    &mut tcp_buf,
+                );
+                match status {
+                    Ok(data_len) => {
+                        // Notably, the TCP interface will send all 0's when there is no data to send
+                        let mut all_zero = true;
+                        for i in 0..BUFFER_SIZE {
+                            if tcp_buf[i] != 0 {
+                                all_zero = false;
+                            }
+                        }
+
+                        if !all_zero {
+                            println!("Got data {:?}", tcp_buf);
+                            let store_data = tcp_buf.iter().;
+                            store_adcs_data(&tcp_buf)?;
+                        }
+                    }
+                    Err(e) => {
+                        println!("Error: {}", e);
+                    }
+                }
+            }
         }
     }
 
@@ -221,7 +249,7 @@ impl ADCSHandler {
         //     ));
         // }
 
-        // First param in msg body will specify the operation type
+        // First param in msg body will specify the operation type e.g. getting or setting
         for i in 1..((cmd.params + 1) as usize) {
             data.push(CMD_DELIMITER);
             data.extend_from_slice(msg.msg_body[i].to_string().as_bytes());
@@ -236,6 +264,16 @@ impl ADCSHandler {
 
         Ok(())
     }
+}
+
+fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {
+    std::fs::create_dir_all(ADCS_DATA_DIR_PATH)?;
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(format!("{}/data", ADCS_DATA_DIR_PATH))?;
+    file.write_all(data)?;
+    Ok(())
 }
 
 fn main() {
