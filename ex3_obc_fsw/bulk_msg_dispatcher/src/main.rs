@@ -30,12 +30,19 @@ fn main() -> Result<(), IoError> {
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg = get_data_from_path(&path)?;
                     println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
-                                                                                       // Slice bulk msg
-                    messages = handle_large_msg(bulk_msg, INTERNAL_MSG_BODY_SIZE)?;
+                    // Slice bulk msg
+                    // TODO - Cloning here might affect performance!!
+                    messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
+
+                    // Calculate num of 4KB msgs
+                    let first_msg = messages[0].clone();
+                    let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]);
+                    println!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
                     // Start coms protocol with GS handler to downlink
-                    send_num_msgs_to_gs(
-                        u16::from_le_bytes([messages[0].msg_body[0], messages[0].msg_body[1]]),
+                    send_num_msgs_and_bytes_to_gs(
+                        num_of_4kb_msgs,
+                        bulk_msg.msg_body.len() as u64,
                         gs_interface_clone.data_fd,
                     )?;
 
@@ -50,7 +57,7 @@ fn main() -> Result<(), IoError> {
                             println!("Sending {} B", serialized_msgs.len());
                             ipc_write(gs_interface_clone.data_fd, &serialized_msgs)?;
                             println!("Sent msg #{}", i + 1);
-                            save_data_to_file(messages[i].msg_body.clone(), 0);
+                            // save_data_to_file(messages[i].msg_body.clone(), 0);
                             thread::sleep(Duration::from_millis(500));
                         }
                     } else {
@@ -86,10 +93,12 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the GS handler for downlinking.
-fn send_num_msgs_to_gs(num_msgs: u16, fd: Option<i32>) -> Result<(), IoError> {
+fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: Option<i32>) -> Result<(), IoError> {
     // 1. Send Msg to GS handler indicating Bulk Msg and buffer size needed
-    let num_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
-    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0, num_bytes);
+    let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
+    let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
+    num_msgs_bytes.append(&mut num_bytes_bytes);
+    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0, num_msgs_bytes);
     ipc_write(fd, &serialize_msg(&num_msg)?)?;
     Ok(())
 }

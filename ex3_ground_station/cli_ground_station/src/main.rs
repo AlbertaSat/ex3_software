@@ -12,14 +12,15 @@ TODO
 
 */
 
+use bulk_msg_slicing::*;
 use common::component_ids::*;
 use common::ports::SIM_COMMS_PORT;
-use message_structure::*;
-use tcp_interface::*;
-use bulk_msg_slicing::*;
 use core::num;
-use std::path::Path;
+use libc::c_int;
+use message_structure::*;
 use std::fs::File;
+use std::path::Path;
+use tcp_interface::*;
 
 use chrono::prelude::*;
 use libc::{poll, POLLIN};
@@ -38,6 +39,7 @@ use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
+const STDIN_POLL_TIMEOUT: c_int = 10;
 
 //TOOD - create a new file for each time the program is run
 //TODO - get file if one already this time the 'program is run' - then properly append JSON data (right now it just appends json data entirely)
@@ -142,7 +144,7 @@ fn read_bulk_msgs(
     tcp_interface: &mut TcpInterface,
     bulk_messages: &mut Vec<Msg>,
     num_msgs_to_recv: u16,
-    num_4k_msgs: &mut u16
+    num_4k_msgs: &mut u16,
 ) -> Result<(), std::io::Error> {
     let mut bulk_buf = [0u8; 128];
     let mut num_msgs_recvd = 0;
@@ -153,17 +155,18 @@ fn read_bulk_msgs(
         if bytes_read > 0 && cur_msg.header.msg_type == MsgType::Bulk as u8 {
             let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
             println!("Received msg #{}", seq_id);
+            println!("{:?}", cur_msg);
             if seq_id == 34 {
                 *num_4k_msgs += 1;
             }
             bulk_messages.push(cur_msg.clone());
-            thread::sleep(Duration::from_millis(5));
+            thread::sleep(Duration::from_millis(10));
             num_msgs_recvd += 1;
         }
     }
     *num_4k_msgs /= 2;
     *num_4k_msgs += 1;
-    
+
     Ok(())
 }
 
@@ -264,8 +267,6 @@ async fn main() {
     let stdin_fd = std::io::stdin().as_raw_fd();
 
     loop {
-        println!("Starting loop");
-
         let mut fds = [libc::pollfd {
             fd: stdin_fd,
             events: POLLIN as i16,
@@ -273,7 +274,7 @@ async fn main() {
         }];
 
         // Poll stdin for input
-        let ret = unsafe { poll(fds.as_mut_ptr(), 1, 3000) }; // 3-second timeout
+        let ret = unsafe { poll(fds.as_mut_ptr(), 1, STDIN_POLL_TIMEOUT) }; // 10 ms timeout
         if ret > 0 && fds[0].revents & POLLIN as i16 != 0 {
             let mut input = String::new();
             let mut stdin = std::io::stdin().lock();
@@ -328,14 +329,18 @@ async fn main() {
                                 &mut tcp_interface,
                                 &mut bulk_messages,
                                 num_msgs_to_recv,
-                                &mut num_4k_msgs
-                            ).unwrap();
+                                &mut num_4k_msgs,
+                            )
+                            .unwrap();
                             println!("num of 4k msgs: {}", num_4k_msgs);
                             // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                             match process_bulk_messages(bulk_messages.clone(), &mut msgs_4k) {
                                 Ok(large_msg) => {
                                     println!("Successfully reconstructed 4K messages");
-                                    match save_data_to_file(large_msg.msg_body, large_msg.header.source_id) {
+                                    match save_data_to_file(
+                                        large_msg.msg_body,
+                                        large_msg.header.source_id,
+                                    ) {
                                         Ok(_) => {
                                             println!("Data saved to file");
                                         }
@@ -347,7 +352,10 @@ async fn main() {
                                 Err(e) => eprintln!("Error reconstructing 4K messages: {}", e),
                             }
 
-                            println!("We have {} bulk msgs including initial header msg", bulk_messages.len());
+                            println!(
+                                "We have {} bulk msgs including initial header msg",
+                                bulk_messages.len()
+                            );
                         }
                         Err(e) => {
                             eprintln!("Error sending ACK: {}", e);

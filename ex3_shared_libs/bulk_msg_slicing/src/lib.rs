@@ -83,7 +83,7 @@ pub fn reconstruct_msg(messages: Vec<Msg>) -> Result<Msg, &'static str> {
 
     let total_packets = u16::from_le_bytes([messages[0].msg_body[0], messages[0].msg_body[1]]) as usize;
     if total_packets != messages.len() - 1 {
-        println!("total {total_packets}, msgs len {}",messages.len());
+        eprintln!("total {total_packets}, msgs len {}",messages.len());
         return Err("Mismatch between number of packets and message count");
     }
     let mut full_body: Vec<u8> = Vec::new();
@@ -177,5 +177,48 @@ mod tests {
 
         // Ensure the reconstructed message matches the original message
         assert_eq!(reconstructed_msg.msg_body, original_body, "The reconstructed message does not match the original message");
+    }
+
+    // This test represents how data will be sliced and reconstructed when being downlinked from the satellite
+    #[test]
+    fn test_spacecraft_reconstruct() {
+        // Create a large message with unique byte values to check for offsets
+        let mut original_body: Vec<u8> = Vec::new();
+        for i in 0..6144 { // 6KB of data
+            original_body.push((i % 256) as u8);
+        }
+
+        let large_msg = Msg::new(MsgType::Bulk as u8, 2, 7, 3, 0, original_body.clone());
+
+        // First, slice the large message into 2KB packets
+        let first_level_packets = handle_large_msg(large_msg.clone(), 2048).unwrap(); // 2KB packets
+
+        // Now, further slice each of the 2KB packets into 128B packets
+        let mut second_level_packets = Vec::new();
+        for packet in first_level_packets {
+            let small_packets = handle_large_msg(packet, 128).unwrap(); // 128B packets
+            second_level_packets.extend(small_packets);
+        }
+
+        // Reconstruct the original 2KB packets from the 128B packets
+        let mut reconstructed_2kb_packets = Vec::new();
+        
+        // The first message in each sliced packet series indicates how many packets follow it.
+        // Group them accordingly to reconstruct them in stages.
+        let mut i = 0;
+        while i < second_level_packets.len() {
+            let first_msg = &second_level_packets[i];
+            let total_packets = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) as usize;
+            let next_group = &second_level_packets[i..i + total_packets + 1];
+            let reconstructed_msg = reconstruct_msg(next_group.to_vec()).expect("Reconstruction failed");
+            reconstructed_2kb_packets.push(reconstructed_msg);
+            i += total_packets + 1;
+        }
+
+        // Finally, reconstruct the original 6KB message from the 2KB packets
+        let reconstructed_large_msg = reconstruct_msg(reconstructed_2kb_packets).expect("Final reconstruction failed");
+
+        // Ensure the final reconstructed message matches the original large message
+        assert_eq!(reconstructed_large_msg.msg_body, original_body, "The final reconstructed message does not match the original message");
     }
 }
