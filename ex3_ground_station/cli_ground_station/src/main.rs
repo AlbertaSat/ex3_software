@@ -152,12 +152,14 @@ fn read_bulk_msgs(
         let bytes_read = tcp_interface.read(&mut bulk_buf)?;
         if bytes_read > 0 {
             let cur_msg = deserialize_msg(&bulk_buf[0..bytes_read])?;
-            let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
-            println!("Received msg #{}", seq_id);
-            println!("{:?}", cur_msg);
-            bulk_messages.push(cur_msg.clone());
-            thread::sleep(Duration::from_millis(10));
-            num_msgs_recvd += 1;
+            if cur_msg.header.msg_type == MsgType::Bulk as u8 {
+                let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
+                println!("Received msg #{}", seq_id);
+                // println!("{:?}", cur_msg);
+                bulk_messages.push(cur_msg.clone());
+                thread::sleep(Duration::from_millis(10));
+                num_msgs_recvd += 1;
+            }
         }
     }
 
@@ -210,40 +212,11 @@ fn build_and_send_ack(
 /// Then, takes the vector of 4KB packets and makes one large msg using it
 fn process_bulk_messages(
     bulk_messages: Vec<Msg>,
-    msgs_4k: &mut Vec<Msg>,
+    num_bytes: usize,
 ) -> Result<Msg, &'static str> {
-    let chunk_size = 35;
-
-    // Handle the first message separately (it consists of only 2 Msgs)
-    if bulk_messages.len() >= 2 {
-        let first_msg_chunk = &bulk_messages[0..2];
-        let first_msg = reconstruct_msg(first_msg_chunk.to_vec())?;
-        msgs_4k.push(first_msg.clone());
-        save_data_to_file(first_msg.msg_body, 99);
-    }
-
-    // Process middle chunks of size `chunk_size`
-    let total_middle_chunks = (bulk_messages.len() - 2) / chunk_size;
-    for i in 0..total_middle_chunks {
-        let start_index = 2 + i * chunk_size;
-        let end_index = start_index + chunk_size;
-        let chunk = &bulk_messages[start_index..end_index];
-        let reconstructed_msg = reconstruct_msg(chunk.to_vec())?;
-        msgs_4k.push(reconstructed_msg.clone());
-        save_data_to_file(reconstructed_msg.msg_body, 99);
-    }
-
-    // Handle the last message separately (it may be less than `chunk_size`)
-    let remaining_msgs = bulk_messages.len() - 2 - (total_middle_chunks * chunk_size);
-    if remaining_msgs > 0 {
-        let start_index = 2 + total_middle_chunks * chunk_size;
-        let last_chunk = &bulk_messages[start_index..];
-        let last_msg = reconstruct_msg(last_chunk.to_vec())?;
-        msgs_4k.push(last_msg.clone());
-        save_data_to_file(last_msg.msg_body, 99);
-    }
-    let reconstructed_large_msg = reconstruct_msg(msgs_4k.to_vec());
-    reconstructed_large_msg
+    let mut reconstructed_large_msg = reconstruct_msg(bulk_messages)?;
+    reconstructed_large_msg.msg_body = reconstructed_large_msg.msg_body[0..num_bytes].to_vec();
+    Ok(reconstructed_large_msg)
 }
 
 #[tokio::main]
@@ -257,7 +230,6 @@ async fn main() {
     let mut num_bytes_to_recv: u64 = 0;
     let mut num_msgs_to_recv: u16 = 0;
     let mut bulk_messages: Vec<Msg> = Vec::new();
-    let mut msgs_4k = Vec::new();
     let stdin_fd = std::io::stdin().as_raw_fd();
 
     loop {
@@ -335,7 +307,7 @@ async fn main() {
                     )
                     .unwrap();
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
-                    match process_bulk_messages(bulk_messages.clone(), &mut msgs_4k) {
+                    match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
                             println!("Successfully reconstructed 4K messages");
                             match save_data_to_file(
