@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::path::Path;
 use std::fs;
 use std::io::Write;
-const INTERNAL_MSG_BODY_SIZE: usize = 4091; // 4KB - 5 (header) being passed internally
+const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
@@ -98,7 +98,8 @@ fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: Option<i32>)
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
     num_msgs_bytes.append(&mut num_bytes_bytes);
-    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0, num_msgs_bytes);
+    let len = 5 + num_msgs_bytes.len();
+    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0, len as u16,  num_msgs_bytes);
     ipc_write(fd, &serialize_msg(&num_msg)?)?;
     Ok(())
 }
@@ -111,7 +112,8 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
         .open(format!("{}/data", path))?;
     let mut data: Vec<u8> = Vec::new();
     file.read_to_end(&mut data)?;
-    let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, 3, 0, data);
+    let msg_len = 7 + data.len();
+    let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, 3, 0, msg_len as u16, data);
     Ok(bulk_msg)
 }
 

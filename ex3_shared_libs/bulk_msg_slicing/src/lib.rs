@@ -6,7 +6,6 @@
     will assign the packets a sequence number at msg_body[0]
  */
 use message_structure::*;
-pub const MAX_BULK_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number) = 121
 /// This function holds all the functionality for slicing a large msg into many smaller ones.
 /// The size that the message is sliced into is configurable by the parameter max_body_size.
 /// This parameter DOES NOT account for the size of the header (as of now).
@@ -50,7 +49,7 @@ pub fn handle_large_msg(large_msg: Msg, max_body_size: usize) -> Result<Vec<Msg>
 
 // return a Msg structure that has
 fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, max_body_size: usize) -> Msg {
-    let head = msg.header;
+    let mut head = msg.header;
 
     if let Some(total) = total_packets {
         let len_bytes = total.to_le_bytes();
@@ -63,6 +62,7 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
 
     // TODO - is this necessary?
     let body: &[u8] = &msg.msg_body[0..max_body_size.min(msg.msg_body.len())];
+    head.msg_len = 7 + body.len() as u16;
     let sized_msg = Msg {
         header: head,
         msg_body: body.to_vec(),
@@ -114,7 +114,8 @@ mod tests {
         for i in 0..=408 {
             original_body.push((i % 256) as u8);
         }
-        let large_msg: Msg = Msg::new(0,2,5,1,5,original_body);
+        let len = 7 + original_body.len() as u16;
+        let large_msg: Msg = Msg::new(0,2,5,1,5,len, original_body);
 
         // Handle edge case of max body size and length of msg being one off
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone(), 408).unwrap();
@@ -136,7 +137,8 @@ mod tests {
         for i in 0..=408 {
             original_body.push((i % 256) as u8);
         }
-        let large_msg: Msg = Msg::new(0,2,5,1,5,original_body);
+        let len = 7 + original_body.len() as u16;
+        let large_msg: Msg = Msg::new(0,2,5,1,5,len, original_body);
         let messages: Vec<Msg> = handle_large_msg(large_msg.clone(), max_body_size).unwrap();
         let number_of_packets: usize = (large_msg.msg_body.len() + max_body_size - 1) / max_body_size;
         assert_eq!(messages.len(), number_of_packets + 1);
@@ -145,7 +147,7 @@ mod tests {
     #[test]
     fn test_small_msg() {
         let max_body_size = 128;
-        let small_msg = Msg::new(2,0,7,3,0,vec![2,5]);
+        let small_msg = Msg::new(2,0,7,3,0,7,vec![2,5]);
         let sliced_small = handle_large_msg(small_msg.clone(), max_body_size).unwrap();
         println!("Small vec: {:?}", sliced_small);
         // 1 message in vec
@@ -165,8 +167,8 @@ mod tests {
         for i in 0..512 { // 0.5KB of data
             original_body.push((i % 256) as u8); // Different numbered bytes
         }
-
-        let large_msg = Msg::new(2, 2, 5, 1, 5, original_body.clone());
+        let len = 7 + original_body.len() as u16;
+        let large_msg = Msg::new(2, 2, 5, 1, 5, len, original_body.clone());
 
         // Handle the large message, slicing it into smaller packets
         let max_body_size = 128; // 128B packets
@@ -187,8 +189,8 @@ mod tests {
         for i in 0..6144 { // 6KB of data
             original_body.push((i % 256) as u8);
         }
-
-        let large_msg = Msg::new(MsgType::Bulk as u8, 2, 7, 3, 0, original_body.clone());
+        let len = 7 + original_body.len() as u16;
+        let large_msg = Msg::new(MsgType::Bulk as u8, 2, 7, 3, 0, len, original_body.clone());
 
         // First, slice the large message into 2KB packets
         let first_level_packets = handle_large_msg(large_msg.clone(), 2048).unwrap(); // 2KB packets

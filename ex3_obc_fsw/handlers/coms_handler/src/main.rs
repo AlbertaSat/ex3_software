@@ -102,7 +102,7 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) -> Re
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
 fn send_bulk_ack(fd: Option<i32>) -> Result<(), std::io::Error> {
-    let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
+    let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, 7, vec![0]);
     ipc_write(fd, &serialize_msg(&ack_msg)?)?;
     Ok(())
 }
@@ -168,7 +168,7 @@ fn main() {
 
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
-    let mut bulk_msg = Msg::new(0, 0, 0, 0, 0, vec![]);
+    let mut bulk_msg = Msg::new(0, 0, 0, 0, 0,7, vec![]);
     let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
@@ -282,7 +282,8 @@ fn main() {
             //EMIT AN ACK TO TELL SENDER WE RECEIVED THE MSG
             // OK -> if decryption and msg deserialization of bytes succeeds
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
-            let ack_msg = Msg::new(0, ack_msg_id, GS, COMS, 200, ack_msg_body);
+            let len = 7 + ack_msg_body.len() as u16;
+            let ack_msg = Msg::new(0, ack_msg_id, GS, COMS, 200, len, ack_msg_body);
             write_msg_to_uhf_for_downlink(&mut tcp_interface, ack_msg);
             // uhf_buf.clear(); //FOR SOME REASON CLEARING THE BUFFERS WOULD CAUSE THE CONNECTION TO DROP AFTER A SINGLE MSG IS READ
         }
