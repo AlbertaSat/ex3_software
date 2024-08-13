@@ -142,6 +142,41 @@ pub mod opcodes {
         pub const GET_DFGM_DATA: u8 = 1;
     }
 
+    // For IRIS subsystem
+    pub enum IRIS {
+        CaptureImage = 0,
+        ToggleSensor = 1,
+        FetchImage = 2,
+        GetHK = 3,
+        GetNImagesAvailable = 4,
+        SetTime = 5,
+        GetTime = 6,
+        Reset = 7,
+        DelImage = 8,
+        GetImageSize = 9,
+        Error = 99,
+
+    }
+    impl From<u8> for IRIS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => IRIS::CaptureImage,
+                1 => IRIS::ToggleSensor,
+                2 => IRIS::FetchImage,
+                3 => IRIS::GetHK,
+                4 => IRIS::GetNImagesAvailable,
+                5 => IRIS::SetTime,
+                6 => IRIS::GetTime,
+                7 => IRIS::Reset,
+                8 => IRIS::DelImage,
+                9 => IRIS::GetImageSize,
+                _ => {
+                    IRIS::Error // or choose a default value or handle the error in a different way
+                }
+            }
+        }
+    }
+
     // For dummy subsystem - used in testing and development
     pub enum DUMMY {
         SetDummyVariable = 0,
@@ -159,19 +194,6 @@ pub mod opcodes {
                 }
             }
         }
-    }
-    pub mod iris {
-        pub const CAPTURE_IMAGE: u8 = 0;
-        pub const TOGGLE_SENSOR: u8 = 1;
-        pub const FETCH_IMAGE: u8 = 2;
-        pub const GET_HK: u8 = 3;
-        pub const GET_N_IMAGES_AVAILABLE: u8 = 4;
-        pub const SET_TIME: u8 = 5;
-        pub const GET_TIME: u8 = 6;
-        pub const RESET: u8 = 7;
-        pub const DEL_IMAGE: u8 = 8;
-        pub const GET_IMAGE_SIZE: u8 = 9;
-
     }
 }
 

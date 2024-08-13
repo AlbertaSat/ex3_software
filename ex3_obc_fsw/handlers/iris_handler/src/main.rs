@@ -72,12 +72,12 @@ impl IRISHandler {
 
     fn handle_msg_for_iris(&mut self, msg: Msg){
         
-        let (command_msg, success) = match msg.header.op_code {
-            opcodes::iris::RESET=> {
+        let (command_msg, success) = match opcodes::IRIS::from(msg.header.op_code) {
+            opcodes::IRIS::Reset=> {
                 ("RST", true)
             }
             // Image commands
-            opcodes::iris::TOGGLE_SENSOR=> {
+            opcodes::IRIS::ToggleSensor=> {
                 if msg.msg_body[0] == 1 {
                     ("ON", true)
                 } else if msg.msg_body[0] == 0 {
@@ -86,35 +86,35 @@ impl IRISHandler {
                     ("Error: invalid msg body for opcode 1", false)
                 }
             }
-            opcodes::iris::CAPTURE_IMAGE=> {
+            opcodes::IRIS::CaptureImage=> {
                 ("TKI", true)
             }
-            opcodes::iris::FETCH_IMAGE=> {
+            opcodes::IRIS::FetchImage=> {
                 // Assumes that there are not more than 255 images being request at any one time
                 (&*format!("FTI:{}", msg.msg_body[0]),true)
             }
-            opcodes::iris::GET_IMAGE_SIZE=> {
+            opcodes::IRIS::GetImageSize=> {
                 // Currently can only access the first 255 images stored on IRIS, will be updated if needed
                 (&*format!("FSI:{}", msg.msg_body[0]),true)
             }
-            opcodes::iris::GET_N_IMAGES_AVAILABLE=> {
+            opcodes::IRIS::GetNImagesAvailable=> {
                 ("FNI", true)
             }
-            opcodes::iris::DEL_IMAGE=> {
+            opcodes::IRIS::DelImage=> {
                 (&*format!("DTI:{}", msg.msg_body[0]),true)
             }
             // Housekeeping commands
-            opcodes::iris::GET_TIME=> {
+            opcodes::IRIS::GetTime=> {
                 ("FTT", true)
             }
-            opcodes::iris::SET_TIME=> {
+            opcodes::IRIS::SetTime=> {
                 // Placeholder for reading the total time need to determine how we will handle >255 values (ie. epoch time)
                 (&*format!("STT:{}", msg.msg_body[0]),true)
             }
-            opcodes::iris::GET_HK=> {
+            opcodes::IRIS::GetHK=> {
                 ("FTH", true)
             }
-            _ => {
+            opcodes::IRIS::Error => {
                 (&*format!("Opcode {} not found for IRIS", msg.header.op_code), false)
                 
             }
