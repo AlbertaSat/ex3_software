@@ -36,7 +36,7 @@ fn main() -> Result<(), IoError> {
 
                     // Calculate num of 4KB msgs
                     let first_msg = messages[0].clone();
-                    let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]);
+                    let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
                     println!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
                     // Start coms protocol with GS handler to downlink

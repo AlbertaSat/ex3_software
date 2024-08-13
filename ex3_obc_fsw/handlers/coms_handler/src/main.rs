@@ -55,29 +55,8 @@ fn handle_msg_for_coms(msg: &Msg) {
     }
 }
 
-/// Special read function that continuously reads sequenced messages from the bulk_msg_disp
-/// and once it has all of them, it reconstructs all the messages into one large bulk msg
-fn read_bulk_msgs(buffer: Vec<u8>, interface: IpcClient) -> Result<Msg, std::io::Error> {
-    // read in msgs
-    // TMP - use the nix::libc read, will later use a read from the ipc library
-    let mut bytes_read = 0;
-    while bytes_read < buffer.len() {}
-    // while bytes read < bytes received: read
-    // call reconstruct msg from bulk lib
-    // return it
-    // Ok(bulk_msg)
-    todo!()
-}
-
-/// Fxn to write the a msg to the UHF transceiver for downlinking. It will wait to receive an ACK
-/// before sending the msgs down to the GS.
-/// It expects a vector of 4KB BUlk Msgs. It slices each Msg it's passed into the appropriate size for the UHF to handle
-/// Also sends the messages to the UHF/GS
-fn handle_bulk_msg_for_gs(msg: Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
-    // Send first Header Msg containing how many 128B messages there are
-    let num_128_msg = Msg::new(2,0,7,3,0,num_small_msgs.to_le_bytes().to_vec());
-    write_msg_to_uhf_for_downlink(interface, num_128_msg);
-    // Wait for an ACK
+/// Function to await ACK before sending bulk msgs
+fn await_ack_for_bulk(interface: &mut TcpInterface) -> Result<(), std::io::Error> {
     loop {
         let mut buffer = [0; 128];
         let ack_bytes = interface.read(&mut buffer)?;
@@ -90,35 +69,35 @@ fn handle_bulk_msg_for_gs(msg: Msg, interface: &mut TcpInterface) -> Result<(), 
             }
         }
     }
-
-    println!(
-        "Got ACK. Sending {} messages",
-        num_small_msgs
-    );
-    thread::sleep(Duration::from_secs(2));
-    for i in 0..messages.len() {
-        let cur_msg = messages[i].clone();
-        // Handle_large_msg puts another 'header' msg at the beginning of the Vec<Msg> saying how many bulk msgs there are.
-        let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;
-
-        for j in 0..msgs_to_send.len() {
-            write_msg_to_uhf_for_downlink(interface, msgs_to_send[j].clone());
-            thread::sleep(Duration::from_millis(10));
-        }
-    }
-
     Ok(())
 }
-/// Incase we need a buffer for all the msgs its here. Right now we just read each msg in one by one and deal with them individually
-// fn make_buffer_and_send_ack(msg: &Msg, fd: Option<i32>) -> Result<Vec<u8>, std::io::Error> {
-//     let buff_bytes = [msg.msg_body[0], msg.msg_body[1], msg.msg_body[2], msg.msg_body[3]];
-//     let buffer_size = u32::from_le_bytes(buff_bytes);
 
-//     let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
-//     ipc_write(fd, &serialize_msg(&ack_msg)?)?;
+/// Function to send the initial messages containing num of 4KB msgs to expect and the number of
+/// data bytes to expect once the msg is rebuilt
+fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+    write_msg_to_uhf_for_downlink(interface, initial_msg);
+    Ok(())
+}
 
-//     println!("Allocating buffer with size {}", buffer_size);
-//     Ok(vec![0;buffer_size as usize])
+/// Fxn to write the a msg to the UHF transceiver for downlinking. It will wait to receive an ACK
+/// before sending the msgs down to the GS.
+/// It expects a mesg to send to the GS. It also needs a messages that is send from the Bulk Msg Dispatcher
+/// that contains the number of 4KB msgs and number of data bytes total.
+/// Also sends the messages to the UHF/GS
+// fn handle_bulk_msg_for_gs(msg: Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+//     thread::sleep(Duration::from_secs(2));
+//     for i in 0..messages.len() {
+//         let cur_msg = messages[i].clone();
+//         // Handle_large_msg puts another 'header' msg at the beginning of the Vec<Msg> saying how many bulk msgs there are.
+//         let msgs_to_send = handle_large_msg(cur_msg, DONWLINK_MSG_BODY_SIZE)?;
+
+//         for j in 0..msgs_to_send.len() {
+//             write_msg_to_uhf_for_downlink(interface, msgs_to_send[j].clone());
+//             thread::sleep(Duration::from_millis(10));
+//         }
+//     }
+
+//     Ok(())
 // }
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
@@ -211,18 +190,21 @@ fn main() {
                             deserialized_msg.msg_body[0],
                             deserialized_msg.msg_body[1],
                         ];
-                        expected_msgs = u16::from_le_bytes(expected_msgs_bytes) + 1; // Account for header msg
-                        println!("Expected 4KB: {}", expected_msgs);
+                        expected_msgs = u16::from_le_bytes(expected_msgs_bytes);
+                        println!("Expecting {} 4KB msgs", expected_msgs);
+                        // Send msg containing num of 4KB msgs and num of bytes to expect
+                        send_initial_bulk_to_gs(deserialized_msg, &mut tcp_interface);
                     } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
                         && received_bulk_ack
-                    {
+                    {   
+                        // await_ack_for_bulk(&mut tcp_interface);
                         // Here where we read incoming bulk msgs from bulk_msg_disp
                         if bulk_msgs_read < expected_msgs {
                             if let Ok(ipc_bytes_read) = ipc_bytes_read_res {
                                 let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
                                 println!("Bytes read: {}", cur_buf.len());
                                 let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                handle_bulk_msg_for_gs(cur_msg, &mut tcp_interface);
+                                write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
                                 bulk_msgs_read += 1;
                             } else {
                                 eprintln!("Error reading bytes from poll.");
