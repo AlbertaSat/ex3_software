@@ -249,6 +249,7 @@ pub struct MsgHeader {
     pub dest_id: u8,
     pub source_id: u8,
     pub op_code: u8,
+    pub msg_len: u16,
 }
 
 impl MsgHeader {
@@ -259,6 +260,7 @@ impl MsgHeader {
         bytes.push(self.dest_id);
         bytes.push(self.source_id);
         bytes.push(self.op_code);
+        bytes.extend(self.msg_len.to_le_bytes());
         Ok(bytes)
     }
 
@@ -276,6 +278,7 @@ impl MsgHeader {
             dest_id: bytes[2],
             source_id: bytes[3],
             op_code: bytes[4],
+            msg_len: u16::from_le_bytes([bytes[5], bytes[6]]),
         })
     }
 }
@@ -288,13 +291,14 @@ pub struct Msg {
 }
 
 impl Msg {
-    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
+    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, msg_len: u16, data: Vec<u8>) -> Self {
         let header = MsgHeader {
             msg_type,
             msg_id,
             dest_id,
             source_id,
             op_code: opcode,
+            msg_len,
         };
         Msg {
             header,
@@ -309,8 +313,8 @@ impl Msg {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let header_bytes = &bytes[0..5];
-        let msg_body = bytes[5..].to_vec();
+        let header_bytes = &bytes[0..7];
+        let msg_body = bytes[7..].to_vec();
         let header = MsgHeader::from_bytes(header_bytes)?;
         Ok(Msg { header, msg_body })
     }
@@ -368,26 +372,22 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let msg = Msg::new(0,1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
+        let msg = Msg::new(0,1, 2, 3, 4, 12, vec![0, 1, 2, 3, 4, 5, 6]);
 
         // Serialize
-        let serialized_msg_result = msg.to_bytes();
-        assert!(serialized_msg_result.is_ok(), "Serialization failed");
-        let serialized_msg = serialized_msg_result.unwrap();
+        let serialized_msg = serialize_msg(&msg).unwrap();
 
         // Deserialize
-        let deserialized_msg_result = Msg::from_bytes(&serialized_msg);
-        assert!(deserialized_msg_result.is_ok(), "Deserialization failed");
-        let deserialized_msg = deserialized_msg_result.unwrap();
+        let deserialized_msg = deserialize_msg(&serialized_msg).unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_type, 12);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
     fn test_serialize_empty_body() {
-        let msg = Msg::new(0,1, 2, 3, 4, vec![]);
+        let msg = Msg::new(0,1, 2, 3, 4, 5, vec![]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -400,7 +400,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_type, 5);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body, vec![]);
     }
 
@@ -408,7 +408,7 @@ mod tests {
     fn test_serialize_max_length_body() {
         // Create a message with the maximum possible body size
         let max_body_size = u8::MAX as usize - 5; // Maximum u8 value minus header size
-        let msg = Msg::new(0,1, 2, 3, 4, vec![0; max_body_size]);
+        let msg = Msg::new(0,1, 2, 3, 4, u8::MAX as u16, vec![0; max_body_size]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -421,7 +421,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_type, u8::MAX);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body.len(), max_body_size);
         assert_eq!(deserialized_msg.msg_body, vec![0; max_body_size]);
     }
