@@ -215,7 +215,6 @@ impl ADCSHandler {
 
                         if !all_zero {
                             println!("Got data {:?}", tcp_buf);
-                            let store_data = tcp_buf.iter().;
                             store_adcs_data(&tcp_buf)?;
                         }
                     }
