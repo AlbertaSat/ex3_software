@@ -333,7 +333,9 @@ async fn main() {
                 }
                 println!("Received Data: {:?}", read_buf);
             } else {
-                continue;
+                // Deallocate memory of these messages. Reconstructed version 
+                // has been written to a file. This is slightly slower than .clear() though
+                bulk_messages = Vec::new();
             }
         }
     }
