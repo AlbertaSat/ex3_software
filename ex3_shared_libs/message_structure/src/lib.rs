@@ -240,7 +240,7 @@ impl fmt::Display for AckCode {
 }
 
 // ---------------------------------------------------------------------
-
+const HEADER_SIZE: usize = 7;
 /// This message header is shared by all message types
 #[derive(Debug, Clone)]
 pub struct MsgHeader {
@@ -291,13 +291,14 @@ pub struct Msg {
 }
 
 impl Msg {
-    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, msg_len: u16, data: Vec<u8>) -> Self {
+    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, op_code: u8, data: Vec<u8>) -> Self {
+        let msg_len: u16 = (HEADER_SIZE + data.len()) as u16;
         let header = MsgHeader {
             msg_type,
             msg_id,
             dest_id,
             source_id,
-            op_code: opcode,
+            op_code,
             msg_len,
         };
         Msg {
@@ -313,8 +314,8 @@ impl Msg {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let header_bytes = &bytes[0..7];
-        let msg_body = bytes[7..].to_vec();
+        let header_bytes = &bytes[0..HEADER_SIZE];
+        let msg_body = bytes[HEADER_SIZE..].to_vec();
         let header = MsgHeader::from_bytes(header_bytes)?;
         Ok(Msg { header, msg_body })
     }
@@ -372,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let msg = Msg::new(0,1, 2, 3, 4, 12, vec![0, 1, 2, 3, 4, 5, 6]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
         // Serialize
         let serialized_msg = serialize_msg(&msg).unwrap();
@@ -387,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_serialize_empty_body() {
-        let msg = Msg::new(0,1, 2, 3, 4, 5, vec![]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -408,7 +409,7 @@ mod tests {
     fn test_serialize_max_length_body() {
         // Create a message with the maximum possible body size
         let max_body_size = u8::MAX as usize - 5; // Maximum u8 value minus header size
-        let msg = Msg::new(0,1, 2, 3, 4, u8::MAX as u16, vec![0; max_body_size]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0; max_body_size]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();

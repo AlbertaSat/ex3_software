@@ -77,9 +77,12 @@ impl IpcClient {
         println!("Buffer cleared");
     }
 
-    /// Returns the buffer in its current state for directly reading values in real time
+    /// Returns the buffer in its current state for directly reading values in real time.
+    /// **This function also clears the buffer after the read!**
     pub fn read_buffer(&mut self) -> Vec<u8> {
-        self.buffer.to_vec()
+        let tmp = self.buffer.to_vec();
+        self.clear_buffer();
+        tmp
     }
 }
 
@@ -209,8 +212,12 @@ impl IpcServer {
         println!("Buffer cleared");
     }
 
+    /// Returns the buffer in its current state for directly reading values in real time.
+    /// **This function also clears the buffer after the read!**
     pub fn read_buffer(&mut self) -> Vec<u8> {
-        self.buffer.to_vec()
+        let tmp = self.buffer.to_vec();
+        self.clear_buffer();
+        tmp
     }
 }
 

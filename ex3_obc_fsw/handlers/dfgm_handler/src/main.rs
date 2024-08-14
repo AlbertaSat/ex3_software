@@ -100,8 +100,7 @@ impl DFGMHandler {
             }
             opcodes::dfgm::GET_DFGM_DATA => {
                 let data_to_send: Vec<u8> = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
-                let msg_len = 7 + data_to_send.len() as u16; // +7 for header
-                let data_msg: Msg = Msg::new(MsgType::Bulk as u8,0,GS,DFGM,0, msg_len, data_to_send);
+                let data_msg: Msg = Msg::new(MsgType::Bulk as u8,0,GS,DFGM,0, data_to_send);
                 let serialized_data_msg: Vec<u8> = serialize_msg(&data_msg)?;
                 
                 ipc_write(self.bulk_msg_dispatcher_interface.as_ref().unwrap().fd, &serialized_data_msg)?;

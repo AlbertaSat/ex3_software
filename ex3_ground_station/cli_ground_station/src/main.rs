@@ -86,8 +86,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     for data_byte in operator_str_split[2..].into_iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
     }
-    let len = 7 + msg_body.len() as u16;
-    let msg = Msg::new(0, 0, dest_id, GS, opcode, len, msg_body);
+    let msg = Msg::new(0, 0, dest_id, GS, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }
@@ -200,7 +199,7 @@ fn build_and_send_ack(
     dest: u8,
     src: u8,
 ) -> Result<(), std::io::Error> {
-    let ack_msg = Msg::new(MsgType::Ack as u8, id, dest, src,200, 7, vec![]);
+    let ack_msg = Msg::new(MsgType::Ack as u8, id, dest, src,200, vec![]);
     let ack_bytes = serialize_msg(&ack_msg)?;
     interface.send(&ack_bytes)?;
     println!("Sent ack to SC");
