@@ -3,8 +3,9 @@ use common::*;
 use component_ids::{DFGM, GS};
 use ipc::*;
 use message_structure::*;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind};
 use std::io::Read;
 use std::thread;
 use std::time::Duration;
@@ -13,14 +14,52 @@ use std::fs;
 use std::io::Write;
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
+    // Defined paths for where to look for data when requested
+    let mut paths: HashMap<String, String> = HashMap::new();
+    let mut dests_with_paths: HashMap<String, HashMap<String,String>> = HashMap::new();
+    paths.insert("DATA".to_string(), "handler/dfgm_handler/dfgm_data/data".to_string());
+    dests_with_paths.insert("DFGM".to_string(),paths);
+
+
     // All connected handlers and other clients will have a socket for the server defined here
     let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
     let mut gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
+    let mut cmd_msg_disp_interface: IpcClient = IpcClient::new("bulk_disp".to_string())?;
     let mut messages = Vec::new();
 
     loop {
         let gs_interface_clone = gs_interface.clone();
         let mut servers: Vec<&mut IpcServer> = vec![&mut dfgm_interface, &mut gs_interface];
+        let mut clients: Vec<&mut IpcClient> = vec![&mut cmd_msg_disp_interface];
+
+        poll_ipc_clients(&mut clients)?;
+        for client in clients {
+            if let Some(msg) = handle_server_input(client)? {
+                if msg.header.msg_type == MsgType::Bulk as u8 {
+                    let path_bytes: Vec<u8> = msg.msg_body.clone();
+                    let path = get_path_from_bytes(path_bytes)?;
+                    let bulk_msg = get_data_from_path(&path)?;
+                    println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
+                    // Slice bulk msg
+                    // TODO - Cloning here might affect performance!!
+                    messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
+
+                    // Calculate num of 4KB msgs
+                    let first_msg = messages[0].clone();
+                    let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
+                    println!("Num of 4k msgs: {}", num_of_4kb_msgs);
+
+                    // Start coms protocol with GS handler to downlink
+                    send_num_msgs_and_bytes_to_gs(
+                        num_of_4kb_msgs,
+                        bulk_msg.msg_body.len() as u64,
+                        gs_interface_clone.data_fd,
+                    )?;
+                }
+                client.clear_buffer();
+            }
+        }
+
         poll_ipc_server_sockets(&mut servers);
 
         for server in servers {
@@ -70,11 +109,16 @@ fn main() -> Result<(), IoError> {
     }
 }
 
-fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
-    let mut path: String = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
-    path = path.trim_matches(char::from(0)).to_string();
-    println!("Got path: {}", path);
-    Ok(path)
+fn get_path_from_bytes(path_bytes: Vec<u8>, dests_with_paths: HashMap<String, HashMap<String, String>>) -> Result<String, IoError> {
+    let mut subs_and_type: String = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
+    let subs_and_type_vec = subs_and_type.split(" ").collect();
+    if let Some(paths) = dests_with_paths.get("DFGM") {
+        if let Some(path) = paths.get("DATA") {
+            println!("Got path: {}", path);
+            return Ok(*path);
+        }
+    }
+    Err(ErrorKind::NotFound)
 }
 
 /// In charge of getting the file path from a Msg sent to the Bulk dispatcher from a handler
@@ -86,6 +130,20 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
         );
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&server.buffer)?))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Same as handle client but for getting a msg from the cmd_msg_disp
+fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
+    if client.buffer != [0u8; IPC_BUFFER_SIZE] {
+        println!(
+            "Server {} received data: {:?}",
+            client.socket_path, &client.buffer
+        );
+        //Build Msg from received bytes and get body which contains path
+        Ok(Some(deserialize_msg(&client.buffer)?))
     } else {
         Ok(None)
     }
