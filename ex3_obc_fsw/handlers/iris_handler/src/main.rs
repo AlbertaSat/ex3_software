@@ -77,7 +77,7 @@ impl IRISHandler {
         }
     }
 
-    fn handle_msg_for_iris(&mut self, msg: Msg){
+    fn handle_msg_for_iris(&mut self, msg: Msg) -> Option<String> {
         self.dispatcher_interface.as_mut().unwrap().clear_buffer();
         let mut hk = false;
         let op: String;
@@ -160,6 +160,11 @@ impl IRISHandler {
     }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
+
+        // TMP 5 secs. More realistically every couple mins or so
+        let hk_interval = Duration::from_secs(5);
+        let mut last_hk_collect = Instant::now();
+
         // Read and poll for input for a message
         loop {
 
@@ -204,8 +209,7 @@ impl IRISHandler {
     fn collect_hk(&mut self) -> io::Result<()> {
         let hk_msg = Msg::new(55,55,IRIS, IRIS, GetHK as u8, vec![]);
         if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
-            let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
-            store_iris_data("hk_test", &hk_bytes)?;
+            store_iris_data("hk_test", hk_string.as_bytes())?;
         }
 
         Ok(())
