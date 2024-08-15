@@ -6,11 +6,14 @@ todo - setup handler to re-attempt connection to subsystem if it fails or connec
 
 */
 
+use common::component_ids::ComponentIds;
 use common::opcodes;
 use common::ports;
-use message_structure::{deserialize_msg, AckMsg, CmdMsg, Msg, SerializeAndDeserialize};
+use message_structure::{
+    deserialize_msg, serialize_msg, AckMsg, CmdMsg, Msg, SerializeAndDeserialize,
+};
 
-use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use ipc::{ipc_write, poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use tcp_interface::{Interface, TcpInterface};
 
 const dummy_max_msg_size_bytes: u8 = 128; //largest size of a data packet from dummy subsystem sim
@@ -18,6 +21,7 @@ const dummy_max_msg_size_bytes: u8 = 128; //largest size of a data packet from d
 struct DummyHandler {
     peripheral_interface: TcpInterface,
     dispatcher_interface: IpcClient,
+    awaiting_peripheral_response: bool,
 }
 
 impl DummyHandler {
@@ -25,6 +29,7 @@ impl DummyHandler {
         Self {
             peripheral_interface,
             dispatcher_interface,
+            awaiting_peripheral_response: false,
         }
     }
 
@@ -35,7 +40,7 @@ impl DummyHandler {
     fn set_dummy_subsystem_variable(&mut self, msg_body: Vec<u8>) {
         println!("set dummy subsystem variable called");
         //get first byte of msg_body as the variable to set
-        let variable_value = msg_body[0] + 48;
+        let variable_value = msg_body[0] + 48; //Add 48 to convert from ascii to int
         let set_dummy_var_cmd = "SET_DUMMY_VAR:";
         let outgoing_data = [set_dummy_var_cmd.as_bytes(), &variable_value.to_be_bytes()].concat();
         println!("sending message to dummy subsystem: {:?}", outgoing_data);
@@ -43,7 +48,11 @@ impl DummyHandler {
     }
     fn get_dummy_subsystem_variable(&mut self) {
         println!("get dummy subsystem variable called");
-        //todo - implement this with a dummy subsystem sim
+        let get_dummy_var_cmd = "GET_DUMMY_VAR";
+        let outgoing_data = get_dummy_var_cmd.as_bytes();
+        // Send request for dummy subsystem variable value
+        self.awaiting_peripheral_response = true;
+        let send_res = self.peripheral_interface.send(outgoing_data);
     }
 
     // ----------------------------------------------------------------------------------------------------------------------
@@ -51,11 +60,36 @@ impl DummyHandler {
      * here goes functions for handling messages read from the subsystem peripheral (external device)
      * typically these parse the message, and use a match case on the opcode or other message fields determine what to do (what above fxns to call)
      */
-    fn handle_dummy_msg_in(&mut self, dummy_msg: Vec<u8>) {
+    fn handle_dummy_msg_in(&mut self, dummy_peripheral_msg: Vec<u8>) {
         // this is where we convert the subsystem messages into a meaningful format for the rest of the fsw and for operators to understand
         // this is all implementation specific - depends on the subsystems - what data looks like and how to handle it is in their user manual / docs
         //  - this is where the short fat implementation of code tightly coupled with the subsystem goes
-        println!("received message from dummy subsystem: {:?}", dummy_msg);
+        println!(
+            "received message from dummy subsystem: {:?}",
+            dummy_peripheral_msg
+        );
+
+        // If awaiting a response from the peripheral, handle it here
+        if self.awaiting_peripheral_response {
+            let dummy_variable_value = dummy_peripheral_msg[0] - 48; //Subtract 48 to convert from ascii to int
+            println!("dummy subsystem variable value: {:?}", dummy_variable_value);
+            self.awaiting_peripheral_response = false;
+
+            //TODO - Design decision whether we want to send it back down to GS direct (for now this is how it will be implemented)
+            let cmd_response_msg = Msg::new(
+                0,
+                common::component_ids::GS,
+                ComponentIds::DUMMY.into(),
+                opcodes::DUMMY::GetDummyVariable as u8,
+                dummy_peripheral_msg,
+            );
+            ipc_write(
+                self.dispatcher_interface.fd,
+                serialize_msg(&cmd_response_msg).unwrap().as_slice(),
+            );
+        }
+
+        //Use flags set by sending requests, to know how to handle incomming data
     }
     // here goes 'handle' functions which are called upon receiving a message from an ipc interface - they are unique to the particular interface they are associated with
     fn handle_command_msg_in(&mut self, msg: Msg) {
