@@ -20,8 +20,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 */
 
 use common::{opcodes, ports};
-use ipc_interface::read_socket;
-use ipc_interface::IPCInterface;
+use ipc::*;
 use message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -41,13 +40,13 @@ const IRIS_INTERFACE_BUFFER_SIZE: usize = IRIS_PACKET_SIZE;
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct IRISHandler {
     peripheral_interface: Option<TcpInterface>, // For communication with the IRIS peripheral [external to OBC]. Will be dynamic
-    dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
 impl IRISHandler {
     pub fn new(
         iris_interface: Result<TcpInterface, std::io::Error>,
-        dispatcher_interface: Result<IPCInterface, std::io::Error>,
+        dispatcher_interface: Result<IpcClient, std::io::Error>,
     ) -> IRISHandler {
         //if either interfaces are error, print this
         if iris_interface.is_err() {
@@ -71,7 +70,7 @@ impl IRISHandler {
     }
 
     fn handle_msg_for_iris(&mut self, msg: Msg){
-        
+        self.dispatcher_interface.as_mut().unwrap().clear_buffer();
         let (command_msg, success) = match opcodes::IRIS::from(msg.header.op_code) {
             opcodes::IRIS::Reset=> {
                 ("RST", true)
@@ -141,17 +140,20 @@ impl IRISHandler {
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
         // Read and poll for input for a message
-        let mut socket_buf = vec![0u8; IRIS_INTERFACE_BUFFER_SIZE];
         loop {
-            if let Ok(n) = read_socket(
-                self.dispatcher_interface.clone().unwrap().fd,
-                &mut socket_buf,
-            ) {
-                if n > 0 {
-                    let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    self.handle_msg_for_iris(recv_msg);
+            let msg_dispatcher_interface = self.dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
 
-                    socket_buf.flush()?;
+            let mut clients = vec![
+                msg_dispatcher_interface,
+            ];
+            poll_ipc_clients(&mut clients)?;
+            
+            // Handling the bulk message dispatcher interface
+            if let Some(cmd_msg_dispatcher) = self.dispatcher_interface.as_mut() {
+                if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
+                    let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
+                    println!("Received and deserialized msg");
+                    self.handle_msg_for_iris(recv_msg);
                 }
             }
         }
@@ -295,7 +297,7 @@ fn main() {
     let iris_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_IRIS_PORT);
 
     //Create IPC interface for IRIS handler to talk to message dispatcher
-    let dispatcher_interface = IPCInterface::new("iris_handler".to_string());
+    let dispatcher_interface = IpcClient::new("iris_handler".to_string());
 
     //Create IRIS handler
     let mut iris_handler = IRISHandler::new(iris_interface, dispatcher_interface);
