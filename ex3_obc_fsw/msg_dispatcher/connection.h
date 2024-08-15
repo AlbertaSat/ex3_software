@@ -26,6 +26,7 @@ enum ComponentId
     DEPLOYABLES = 6,
     GS = 7,
     COMS = 8,
+    BULK_MSG_DISPATCHER = 9,
     TEST = 99,
 };
 
