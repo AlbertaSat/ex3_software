@@ -6,9 +6,12 @@ Create an ipc server on the path specified as an arg - and send hardcoded data b
 
 */
 
-use common::component_ids::{self, ComponentIds};
+use common::{
+    component_ids::{self, ComponentIds},
+    opcodes,
+};
 use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
-use message_structure::{CmdMsg, SerializeAndDeserialize};
+use message_structure::{serialize_msg, Msg, MsgType, SerializeAndDeserialize};
 
 use nix::poll::{poll, PollFd, PollFlags};
 use std::io::{self, Read};
@@ -26,17 +29,32 @@ fn handle_user_input(
 
     match first_byte_char {
         '1' => {
-            println!("Sending msg 1");
+            println!("Sending Msg : Set dummy var to 5");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(1, ComponentIds::DUMMY.into(), 3, 0, vec![5, 6, 7, 8, 9, 10]);
-            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
+            let msg = Msg::new(
+                MsgType::Cmd as u8,
+                1,
+                ComponentIds::DUMMY.into(),
+                ComponentIds::GS.into(),
+                opcodes::DUMMY::SetDummyVariable.into(),
+                vec![5],
+            );
+            let serialized_msg = serialize_msg(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
+
         '2' => {
-            println!("Sending msg 2");
+            println!("Sending Msg : Get dummy var ");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(2, ComponentIds::DUMMY.into(), 3, 1, vec![5, 6, 7, 8, 9, 10]);
-            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
+            let msg = Msg::new(
+                MsgType::Cmd as u8,
+                2,
+                ComponentIds::DUMMY.into(),
+                ComponentIds::GS.into(),
+                opcodes::DUMMY::GetDummyVariable.into(),
+                vec![],
+            );
+            let serialized_msg = serialize_msg(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
         _ => {
@@ -75,7 +93,7 @@ fn main() {
     let mut ipc_server = IpcServer::new(args[1].clone()).unwrap();
 
     loop {
-        poll_ipc_server_sockets(vec![&mut ipc_server]);
+        poll_ipc_server_sockets(&mut vec![&mut ipc_server]);
         if ipc_server.buffer != [0u8; IPC_BUFFER_SIZE] {
             println!("Received message from ipc client {:?}", ipc_server.buffer);
             ipc_server.clear_buffer();

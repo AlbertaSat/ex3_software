@@ -156,7 +156,6 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
-
     }
     impl From<u8> for IRIS {
         fn from(value: u8) -> Self {
@@ -193,6 +192,15 @@ pub mod opcodes {
                     eprintln!("Invalid opcode: {}", value);
                     DUMMY::GetDummyVariable // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl Into<u8> for DUMMY {
+        fn into(self) -> u8 {
+            match self {
+                DUMMY::SetDummyVariable => 0,
+                DUMMY::GetDummyVariable => 1,
             }
         }
     }
