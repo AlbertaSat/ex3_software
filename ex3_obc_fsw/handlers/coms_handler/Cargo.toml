@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 message_structure = { path = "../../../ex3_shared_libs/message_structure" }
 common = { path = "../../../ex3_shared_libs/common" }
-ipc_interface = { path = "../../../ex3_shared_libs/ipc_interface" }
+ipc = { path = "../../../ex3_shared_libs/interfaces/ipc" }
 tcp_interface = { path = "../../../ex3_shared_libs/tcp_interface" }
+bulk_msg_slicing = { path = "../../../ex3_shared_libs/bulk_msg_slicing" }

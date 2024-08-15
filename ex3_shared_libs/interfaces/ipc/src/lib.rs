@@ -13,7 +13,7 @@ use std::process;
 use std::{fs, io};
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
-pub const IPC_BUFFER_SIZE: usize = 500;
+pub const IPC_BUFFER_SIZE: usize = 4096;
 const POLL_TIMEOUT_MS: i32 = 100;
 
 /// Create a unix domain socket with a type of SOCKSEQ packet.
@@ -29,6 +29,7 @@ fn create_socket() -> Result<i32, IoError> {
 }
 
 /// Client struct using a unix domain socket of type SOCKSEQ packet, that connects to a server socket
+#[derive(Clone)]
 pub struct IpcClient {
     pub socket_path: String,
     pub fd: Option<i32>,
@@ -70,14 +71,22 @@ impl IpcClient {
     }
 
     /// Users of this lib can call this to clear the buffer - otherwise the preivous read data will remain
-    ///  the IPC client has no way of knowing when the user is done with the data in its buffer, so it is the responsibility of the user to clear it
+    /// the IPC client has no way of knowing when the user is done with the data in its buffer, so it is the responsibility of the user to clear it
     pub fn clear_buffer(&mut self) {
         self.buffer = [0u8; IPC_BUFFER_SIZE];
         println!("Buffer cleared");
     }
+
+    /// Returns the buffer in its current state for directly reading values in real time.
+    /// **This function also clears the buffer after the read!**
+    pub fn read_buffer(&mut self) -> Vec<u8> {
+        let tmp = self.buffer.to_vec();
+        self.clear_buffer();
+        tmp
+    }
 }
 
-pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io::Error> {
+pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<usize, std::io::Error> {
     //Create poll fd instances for each client
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
@@ -120,14 +129,15 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(), std::io
                             "Received {} bytes on socket {}",
                             bytes_read, client.socket_path
                         );
+                        return Ok(bytes_read);
                     }
                 }
             }
         }
     }
-    Ok(())
+    Ok(0)
 }
-
+#[derive(Clone)]
 pub struct IpcServer {
     pub socket_path: String,
     conn_fd: Option<i32>,
@@ -185,7 +195,7 @@ impl IpcServer {
         });
         self.data_fd = Some(fd);
         self.connected = true;
-        println!("Accepted connection from client socket");
+        println!("Accepted connection from client socket {} on data fd {:?}", self.socket_path, self.data_fd);
         Ok(())
     }
 
@@ -201,16 +211,24 @@ impl IpcServer {
         self.buffer = [0u8; IPC_BUFFER_SIZE];
         println!("Buffer cleared");
     }
+
+    /// Returns the buffer in its current state for directly reading values in real time.
+    /// **This function also clears the buffer after the read!**
+    pub fn read_buffer(&mut self) -> Vec<u8> {
+        let tmp = self.buffer.to_vec();
+        self.clear_buffer();
+        tmp
+    }
 }
 
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(mut servers: Vec<&mut IpcServer>) {
+pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut IpcServer>) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
-    for server in &mut servers {
+    for server in servers.iter_mut() {
         if let Some(fd) = server.conn_fd {
             if !server.connected {
                 // Poll conn_fd for incoming connections
@@ -295,7 +313,7 @@ mod tests {
         let mut ipc_server_socket_2 = IpcServer::new(server_socket_name_2.clone()).unwrap();
 
         loop {
-            poll_ipc_server_sockets(vec![&mut ipc_server_socket, &mut ipc_server_socket_2]);
+            poll_ipc_server_sockets(&mut vec![&mut ipc_server_socket, &mut ipc_server_socket_2]);
 
             if ipc_server_socket.buffer != [0u8; IPC_BUFFER_SIZE] {
                 println!(

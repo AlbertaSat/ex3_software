@@ -20,9 +20,14 @@ TODO - HANDLE THE FACT THAT THE FD ALWAYS INCREASES WHEN CONNECTION IS DROPPED A
 
 int main(int argc, char *argv[])
 {
-    char buffer[MSG_UNIT_SIZE] = {0}; // Single buffer for reading and writing between clients
-    int ret = 0;                      // used for assessing returns of various fxn calls
-    int ready;                        // how many fd are ready from the poll (have return event)
+    char *buffer = (char *)malloc(MSG_UNIT_SIZE); // Single buffer for reading and writing between clients
+
+    if (buffer == NULL) {
+        handle_error("Failed  to allocate buffer");
+    }
+
+    int ret = 0;                          // used for assessing returns of various fxn calls
+    int ready;                            // how many fd are ready from the poll (have return event)
 
     int num_components = 4;
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
@@ -67,7 +72,8 @@ int main(int argc, char *argv[])
                 // IF we are waiting for incoming data from a connected client
                 else
                 {
-                    if (read_data_socket(components[i], &pfds[i], buffer) == 0)
+                    int bytes_read = read_data_socket(components[i], &pfds[i], buffer);
+                    if (bytes_read == 0)
                     {
                         continue;
                     }
@@ -83,14 +89,30 @@ int main(int argc, char *argv[])
                     // Now use the msg destination ID to determine what component (socket) to send the message to
                     // loop over components array of pointers - whichever component id enum matches the read dest id is what we are writing to
                     int dest_comp_fd = get_fd_from_id(components, num_components, dest_id);
+                    printf("Dest Comp ID is %d\n", dest_id);
                     if (dest_comp_fd > -1)
+                {
+                    printf("Sending\n");
+                    for (int i = 0; i < bytes_read; i++)
                     {
-                        ret = write(dest_comp_fd, buffer, sizeof(buffer));
+                        printf(" %02x |", buffer[i]);
+                    }
+                    printf("\n");
+
+                    // Ensure all bytes are written
+                    int bytes_written = 0;
+                    while (bytes_written < bytes_read)
+                    {
+                        ret = write(dest_comp_fd, buffer + bytes_written, bytes_read - bytes_written);
                         if (ret < 0)
                         {
-                            printf("Write failed \n");
+                            perror("Write failed");
+                            break;
                         }
+                        bytes_written += ret;
                     }
+                    printf("Bytes written: %d\n", bytes_written);
+                }
                     memset(buffer, 0, MSG_UNIT_SIZE); // clear read buffer after handling data
                 }
             }
@@ -99,6 +121,7 @@ int main(int argc, char *argv[])
 
 CleanEnd:
 
+    free(buffer);
     free(pfds);
     for (int i = 0; i < num_components; i++)
     {
