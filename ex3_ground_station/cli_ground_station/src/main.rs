@@ -78,11 +78,13 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     let mut dest_id = ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
     let opcode = operator_str_split[1].parse::<u8>().unwrap();
     let mut msg_body: Vec<u8> = Vec::new();
+    let mut msg_type = 0;
 
     // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
     if dest_id == DFGM {
         if opcode == GET_DFGM_DATA {
             dest_id = ComponentIds::BULK_MSG_DISPATCHER as u8;
+            msg_type = MsgType::Bulk as u8;
             let body = "DFGM DATA".as_bytes();
             msg_body.extend(body);
         }
