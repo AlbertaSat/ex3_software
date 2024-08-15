@@ -27,7 +27,7 @@ pub trait SerializeAndDeserialize {
 pub enum MsgType {
     Cmd = 0,
     Ack = 1,
-    //...Bulk msg?
+    Bulk = 2,
     //.. Scheduled msg?
 }
 
@@ -36,6 +36,7 @@ impl fmt::Display for MsgType {
         match *self {
             MsgType::Cmd => write!(f, "Cmd"),
             MsgType::Ack => write!(f, "Ack"),
+            MsgType::Bulk => write!(f, "Bulk"),
         }
     }
 }
@@ -46,6 +47,7 @@ impl From<u8> for MsgType {
         match byte_val {
             0 => MsgType::Cmd,
             1 => MsgType::Ack,
+            2 => MsgType::Bulk,
             _ => panic!("Invalid MsgType byte value"),
         }
     }
@@ -156,6 +158,7 @@ impl SerializeAndDeserialize for CmdMsg {
 
 /// Inform a sender of a message that the message was received and processed successfully
 /// - This DOES NOT indicate the command was successful, just that the message was received and processed
+/// The ACK will have the same ID as the CmdMsg it's responding to
 pub struct AckMsg {
     header: MsgHeaderNew,
     ack_code: AckCode,     // Success or Failure
@@ -237,25 +240,27 @@ impl fmt::Display for AckCode {
 }
 
 // ---------------------------------------------------------------------
-
+const HEADER_SIZE: usize = 7;
 /// This message header is shared by all message types
 #[derive(Debug, Clone)]
 pub struct MsgHeader {
-    pub msg_len: u8,
+    pub msg_type: u8,
     pub msg_id: u8,
     pub dest_id: u8,
     pub source_id: u8,
     pub op_code: u8,
+    pub msg_len: u16,
 }
 
 impl MsgHeader {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = Vec::new();
-        bytes.push(self.msg_len);
+        bytes.push(self.msg_type);
         bytes.push(self.msg_id);
         bytes.push(self.dest_id);
         bytes.push(self.source_id);
         bytes.push(self.op_code);
+        bytes.extend(self.msg_len.to_le_bytes());
         Ok(bytes)
     }
 
@@ -268,11 +273,12 @@ impl MsgHeader {
         }
 
         Ok(MsgHeader {
-            msg_len: bytes[0],
+            msg_type: bytes[0],
             msg_id: bytes[1],
             dest_id: bytes[2],
             source_id: bytes[3],
             op_code: bytes[4],
+            msg_len: u16::from_le_bytes([bytes[5], bytes[6]]),
         })
     }
 }
@@ -285,14 +291,15 @@ pub struct Msg {
 }
 
 impl Msg {
-    pub fn new(msg_id: u8, dest_id: u8, source_id: u8, opcode: u8, data: Vec<u8>) -> Self {
-        let len = data.len() as u8;
+    pub fn new(msg_type: u8, msg_id: u8, dest_id: u8, source_id: u8, op_code: u8, data: Vec<u8>) -> Self {
+        let msg_len: u16 = (HEADER_SIZE + data.len()) as u16;
         let header = MsgHeader {
-            msg_len: len + 5, // 5 bytes for header fields
+            msg_type,
             msg_id,
             dest_id,
             source_id,
-            op_code: opcode,
+            op_code,
+            msg_len,
         };
         Msg {
             header,
@@ -307,8 +314,8 @@ impl Msg {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let header_bytes = &bytes[0..5];
-        let msg_body = bytes[5..].to_vec();
+        let header_bytes = &bytes[0..HEADER_SIZE];
+        let msg_body = bytes[HEADER_SIZE..].to_vec();
         let header = MsgHeader::from_bytes(header_bytes)?;
         Ok(Msg { header, msg_body })
     }
@@ -366,26 +373,22 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let msg = Msg::new(1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
 
         // Serialize
-        let serialized_msg_result = msg.to_bytes();
-        assert!(serialized_msg_result.is_ok(), "Serialization failed");
-        let serialized_msg = serialized_msg_result.unwrap();
+        let serialized_msg = serialize_msg(&msg).unwrap();
 
         // Deserialize
-        let deserialized_msg_result = Msg::from_bytes(&serialized_msg);
-        assert!(deserialized_msg_result.is_ok(), "Deserialization failed");
-        let deserialized_msg = deserialized_msg_result.unwrap();
+        let deserialized_msg = deserialize_msg(&serialized_msg).unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, 12);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
     fn test_serialize_empty_body() {
-        let msg = Msg::new(1, 2, 3, 4, vec![]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -398,7 +401,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, 5);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body, vec![]);
     }
 
@@ -406,7 +409,7 @@ mod tests {
     fn test_serialize_max_length_body() {
         // Create a message with the maximum possible body size
         let max_body_size = u8::MAX as usize - 5; // Maximum u8 value minus header size
-        let msg = Msg::new(1, 2, 3, 4, vec![0; max_body_size]);
+        let msg = Msg::new(0,1, 2, 3, 4, vec![0; max_body_size]);
 
         // Serialize
         let serialized_msg_result = msg.to_bytes();
@@ -419,7 +422,7 @@ mod tests {
         let deserialized_msg = deserialized_msg_result.unwrap();
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_len, u8::MAX);
+        assert_eq!(deserialized_msg.header.msg_type, 0);
         assert_eq!(deserialized_msg.msg_body.len(), max_body_size);
         assert_eq!(deserialized_msg.msg_body, vec![0; max_body_size]);
     }

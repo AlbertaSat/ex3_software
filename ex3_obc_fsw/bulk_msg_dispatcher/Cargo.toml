@@ -1,0 +1,10 @@
+[package]
+name = "bulk_msg_dispatcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
+common = {path = "../../ex3_shared_libs/common"}
+message_structure = { path = "../../ex3_shared_libs/message_structure" }
+bulk_msg_slicing = { path = "../../ex3_shared_libs/bulk_msg_slicing" }

@@ -92,7 +92,9 @@ ComponentStruct *component_factory(char *name, int component_id)
 /// @param id
 /// @return Associated fd for that component
 int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
-{
+{   
+    printf("Entered get_fd_from_id with id: %d\n", id);
+
     // loop over components, get fd of one with matching id
     for (int i = 0; i < num_components; i++)
     {
@@ -106,7 +108,7 @@ int get_fd_from_id(ComponentStruct *cs[], int num_components, int id)
                 printf("Component not connected. Not writing \n");
                 return -2;
             }
-            printf("Destination component fd: %d \n", id);
+            printf("Destination component fd: %d \n", cs[i]->data_socket_fd);
             return cs[i]->data_socket_fd;
         }
     }
