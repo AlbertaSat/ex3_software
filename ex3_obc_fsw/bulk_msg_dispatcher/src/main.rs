@@ -3,8 +3,9 @@ use common::*;
 use component_ids::{DFGM, GS};
 use ipc::*;
 use message_structure::*;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind};
 use std::io::Read;
 use std::thread;
 use std::time::Duration;
@@ -15,6 +16,13 @@ use log::{trace, warn};
 
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
+    // Defined paths for where to look for data when requested
+    let mut paths: HashMap<String, String> = HashMap::new();
+    let mut dests_with_paths: HashMap<String, HashMap<String,String>> = HashMap::new();
+    paths.insert("DATA".to_string(), "handler/dfgm_handler/dfgm_data/data".to_string());
+    dests_with_paths.insert("DFGM".to_string(),paths);
+
+
     // All connected handlers and other clients will have a socket for the server defined here
     let mut coms_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
     let mut cmd_msg_disp_interface: IpcClient = IpcClient::new("bulk_disp".to_string())?;
