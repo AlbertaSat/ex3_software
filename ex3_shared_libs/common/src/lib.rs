@@ -42,7 +42,7 @@ pub mod component_ids {
         //...
         GS = 7,
         COMS = 8,
-        BulkMsgDispatcher = 9,
+        BULK_MSG_DISPATCHER = 9,
         //..
         CMD = 10,
         //..
@@ -78,7 +78,7 @@ pub mod component_ids {
                 "GPS" => Ok(ComponentIds::GPS),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
-                "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
+                "BULK_MSG_DISPATCHER" => Ok(ComponentIds::BULK_MSG_DISPATCHER),
                 //...
                 "CMD" => Ok(ComponentIds::CMD),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
