@@ -165,7 +165,7 @@ impl IRISHandler {
                         println!("Collected and stored HK!");
                     }
                     Err(e) => {
-                        eprintln!("HK collection failed.");
+                        eprintln!("HK collection failed: {}", e);
                     }
                 }
                 last_hk_collect = Instant::now();
