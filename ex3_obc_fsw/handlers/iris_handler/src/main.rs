@@ -31,8 +31,10 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::time::{Instant, Duration};
 use tcp_interface::*;
+use std::collections::HashMap;
+use serde_json::json;
 
-const IRIS_DATA_DIR_PATH: &str = "iris_data";
+const IRIS_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/iris_handler/iris_data";
 const IRIS_PACKET_SIZE: usize = 1252;
 const IRIS_INTERFACE_BUFFER_SIZE: usize = IRIS_PACKET_SIZE;
 
@@ -172,6 +174,7 @@ impl IRISHandler {
             }
 
             // Sleep to prevent busy waiting
+            // TODO - is ths necessary? What condition does this prevent? It works without sleep
             thread::sleep(Duration::from_millis(500));
 
             // Declare ipc interfaces we connect to
@@ -198,7 +201,8 @@ impl IRISHandler {
     fn collect_hk(&mut self) -> io::Result<()> {
         let hk_msg = Msg::new(55,55,IRIS, IRIS, GET_HK, vec![]);
         if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
-            store_iris_data("hk_test", hk_string.as_bytes())?;
+            let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
+            store_iris_data("hk_test", &hk_bytes)?;
         }
 
         Ok(())
@@ -222,6 +226,25 @@ fn store_iris_data(filename: &str, data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Format HK into JSON to create easily readable HK
+/// 
+fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    let mut hk_map = HashMap::new();
+    
+    for line in data.lines() {
+        if let Some((key, value)) = line?.split_once(": ") {
+            hk_map.insert(key.trim().to_string(), value.trim().to_string());
+        } else {
+            eprintln!("Failed to process line of HK without ':' ");
+        }
+    }
+
+    let json_value = json!(hk_map);
+    let json_bytes = serde_json::to_vec(&json_value)?;
+    println!("Num HK bytes: {}", json_bytes.len());
+    println!("HK bytes: {:?}", json_bytes);
+    Ok(json_bytes)
+}
 
 fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  Result<String, Error>{
     let mut packet_content = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
