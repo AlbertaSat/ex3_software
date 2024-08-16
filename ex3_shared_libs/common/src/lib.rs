@@ -159,6 +159,7 @@ pub mod opcodes {
         Reset = 7,
         DelImage = 8,
         GetImageSize = 9,
+        DownlinkHK = 10,
         Error = 99,
 
     }

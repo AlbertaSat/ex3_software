@@ -76,7 +76,11 @@ impl DFGMHandler {
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
+<<<<<<< HEAD
         trace!("Matching opcode.");
+=======
+        println!("Matching msg: {:?}", msg);
+>>>>>>> d6e4ce6 (Added command to get Iris HK. Bulk Handler can't find it tho :/)
         match msg.header.op_code {
             opcodes::dfgm::TOGGLE_DATA_COLLECTION => {
                 if msg.msg_body[0] == 0 {
