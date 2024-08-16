@@ -85,16 +85,14 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
         if opcode == GET_DFGM_DATA {
             dest_id = ComponentIds::BULK_MSG_DISPATCHER as u8;
             msg_type = MsgType::Bulk as u8;
-            let body = "DFGM DATA".as_bytes();
-            msg_body.extend(body);
+            msg_body = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
         }
     } else {
         for data_byte in operator_str_split[2..].into_iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
         }
     }
-    
-    let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
+    let msg = Msg::new(msg_type, 0, dest_id, GS, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }

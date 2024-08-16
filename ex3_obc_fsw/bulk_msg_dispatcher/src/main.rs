@@ -16,16 +16,8 @@ use log::{trace, warn};
 
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
-    // Defined paths for where to look for data when requested
-    let mut paths: HashMap<String, String> = HashMap::new();
-    let mut dests_with_paths: HashMap<String, HashMap<String,String>> = HashMap::new();
-    paths.insert("DATA".to_string(), "handler/dfgm_handler/dfgm_data/data".to_string());
-    dests_with_paths.insert("DFGM".to_string(),paths);
-
-
     // All connected handlers and other clients will have a socket for the server defined here
-    let mut dfgm_interface: IpcServer = IpcServer::new("dfgm_bulk".to_string())?;
-    let mut gs_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
+    let mut coms_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
     let mut cmd_msg_disp_interface: IpcClient = IpcClient::new("bulk_disp".to_string())?;
     let mut messages = Vec::new();
 
@@ -33,18 +25,19 @@ fn main() -> Result<(), IoError> {
     init_logger(&log_path);
 
     loop {
-        let gs_interface_clone = gs_interface.clone();
-        let mut servers: Vec<&mut IpcServer> = vec![&mut dfgm_interface, &mut gs_interface];
+        let coms_interface_clone = coms_interface.clone();
+        let mut servers: Vec<&mut IpcServer> = vec![&mut coms_interface];
         let mut clients: Vec<&mut IpcClient> = vec![&mut cmd_msg_disp_interface];
 
         poll_ipc_clients(&mut clients)?;
+        // Msgs from the cmd_msg_dispatcher
         for client in clients {
             if let Some(msg) = handle_server_input(client)? {
                 if msg.header.msg_type == MsgType::Bulk as u8 {
                     let path_bytes: Vec<u8> = msg.msg_body.clone();
                     let path = get_path_from_bytes(path_bytes)?;
                     let bulk_msg = get_data_from_path(&path)?;
-                    println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 5); // +5 for header
+                    println!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
                     // Slice bulk msg
                     // TODO - Cloning here might affect performance!!
                     messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
@@ -54,11 +47,11 @@ fn main() -> Result<(), IoError> {
                     let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
                     println!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
-                    // Start coms protocol with GS handler to downlink
+                    // Start coms protocol with coms handler to downlink
                     send_num_msgs_and_bytes_to_gs(
                         num_of_4kb_msgs,
                         bulk_msg.msg_body.len() as u64,
-                        gs_interface_clone.data_fd,
+                        coms_interface_clone.data_fd,
                     )?;
                 }
                 client.clear_buffer();
