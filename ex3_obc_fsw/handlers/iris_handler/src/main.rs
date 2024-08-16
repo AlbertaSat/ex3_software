@@ -125,6 +125,9 @@ impl IRISHandler {
                 (&*format!("Opcode {} not found for IRIS", msg.header.op_code), false)
                 
             }
+            opcodes::IRIS::DownlinkHK => {
+                (&*format!("Opcode {} for Bulk Downlink only", msg.header.op_code), false)
+            }
         };
         if success {
             // Send command message to IRIS
