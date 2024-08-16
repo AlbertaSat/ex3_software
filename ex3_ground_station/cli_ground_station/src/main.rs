@@ -81,12 +81,16 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     let mut msg_type = 0;
 
     // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
-    if dest_id == DFGM {
-        if opcode == GET_DFGM_DATA {
-            dest_id = ComponentIds::BULK_MSG_DISPATCHER as u8;
-            msg_type = MsgType::Bulk as u8;
-            msg_body = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
-        }
+    if dest_id == DFGM && opcode == dfgm::GET_DFGM_DATA{
+        dest_id = ComponentIds::BulkMsgDispatcher as u8;
+        msg_type = MsgType::Bulk as u8;
+        // Works
+        msg_body = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
+    } else if dest_id == IRIS && opcode == IRIS::DownlinkHK as u8{
+        dest_id = ComponentIds::BulkMsgDispatcher as u8;
+        msg_type = MsgType::Bulk as u8;
+        // Bulk Msg Disp returns NotFound Error: No such file or directroy when I have it there :(
+        msg_body = "/home/rowan/AlbertaSat/ex3_software/ex3_obc_fsw/handlers/iris_handler/iris_data".as_bytes().to_vec();
     } else {
         for data_byte in operator_str_split[2..].into_iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
@@ -165,7 +169,7 @@ fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     };
 
     // Prepend directory we want it to be created in
-    dir_name.insert_str(0, "ex3_ground_station/");
+    dir_name.insert_str(0, "ex3_ground_station");
     fs::create_dir_all(dir_name.clone())?;
     let mut file_path = Path::new(&dir_name).join("data");
 

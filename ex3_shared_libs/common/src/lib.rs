@@ -42,7 +42,7 @@ pub mod component_ids {
         //...
         GS = 7,
         COMS = 8,
-        BULK_MSG_DISPATCHER = 9,
+        BulkMsgDispatcher = 9,
         //..
         CMD = 10,
         //..
@@ -78,7 +78,7 @@ pub mod component_ids {
                 "GPS" => Ok(ComponentIds::GPS),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
-                "BULK_MSG_DISPATCHER" => Ok(ComponentIds::BULK_MSG_DISPATCHER),
+                "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "CMD" => Ok(ComponentIds::CMD),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
@@ -143,6 +143,7 @@ pub mod opcodes {
         Reset = 7,
         DelImage = 8,
         GetImageSize = 9,
+        DownlinkHK = 10,
         Error = 99,
     }
 
