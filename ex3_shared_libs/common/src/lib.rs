@@ -47,6 +47,7 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
+        CMD = 10,
         SHELL = 12,
         //..
         DUMMY = 99,
@@ -65,6 +66,7 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
+                ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
                 ComponentIds::LAST => write!(f, "illegal"),
@@ -85,6 +87,7 @@ pub mod component_ids {
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
+                "CMD" => Ok(ComponentIds::CMD),
                 "SHELL" => Ok(ComponentIds::SHELL),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 "LAST" => Err(()),
@@ -109,6 +112,7 @@ pub mod component_ids {
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
                 x if x == ComponentIds::LAST as u8 => Err(()),
