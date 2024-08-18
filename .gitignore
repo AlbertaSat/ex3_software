@@ -14,3 +14,9 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
+
+# Vim swap files
+.*.swp
+
+# Used by editors to jump to definitions
+tags
