@@ -75,7 +75,7 @@ fn main() {
     let mut ipc_server = IpcServer::new(args[1].clone()).unwrap();
 
     loop {
-        poll_ipc_server_sockets(vec![&mut ipc_server]);
+        poll_ipc_server_sockets(&mut vec![&mut ipc_server]);
         if ipc_server.buffer != [0u8; IPC_BUFFER_SIZE] {
             println!("Received message from ipc client {:?}", ipc_server.buffer);
             ipc_server.clear_buffer();
