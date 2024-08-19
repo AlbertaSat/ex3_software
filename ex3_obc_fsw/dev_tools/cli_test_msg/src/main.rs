@@ -47,6 +47,6 @@ fn main() {
     let command_bytes = serialize_msg(&data).unwrap();
     println!("Bytes Sent: {:?}", command_bytes);
 
-    output_stream.write(&command_bytes).unwrap();
+    output_stream.write_all(&command_bytes).unwrap();
     output_stream.flush().unwrap();
 }

@@ -33,7 +33,7 @@ impl ObcClient {
                 return Err("not connected".into());
             }
         };
-        stream.write(&data).await?;
+        stream.write_all(&data).await?;
 
         match stream.read(&mut data).await {
             Ok(len) => if len == message::MSG_LEN {
