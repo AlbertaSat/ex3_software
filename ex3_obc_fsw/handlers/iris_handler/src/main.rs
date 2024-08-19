@@ -19,17 +19,22 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
+use common::component_ids::IRIS;
+use common::opcodes::coms::GET_HK;
 use common::{opcodes, ports};
-use ipc_interface::read_socket;
-use ipc_interface::IPCInterface;
+use ipc::*;
 use message_structure::*;
 use std::fs::OpenOptions;
+use std::{io, thread};
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::time::{Instant, Duration};
 use tcp_interface::*;
+use std::collections::HashMap;
+use serde_json::json;
 
-const IRIS_DATA_DIR_PATH: &str = "iris_data";
+const IRIS_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/iris_handler/iris_data";
 const IRIS_PACKET_SIZE: usize = 1252;
 const IRIS_INTERFACE_BUFFER_SIZE: usize = IRIS_PACKET_SIZE;
 
@@ -41,13 +46,13 @@ const IRIS_INTERFACE_BUFFER_SIZE: usize = IRIS_PACKET_SIZE;
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct IRISHandler {
     peripheral_interface: Option<TcpInterface>, // For communication with the IRIS peripheral [external to OBC]. Will be dynamic
-    dispatcher_interface: Option<IPCInterface>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
 impl IRISHandler {
     pub fn new(
         iris_interface: Result<TcpInterface, std::io::Error>,
-        dispatcher_interface: Result<IPCInterface, std::io::Error>,
+        dispatcher_interface: Result<IpcClient, std::io::Error>,
     ) -> IRISHandler {
         //if either interfaces are error, print this
         if iris_interface.is_err() {
@@ -70,8 +75,9 @@ impl IRISHandler {
         }
     }
 
-    fn handle_msg_for_iris(&mut self, msg: Msg){
-        
+    fn handle_msg_for_iris(&mut self, msg: Msg) -> Option<String> {
+        self.dispatcher_interface.as_mut().unwrap().clear_buffer();
+        let mut hk = false;
         let (command_msg, success) = match opcodes::IRIS::from(msg.header.op_code) {
             opcodes::IRIS::Reset=> {
                 ("RST", true)
@@ -112,6 +118,7 @@ impl IRISHandler {
                 (&*format!("STT:{}", msg.msg_body[0]),true)
             }
             opcodes::IRIS::GetHK=> {
+                hk = true;
                 ("FTH", true)
             }
             opcodes::IRIS::Error => {
@@ -128,33 +135,77 @@ impl IRISHandler {
                 
                 match status {
                     // Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&response)); }
-                    Ok(response) => { println!("Got data {:?}", response); }
+                    Ok(response) => {
+                    println!("Got data {:?}", response);
+                        if hk {
+                            return Some(response);
+                        }
+                    }
                     Err(e) => { println!("Error: {}", e); }
                 }
 
             }
-            return;
+            return None;
         }
         eprintln!("{}", command_msg);
-
+        None
     }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
-        // Read and poll for input for a message
-        let mut socket_buf = vec![0u8; IRIS_INTERFACE_BUFFER_SIZE];
-        loop {
-            if let Ok(n) = read_socket(
-                self.dispatcher_interface.clone().unwrap().fd,
-                &mut socket_buf,
-            ) {
-                if n > 0 {
-                    let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    self.handle_msg_for_iris(recv_msg);
 
-                    socket_buf.flush()?;
+        // TMP 5 secs. More realistically every couple mins or so
+        let hk_interval = Duration::from_secs(5);
+        let mut last_hk_collect = Instant::now();
+
+        // Read and poll for input for a message
+        loop {
+
+            // Check if we need to collect HK
+            if last_hk_collect.elapsed() >= hk_interval {
+                match self.collect_hk() {
+                    Ok(_) => {
+                        println!("Collected and stored HK!");
+                    }
+                    Err(e) => {
+                        eprintln!("HK collection failed: {}", e);
+                    }
+                }
+                last_hk_collect = Instant::now();
+            }
+
+            // Sleep to prevent busy waiting
+            // TODO - is ths necessary? What condition does this prevent? It works without sleep
+            thread::sleep(Duration::from_millis(500));
+
+            // Declare ipc interfaces we connect to
+            let msg_dispatcher_interface = self.dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
+
+            let mut clients = vec![
+                msg_dispatcher_interface,
+            ];
+            poll_ipc_clients(&mut clients)?;
+            
+            // Handling the bulk message dispatcher interface
+            if let Some(cmd_msg_dispatcher) = self.dispatcher_interface.as_mut() {
+                if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
+                    let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
+                    println!("Received and deserialized msg");
+                    self.handle_msg_for_iris(recv_msg);
                 }
             }
         }
+    }
+
+    /// This function is a first iteration of how a handler will collect HK.
+    /// Each handler will have a different version of this function as each HK is unique
+    fn collect_hk(&mut self) -> io::Result<()> {
+        let hk_msg = Msg::new(55,55,IRIS, IRIS, GET_HK, vec![]);
+        if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
+            let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
+            store_iris_data("hk_test", &hk_bytes)?;
+        }
+
+        Ok(())
     }
 
     //TODO - Convert bytestream into message struct
@@ -173,6 +224,30 @@ fn store_iris_data(filename: &str, data: &[u8]) -> std::io::Result<()> {
         .open(format!("{}/{}", IRIS_DATA_DIR_PATH, filename))?;
     file.write_all(data)?;
     Ok(())
+}
+
+/// Format HK into JSON to create easily readable HK
+/// 
+fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    let mut hk_map = HashMap::new();
+    
+    // Convert data to string and trim newline characters
+    let data_str = std::str::from_utf8(data).unwrap().trim_end();
+
+    for line in data_str.lines() {
+        if let Some((key, value)) = line.split_once(": ") {
+            hk_map.insert(key.trim().to_string(), value.trim().to_string());
+        } else {
+            eprintln!("Failed to process line of HK without ':' ");
+        }
+    }
+
+    let json_value = json!(hk_map);
+    let json_bytes = serde_json::to_vec(&json_value)?;
+    println!("Num HK bytes: {}", json_bytes.len());
+    println!("HK bytes: {:?}", json_bytes);
+    
+    Ok(json_bytes)
 }
 
 
@@ -210,7 +285,7 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
     }
 
     
-    return Ok(response);
+    Ok(response)
 
 }
 
@@ -295,7 +370,7 @@ fn main() {
     let iris_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_IRIS_PORT);
 
     //Create IPC interface for IRIS handler to talk to message dispatcher
-    let dispatcher_interface = IPCInterface::new("iris_handler".to_string());
+    let dispatcher_interface = IpcClient::new("iris_handler".to_string());
 
     //Create IRIS handler
     let mut iris_handler = IRISHandler::new(iris_interface, dispatcher_interface);

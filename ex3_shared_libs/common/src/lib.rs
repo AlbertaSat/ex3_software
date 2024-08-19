@@ -42,6 +42,7 @@ pub mod component_ids {
         //...
         GS = 7,
         COMS = 8,
+        BulkMsgDispatcher = 9,
         //..
         //..
         DUMMY = 99,
@@ -58,6 +59,7 @@ pub mod component_ids {
                 ComponentIds::GPS => write!(f, "GPS"),
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
+                ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
@@ -74,6 +76,7 @@ pub mod component_ids {
                 "GPS" => Ok(ComponentIds::GPS),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
+                "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
@@ -94,6 +97,7 @@ pub mod component_ids {
                 5 => ComponentIds::GPS,
                 7 => ComponentIds::GS,
                 8 => ComponentIds::COMS,
+                9 => ComponentIds::BulkMsgDispatcher,
                 //...
                 99 => ComponentIds::DUMMY,
                 _ => {
@@ -116,6 +120,7 @@ pub mod component_ids {
                 //...
                 ComponentIds::GS => 7,
                 ComponentIds::COMS => 8,
+                ComponentIds::BulkMsgDispatcher => 9,
                 //...
                 ComponentIds::DUMMY => 99,
             }

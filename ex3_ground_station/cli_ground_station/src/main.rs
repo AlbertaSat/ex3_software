@@ -13,8 +13,10 @@ TODO
 */
 
 use bulk_msg_slicing::*;
-use common::component_ids::*;
+use common::*;
+use common::opcodes::*;
 use common::ports::SIM_COMMS_PORT;
+use serde_json::de;
 use core::num;
 use libc::c_int;
 use message_structure::*;
@@ -80,13 +82,25 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
             "Not enough arguments",
         ));
     }
-    let dest_id = ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
-    let opcode = operator_str_split[1].parse::<u8>().unwrap();
+
+    let dest_id = component_ids::ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
     let mut msg_body: Vec<u8> = Vec::new();
-    for data_byte in operator_str_split[2..].into_iter() {
+    let mut msg_type = 0;
+    let mut opcode = 0;
+
+    // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
+    if dest_id == component_ids::ComponentIds::BulkMsgDispatcher as u8 {
+        msg_type = MsgType::Cmd as u8;
+        msg_body = operator_str_split[1].as_bytes().to_vec();
+    } else {
+        opcode = operator_str_split[1].parse::<u8>().unwrap();
+
+        for data_byte in operator_str_split[2..].into_iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
+        }
     }
-    let msg = Msg::new(0, 0, dest_id, GS, opcode, msg_body);
+    
+    let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }
@@ -165,25 +179,28 @@ fn read_bulk_msgs(
     Ok(())
 }
 
+
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
+    let src_comp_enum = component_ids::ComponentIds::from(src);
     // ADD future dir names here depending on source
-    let dir_name = if src == DFGM {
-        "dfgm"
-    } else if src == 99 {
-        "test"
-    } else {
-        "misc"
+    let mut dir_name: String = match src_comp_enum {
+        component_ids::ComponentIds::DFGM => "dfgm".to_string(),
+        component_ids::ComponentIds::IRIS => "iris".to_string(),
+        component_ids::ComponentIds::DUMMY => "dummy".to_string(),
+        _ => "misc".to_string()
     };
 
-    fs::create_dir_all(dir_name)?;
-    let mut file_path = Path::new(dir_name).join("data");
+    // Prepend directory we want it to be created in
+    dir_name.insert_str(0, "ex3_ground_station/");
+    fs::create_dir_all(dir_name.clone())?;
+    let mut file_path = Path::new(&dir_name).join("data");
 
     // Append number to file name if it already exists
     let mut count = 0;
     while file_path.exists() {
         count += 1;
-        file_path = Path::new(dir_name).join(format!("data{}", count));
+        file_path = Path::new(&dir_name).join(format!("data{}", count));
     }
     let mut file = File::create(file_path)?;
 
