@@ -152,6 +152,9 @@ fn store_dfgm_data(data: &[u8]) -> std::io::Result<()> {
 }
 
 fn main() -> Result<(), Error> {
+    let log_path = "dfgm_handler/logs";
+    init_logger(log_path);
+    info!("Logger initialized");
     info!("Beginning DFGM Handler...");
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
