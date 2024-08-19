@@ -3,15 +3,15 @@ use common::*;
 use component_ids::{DFGM, GS};
 use ipc::*;
 use message_structure::*;
-use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{Error as IoError, ErrorKind};
+use std::io::Error as IoError;
 use std::io::Read;
 use std::thread;
 use std::time::Duration;
 use std::path::Path;
 use std::fs;
 use std::io::Write;
+use std::io;
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
@@ -128,12 +128,36 @@ fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: Option<i32>)
 /// This function will take all current data that is stored in a provided path and
 /// append it to the body of a bulk Msg. This Msg will then be sliced.
 fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
+    let dir_path = Path::new(path);
+
+    // Get the first file in the directory
+    let file_name = match fs::read_dir(dir_path)?
+        .filter_map(Result::ok)
+        .find(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+    {
+        Some(entry) => entry.path(),
+        None => return Err(io::Error::new(io::ErrorKind::NotFound, "No files found in the directory")),
+    };
+
+    // Open the file
     let mut file: File = OpenOptions::new()
         .read(true)
-        .open(format!("{}/data", path))?;
+        .open(file_name)?;
+
+    // Read the file content into a vector
     let mut data: Vec<u8> = Vec::new();
     file.read_to_end(&mut data)?;
-    let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, 3, 0, data);
+
+    // Get src id
+    let mut src_id: u8 = 0;
+    if path.contains("dfgm") {
+        src_id = DFGM;
+    } else if path.contains("iris") {
+        src_id = 4; // IRIS ID. It's an enum for now
+    }
+
+    // Create the Msg object
+    let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, src_id, 0, data);
     Ok(bulk_msg)
 }
 

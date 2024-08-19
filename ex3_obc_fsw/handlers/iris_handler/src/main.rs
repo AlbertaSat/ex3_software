@@ -234,8 +234,11 @@ fn store_iris_data(filename: &str, data: &[u8]) -> std::io::Result<()> {
 fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let mut hk_map = HashMap::new();
     
-    for line in data.lines() {
-        if let Some((key, value)) = line?.split_once(": ") {
+    // Convert data to string and trim newline characters
+    let data_str = std::str::from_utf8(data).unwrap().trim_end();
+
+    for line in data_str.lines() {
+        if let Some((key, value)) = line.split_once(": ") {
             hk_map.insert(key.trim().to_string(), value.trim().to_string());
         } else {
             eprintln!("Failed to process line of HK without ':' ");
@@ -246,8 +249,10 @@ fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     let json_bytes = serde_json::to_vec(&json_value)?;
     println!("Num HK bytes: {}", json_bytes.len());
     println!("HK bytes: {:?}", json_bytes);
+    
     Ok(json_bytes)
 }
+
 
 fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  Result<String, Error>{
     let mut packet_content = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
