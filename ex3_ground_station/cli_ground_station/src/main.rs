@@ -13,7 +13,7 @@ TODO
 */
 
 use bulk_msg_slicing::*;
-use common::component_ids::*;
+use common::*;
 use common::opcodes::*;
 use common::ports::SIM_COMMS_PORT;
 use serde_json::de;
@@ -83,13 +83,13 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
         ));
     }
 
-    let dest_id = ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
+    let dest_id = component_ids::ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
     let mut msg_body: Vec<u8> = Vec::new();
     let mut msg_type = 0;
     let mut opcode = 0;
 
     // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
-    if dest_id == ComponentIds::BulkMsgDispatcher as u8 {
+    if dest_id == component_ids::ComponentIds::BulkMsgDispatcher as u8 {
         msg_type = MsgType::Cmd as u8;
         msg_body = operator_str_split[1].as_bytes().to_vec();
     } else {
@@ -100,7 +100,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
         }
     }
     
-    let msg = Msg::new(msg_type, 0, dest_id, GS, opcode, msg_body);
+    let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }
@@ -179,13 +179,15 @@ fn read_bulk_msgs(
     Ok(())
 }
 
+
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
+    let src_comp_enum = component_ids::ComponentIds::from(src);
     // ADD future dir names here depending on source
-    let mut dir_name: String = match src {
-        DFGM => "dfgm".to_string(),
-        4 => "iris".to_string(), // IRIS ID
-        99 => "test".to_string(),
+    let mut dir_name: String = match src_comp_enum {
+        component_ids::ComponentIds::DFGM => "dfgm".to_string(),
+        component_ids::ComponentIds::IRIS => "iris".to_string(),
+        component_ids::ComponentIds::DUMMY => "dummy".to_string(),
         _ => "misc".to_string()
     };
 
