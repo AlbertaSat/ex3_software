@@ -5,7 +5,6 @@ use common::{opcodes, ports};
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
 use message_structure::*;
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 
 use std::io::prelude::*;
@@ -125,47 +124,23 @@ impl ADCSHandler {
                     self.send_cmd(adcs_body::ON, msg)
                 }
                 2 => self.send_cmd(adcs_body::GET_STATE, msg),
-                _ => {
-                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
-                    Err(Error::new(
-                        ErrorKind::NotFound,
-                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
-                    ))
-                }
+                _ => Err(self.invalid_msg_body(msg)),
             },
             opcodes::adcs::WHEEL_SPEED => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_WHEEL_SPEED, msg),
                 1 => self.send_cmd(adcs_body::SET_WHEEL_SPEED, msg),
-                _ => {
-                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
-                    Err(Error::new(
-                        ErrorKind::NotFound,
-                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
-                    ))
-                }
+                _ => Err(self.invalid_msg_body(msg)),
             },
             opcodes::adcs::GET_HK => self.send_cmd(adcs_body::STATUS_CHECK, msg),
             opcodes::adcs::MAGNETORQUER_CURRENT => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_MAGNETORQUER_CURRENT, msg),
                 1 => self.send_cmd(adcs_body::SET_MAGNETORQUER_CURRENT, msg),
-                _ => {
-                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
-                    Err(Error::new(
-                        ErrorKind::NotFound,
-                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
-                    ))
-                }
+                _ => Err(self.invalid_msg_body(msg)),
             },
             opcodes::adcs::ONBOARD_TIME => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_TIME, msg),
                 1 => self.send_cmd(adcs_body::SET_TIME, msg),
-                _ => {
-                    eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
-                    Err(Error::new(
-                        ErrorKind::NotFound,
-                        format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
-                    ))
-                }
+                _ => Err(self.invalid_msg_body(msg)),
             },
             opcodes::adcs::GET_ORIENTATION => self.send_cmd(adcs_body::GET_ORIENTATION, msg),
             opcodes::adcs::RESET => self.send_cmd(adcs_body::RESET, msg),
@@ -231,23 +206,6 @@ impl ADCSHandler {
         data.extend_from_slice(cmd.data);
 
         // TODO: later figure out how to check we've sent the correct amount of parameters using an end-body flag maybe use 0xFF?
-        // // Check if correct number of args was passed
-        // if msg.msg_body.len() != (1 + cmd.params).try_into().unwrap() {
-        //     eprintln!(
-        //         "Expected {} argument(s) but received {} instead",
-        //         1 + cmd.params,
-        //         msg.msg_body.len()
-        //     );
-        //     return Err(Error::new(
-        //         ErrorKind::InvalidInput,
-        //         format!(
-        //             "Expected {} argument(s) but received {} instead",
-        //             1 + cmd.params,
-        //             msg.msg_body.len()
-        //         ),
-        //     ));
-        // }
-
         // First param in msg body will specify the operation type e.g. getting or setting
         for i in 1..((cmd.params + 1) as usize) {
             data.push(CMD_DELIMITER);
@@ -262,6 +220,14 @@ impl ADCSHandler {
         self.peripheral_interface.as_mut().unwrap().send(&cmd)?;
 
         Ok(())
+    }
+
+    fn invalid_msg_body(&mut self, msg: Msg) -> Error {
+        eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
+        Error::new(
+            ErrorKind::NotFound,
+            format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
+        )
     }
 }
 
