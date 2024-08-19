@@ -46,7 +46,7 @@ impl TcpInterface {
 
     pub fn new_server(ip: String, port: u16) -> Result<TcpInterface, Error> {
         let listener = TcpListener::bind(format!("{}:{}", ip, port))?;
-        for stream in listener.incoming() {
+        if let Some(stream) = listener.incoming().next() {
             match stream {
                 Ok(stream) => {
                     let tcp_fd = stream.as_raw_fd();
