@@ -52,7 +52,7 @@ fn handle_msg_for_coms(msg: &Msg) {
             //TODO - for now just get the msg body (data) and write that to the beacon
             set_beacon_value(msg.msg_body.clone());
         }
-        _ => info!("Invalid msg opcode"),
+        _ => debug!("Invalid msg opcode"),
     }
 }
 
@@ -66,7 +66,7 @@ fn await_ack_for_bulk(interface: &mut TcpInterface) -> Result<(), std::io::Error
             if ack_msg.header.msg_type == MsgType::Ack as u8 {
                 break;
             } else {
-                info!("Didn't receive ACK type msg for Bulk Downlink");
+                debug!("Didn't receive ACK type msg for Bulk Downlink");
             }
         }
     }
@@ -121,22 +121,23 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
                 }
                 Err(e) => {
                     // Handle the error when sending the message
-                    trace!("Error sending msg to uhf: {:?}", e);
+                    debug!("Error sending msg to uhf: {:?}", e);
                 }
             }
         }
         Err(e) => {
             // Handle the error when serializing the message
-            trace!("Error serializing message: {:?}", e);
+            debug!("Error serializing message: {:?}", e);
         }
     }
 }
 
 fn main() {
-    println!("Beginning Coms Handler...");
     let log_path = "logs";
     init_logger(&log_path);
-    println!("Logger initialized");
+    info!("Logger initialized");
+    info!("Beginning Coms Handler...");
+    
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
@@ -171,7 +172,6 @@ fn main() {
 
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
-    let mut bulk_msg = Msg::new(0, 0, 0, 0, 0, vec![]);
     let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
