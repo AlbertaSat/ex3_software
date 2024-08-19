@@ -43,7 +43,10 @@ Cargo.lock
 **/target/
 **/target/doc/
 **/Cargo.lock
+
+# Payload folders created by downlink
 **/dfgm/
+**/iris/
 
 # Except commands.json
 server/data/*
