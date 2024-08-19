@@ -134,7 +134,7 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
 
 fn main() {
     println!("Beginning Coms Handler...");
-    let log_path = "/home/rowan/AlbertaSat/ex3_software/ex3_obc_fsw/handlers/coms_handler/logs";
+    let log_path = "logs";
     init_logger(&log_path);
     println!("Logger initialized");
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
