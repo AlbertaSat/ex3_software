@@ -82,27 +82,24 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
             "Not enough arguments",
         ));
     }
-    let mut dest_id = ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
-    let opcode = operator_str_split[1].parse::<u8>().unwrap();
+
+    let dest_id = ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
     let mut msg_body: Vec<u8> = Vec::new();
     let mut msg_type = 0;
+    let mut opcode = 0;
 
     // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
-    if dest_id == DFGM && opcode == dfgm::GET_DFGM_DATA{
-        dest_id = ComponentIds::BulkMsgDispatcher as u8;
-        msg_type = MsgType::Bulk as u8;
-        // Works
-        msg_body = "../handlers/dfgm_handler/dfgm_data".as_bytes().to_vec();
-    } else if dest_id == IRIS && opcode == IRIS::DownlinkHK as u8{
-        dest_id = ComponentIds::BulkMsgDispatcher as u8;
-        msg_type = MsgType::Bulk as u8;
-        // Bulk Msg Disp returns NotFound Error: No such file or directroy when I have it there :(
-        msg_body = "../handlers/iris_handler/iris_data".as_bytes().to_vec();
+    if dest_id == ComponentIds::BulkMsgDispatcher as u8 {
+        msg_type = MsgType::Cmd as u8;
+        msg_body = operator_str_split[1].as_bytes().to_vec();
     } else {
+        opcode = operator_str_split[1].parse::<u8>().unwrap();
+
         for data_byte in operator_str_split[2..].into_iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
         }
     }
+    
     let msg = Msg::new(msg_type, 0, dest_id, GS, opcode, msg_body);
     println!("Built msg: {:?}", msg);
     Ok(msg)
