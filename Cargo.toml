@@ -20,5 +20,6 @@ members = [
     "ex3_shared_libs/message_structure",
     "ex3_shared_libs/interfaces/ipc", 
     "ex3_shared_libs/logging",
+    "ex3_obc_fsw/msg_dispatcher/msg_dispatcher",
 ]
 

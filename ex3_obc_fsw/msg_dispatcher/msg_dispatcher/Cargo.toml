@@ -1,0 +1,7 @@
+[package]
+name = "msg_dispatcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ipc = { path = "../../../ex3_shared_libs/interfaces/ipc" }
