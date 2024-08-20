@@ -152,7 +152,7 @@ fn store_dfgm_data(data: &[u8]) -> std::io::Result<()> {
 }
 
 fn main() -> Result<(), Error> {
-    let log_path = "dfgm_handler/logs";
+    let log_path = "ex3_obc_fsw/handlers/dfgm_handler/logs";
     init_logger(log_path);
     info!("Logger initialized");
     info!("Beginning DFGM Handler...");
