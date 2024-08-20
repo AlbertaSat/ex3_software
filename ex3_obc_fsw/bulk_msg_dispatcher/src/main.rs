@@ -57,7 +57,7 @@ fn main() -> Result<(), IoError> {
                         client.clear_buffer();
                     }
                     Err(e) => {
-                        warn!("Error reading data from path {}",e);
+                        warn!("Error reading data from path: {}",e);
                     }
                 }
             }

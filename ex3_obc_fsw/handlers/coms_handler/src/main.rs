@@ -133,7 +133,7 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
 }
 
 fn main() {
-    let log_path = "ex3_obc_fsw/handlers/dfgm_handler/logs";
+    let log_path = "ex3_obc_fsw/handlers/coms_handler/logs";
     init_logger(&log_path);
     info!("Logger initialized");
     info!("Beginning Coms Handler...");
