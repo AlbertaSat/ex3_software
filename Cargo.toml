@@ -22,4 +22,5 @@ members = [
     "ex3_shared_libs/logging",
     "ex3_obc_fsw/msg_dispatcher/msg_dispatcher",
     "ex3_obc_fsw/handlers/adcs_handler",
+    "ex3_obc_fsw/msg_dispatcher/msg_dispatcher",
 ]
