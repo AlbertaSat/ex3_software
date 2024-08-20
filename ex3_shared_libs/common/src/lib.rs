@@ -182,6 +182,23 @@ pub mod opcodes {
         }
     }
 
+    //NOTE: These are not the same opcodes used by the EPS hardware - these are functionality for the FSW and operator to use   
+    pub enum EPS {
+        Ping = 0,
+    }
+    
+    impl From<u8> for EPS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => EPS::Ping,
+                _ => {
+                    eprintln!("Invalid opcode: {}", value);
+                    EPS::Ping // or choose a default value or handle the error in a different way
+                }
+            }
+        }
+    }
+
     // For dummy subsystem - used in testing and development
     pub enum DUMMY {
         SetDummyVariable = 0,
