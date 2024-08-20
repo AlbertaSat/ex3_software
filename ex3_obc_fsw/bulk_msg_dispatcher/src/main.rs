@@ -164,6 +164,8 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
         src_id = DFGM;
     } else if path.contains("iris") {
         src_id = component_ids::ComponentIds::IRIS as u8;
+    } else if path.contains("coms") {
+        src_id = component_ids::ComponentIds::COMS as u8;
     }
 
     // Create the Msg object
