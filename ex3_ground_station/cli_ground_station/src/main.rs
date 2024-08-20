@@ -187,6 +187,7 @@ fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     let mut dir_name: String = match src_comp_enum {
         component_ids::ComponentIds::DFGM => "dfgm".to_string(),
         component_ids::ComponentIds::IRIS => "iris".to_string(),
+        component_ids::ComponentIds::COMS => "coms".to_string(),
         component_ids::ComponentIds::DUMMY => "dummy".to_string(),
         _ => "misc".to_string()
     };
