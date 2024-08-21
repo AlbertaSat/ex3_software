@@ -14,12 +14,9 @@ mod housekeeping;
 
 use housekeeping::Housekeeping;
 
-use common::component_ids::ComponentIds::EPS;
 use common::opcodes;
-use common::ports;
 use ipc::{ipc_write, poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
-use std::fmt;
 use tcp_interface::{Interface, TcpInterface};
 
 const EPS_BUFFER_SIZE: usize = 1024;
@@ -42,7 +39,7 @@ impl Handler {
         }
     }
 
-    fn handle_msg_from_dispatcher(&mut self, msg: Msg) {
+    fn handle_msg_from_dispatcher(&self, msg: Msg) {
         let msg_opcode_enum = common::opcodes::EPS::from(msg.header.op_code);
 
         match msg_opcode_enum {
@@ -59,19 +56,23 @@ impl Handler {
     /// Loop indefinitely, polling interfaces for inputs and handling them
     fn run(&mut self) -> Result<(), std::io::Error> {
         //TODO - Get rid of these unwraps and handle errors with interfaces without panic
-        let mut ipc_interface_vec = vec![self.dispatcher_interface.as_mut().unwrap()];
-
-        // let eps_interface = self.peripheral_interface.as_mut().unwrap();
-        // let mut peripheral_read_buf = [0; EPS_BUFFER_SIZE];
 
         loop {
+            let mut ipc_interface_vec = vec![self.dispatcher_interface.as_mut().unwrap()];
+            // let eps_interface = self.peripheral_interface.as_mut().unwrap();
+            // let mut peripheral_read_buf = [0; EPS_BUFFER_SIZE];
+            // -------------------------------------------------------------------------------------
+
             let ipc_bytes_read = poll_ipc_clients(&mut ipc_interface_vec)?;
 
             // TODO - (maybe??) modify the poll fxn to also return the index of the interface that had a message, so we can match it to the correct interface in the vec
-            if ipc_bytes_read > 0 {
-                let read_bytes_raw = ipc_interface_vec[0].read_buffer();
-                let read_msg = deserialize_msg(&read_bytes_raw);
-                println!("dispatcher bytes read: {:?}", read_msg);
+            if let Some(dispatcher_interface) = self.dispatcher_interface.as_mut() {
+                if ipc_bytes_read > 0 {
+                    let read_bytes_raw = dispatcher_interface.read_buffer();
+                    let read_msg = deserialize_msg(&read_bytes_raw)?;
+                    println!("dispatcher bytes read: {:?}", read_msg);
+                    self.handle_msg_from_dispatcher(read_msg);
+                }
             }
 
             // let eps_bytes_read = eps_interface.read(&mut peripheral_read_buf)?;

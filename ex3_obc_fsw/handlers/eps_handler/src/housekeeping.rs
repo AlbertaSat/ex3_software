@@ -9,6 +9,7 @@ use crate::enums::OutputChannelStates;
 
 /// This is a struct that contains HK DATA THAT WE REGULARLY CARE ABOUT AND MAY WANT TO PUT IN BEACON
 /// THIS DOES NOT INCLUDE 'ALL' HK DATA , THE EPS HAS A LOT IT SPITS OUT WHEN 'INSTANTANEOUS TELEMETRY' IS REQUESTED - we only care about some regularly
+#[derive(Debug, Clone)]
 pub struct Housekeeping {
     boot_count: u16,
     uptime: u32,
