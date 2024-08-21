@@ -76,16 +76,16 @@ impl DFGMHandler {
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
-        info!("Matching msg: {:?}", msg);
+        trace!("Matching opcode.");
         match msg.header.op_code {
             opcodes::dfgm::TOGGLE_DATA_COLLECTION => {
                 if msg.msg_body[0] == 0 {
                     self.toggle_data_collection = false;
-                    info!("Data toggle set to {}", self.toggle_data_collection);
+                    trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
                 } else if msg.msg_body[0] == 1 {
                     self.toggle_data_collection = true;
-                    info!("Data toggle set to {}", self.toggle_data_collection);
+                    trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
                 } else {
                     debug!("Error: invalid msg body for opcode 0");
@@ -114,7 +114,7 @@ impl DFGMHandler {
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
                 if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
                     let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
-                    info!("Received and deserialized msg");
+                    trace!("Received and deserialized msg");
                     self.handle_msg_for_dfgm(recv_msg)?;
                 }
             }
@@ -124,7 +124,7 @@ impl DFGMHandler {
                 let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
                 match status {
                     Ok(data_len) => {
-                        info!("Got data {:?}", tcp_buf);
+                        trace!("Read {}B from DFGM", data_len);
                         store_dfgm_data(&tcp_buf)?;
                     }
                     Err(e) => {
@@ -154,8 +154,8 @@ fn store_dfgm_data(data: &[u8]) -> std::io::Result<()> {
 fn main() -> Result<(), Error> {
     let log_path = "ex3_obc_fsw/handlers/dfgm_handler/logs";
     init_logger(log_path);
-    info!("Logger initialized");
-    info!("Beginning DFGM Handler...");
+    trace!("Logger initialized");
+    trace!("Beginning DFGM Handler...");
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
     //Create TCP interface for DFGM handler to talk to simulated DFGM
