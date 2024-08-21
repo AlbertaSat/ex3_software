@@ -37,7 +37,7 @@ fn main() -> Result<(), IoError> {
                 let path = get_path_from_bytes(path_bytes)?;
                 match get_data_from_path(&path) {
                     Ok(bulk_msg) => {
-                        info!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
+                        trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
                         // Slice bulk msg
                         // TODO - Cloning here might affect performance!!
                         messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
@@ -45,7 +45,7 @@ fn main() -> Result<(), IoError> {
                         // Calculate num of 4KB msgs
                         let first_msg = messages[0].clone();
                         let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
-                        info!("Num of 4k msgs: {}", num_of_4kb_msgs);
+                        trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
                         // Start coms protocol with coms handler to downlink
                         send_num_msgs_and_bytes_to_gs(
@@ -72,9 +72,9 @@ fn main() -> Result<(), IoError> {
                     if msg.msg_body[0] == 0 {
                         for i in 0..messages.len() {
                             let serialized_msgs = serialize_msg(&messages[i])?;
-                            info!("Sending {} B", serialized_msgs.len());
+                            trace!("Sending {} B", serialized_msgs.len());
                             ipc_write(coms_interface_clone.data_fd, &serialized_msgs)?;
-                            info!("Sent msg #{}", i + 1);
+                            trace!("Sent msg #{}", i + 1);
                             // save_data_to_file(messages[i].msg_body.clone(), 0);
                             thread::sleep(Duration::from_millis(100));
                         }
@@ -91,16 +91,16 @@ fn main() -> Result<(), IoError> {
 fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
     let mut path: String = String::from_utf8(path_bytes).expect("Found invalid UTF-8 in path.");
     path = path.trim_matches(char::from(0)).to_string();
-    info!("Got path: {}", path);
+    trace!("Got path: {}", path);
     Ok(path)
 }
 
 /// In charge of getting the file path from a Msg sent to the Bulk dispatcher from a handler
 fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
     if server.buffer != [0u8; IPC_BUFFER_SIZE] {
-        info!(
-            "Server {} received data: {:?}",
-            server.socket_path, &server.buffer
+        trace!(
+            "Server {} received data",
+            server.socket_path
         );
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&server.buffer)?))
@@ -112,9 +112,9 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 /// Same as handle client but for getting a msg from the cmd_msg_disp
 fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
     if client.buffer != [0u8; IPC_BUFFER_SIZE] {
-        info!(
-            "Server {} received data: {:?}",
-            client.socket_path, &client.buffer
+        trace!(
+            "Server {} received data",
+            client.socket_path
         );
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&client.buffer)?))
