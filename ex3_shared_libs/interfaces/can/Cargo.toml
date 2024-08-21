@@ -1,0 +1,11 @@
+[package]
+name = "can"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+message_structure = { path = "../../message_structure" }
+common = { path = "../../common" }
+tcp_interface = { path = "../../tcp_interface" }
+
+socketcan = "3.3.0"
