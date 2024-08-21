@@ -86,7 +86,7 @@ impl IpcClient {
     }
 }
 
-pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<usize, std::io::Error> {
+pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, String), std::io::Error> {
     //Create poll fd instances for each client
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
@@ -129,13 +129,13 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<usize, std:
                             "Received {} bytes on socket {}",
                             bytes_read, client.socket_path
                         );
-                        return Ok(bytes_read);
+                        return Ok((bytes_read, client.socket_path.clone()));
                     }
                 }
             }
         }
     }
-    Ok(0)
+    Ok((0,"".to_string()))
 }
 #[derive(Clone)]
 pub struct IpcServer {
