@@ -76,7 +76,7 @@ fn main() -> Result<(), IoError> {
                             ipc_write(coms_interface_clone.data_fd, &serialized_msgs)?;
                             info!("Sent msg #{}", i + 1);
                             // save_data_to_file(messages[i].msg_body.clone(), 0);
-                            thread::sleep(Duration::from_millis(500));
+                            thread::sleep(Duration::from_millis(100));
                         }
                     } else {
                         todo!()
