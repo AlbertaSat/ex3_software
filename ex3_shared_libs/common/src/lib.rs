@@ -137,6 +137,10 @@ pub mod constants {
 /// This is in common lib because components will need to know what opcodes to use when sending messages to other components
 /// For example if a message is sent to the OBC to get housekeeping data,
 pub mod opcodes {
+
+    use std::fmt;
+
+    // DEPRICATED - left to not break things
     pub mod coms {
         pub const GET_HK: u8 = 3;
         pub const SET_BEACON: u8 = 4;
@@ -160,7 +164,6 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
-
     }
     impl From<u8> for IRIS {
         fn from(value: u8) -> Self {
@@ -182,11 +185,11 @@ pub mod opcodes {
         }
     }
 
-    //NOTE: These are not the same opcodes used by the EPS hardware - these are functionality for the FSW and operator to use   
+    //NOTE: These are not the same opcodes used by the EPS hardware - these are functionality for the FSW and operator to use
     pub enum EPS {
         Ping = 0,
     }
-    
+
     impl From<u8> for EPS {
         fn from(value: u8) -> Self {
             match value {
@@ -199,11 +202,27 @@ pub mod opcodes {
         }
     }
 
+    impl Into<u8> for EPS {
+        fn into(self) -> u8 {
+            match self {
+                EPS::Ping => 0,
+            }
+        }
+    }
+
+    impl fmt::Display for EPS {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match *self {
+                EPS::Ping => write!(f, "Ping"),
+            }
+        }
+    }
+
     // For dummy subsystem - used in testing and development
     pub enum DUMMY {
         SetDummyVariable = 0,
         GetDummyVariable = 1,
-    } 
+    }
 
     impl From<u8> for DUMMY {
         fn from(value: u8) -> Self {

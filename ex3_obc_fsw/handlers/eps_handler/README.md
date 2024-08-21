@@ -10,6 +10,6 @@ To use this handler .....
 
 ## Testing & Development
 
-This can be tested independent of the whole 'software stack' (coms handler, ground station, etc..) through the use of the [ipc_server_dev_tool](../../dev_tools/ipc_server_dev_tool/), which directly injects commands into the handler replacing the command dispatcher.
-
 Insides the [scripts](../../../scripts/) directory there are scripts to test the handler during development without the peripheral (eps subsystem) OR the message dispatcher.
+
+This can be tested independent of the whole 'software stack' (coms handler, ground station, etc..) through the use of the [ipc_server_dev_tool](../../dev_tools/ipc_server_dev_tool/), which directly injects commands into the handler replacing the command dispatcher.

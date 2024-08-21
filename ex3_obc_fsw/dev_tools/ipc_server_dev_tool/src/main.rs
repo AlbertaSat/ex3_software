@@ -2,49 +2,64 @@
 Written by Devin Headrick
 Summer 2024
 
-Create an ipc server on the path specified as an arg - and send hardcoded data based on user input to stdin
+Create an IPC server on the path specified as an arg - and send hardcoded data based on user input to stdin.
 
+This is useful to 'plug into' a handler on the Ipc Interface to test it directly.
 */
 
-use common::component_ids::{self, ComponentIds};
+use common::{
+    component_ids::ComponentIds,
+    opcodes,
+};
 use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
-use message_structure::{CmdMsg, SerializeAndDeserialize};
+use message_structure::{serialize_msg, Msg, MsgType};
 
 use nix::poll::{poll, PollFd, PollFlags};
 use std::io::{self, Read};
 
 const STDIN_POLL_TIMEOUT_MS: i32 = 100;
 
-/// Write a messaage to the IPC - user enteres number to send assoicated example message
-fn handle_user_input(
-    read_data: &[u8],
-    ipc_server: &mut IpcServer,
-) -> Result<usize, std::io::Error> {
-    let first_byte = read_data[0];
-    let first_byte_char = first_byte as char;
-    println!("First byte: {}", first_byte_char);
+fn handle_user_input(component: &str, message_id: &str, ipc_server: &mut IpcServer) {
+    println!("Component: {}, Message ID: {}", component, message_id);
 
-    match first_byte_char {
-        '1' => {
-            println!("Sending msg 1");
-            //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(1, ComponentIds::DUMMY.into(), 3, 0, vec![5, 6, 7, 8, 9, 10]);
-            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
+    let msg = match component {
+        "EPS" => {
+            match message_id {
+                "1" => {
+                    println!("Sending Msg: Ping EPS");
+                    let msg = Msg::new(
+                        MsgType::Cmd as u8,
+                        1,
+                        ComponentIds::EPS.into(),
+                        ComponentIds::GS.into(),
+                        opcodes::EPS::Ping.into(),
+                        vec![],
+                    );
+                    Some(msg)
+                }
+                //...........
+                _ => {
+                    println!("Invalid input: Message ID not recognized");
+                    None
+                }
+            }
         }
-        '2' => {
-            println!("Sending msg 2");
-            //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(2, ComponentIds::DUMMY.into(), 3, 1, vec![5, 6, 7, 8, 9, 10]);
-            let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
-        }
+        // Add more cases here as needed for different components
         _ => {
-            println!("Invalid input");
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid input",
-            ))
+            println!("Invalid input: Component not recognized");
+            None
+        }
+    };
+    if let Some(msg) = msg {
+        let serialized_msg = serialize_msg(&msg).unwrap();
+        let write_res = ipc_write(ipc_server.data_fd, &serialized_msg.as_slice());
+        match write_res {
+            Ok(num_bytes_written) => {
+                println!("{:?} bytes written to ipc client", num_bytes_written);
+            }
+            Err(e) => {
+                println!("Error Writing to IPC client: {:?}", e);
+            }
         }
     }
 }
@@ -77,7 +92,7 @@ fn main() {
     loop {
         poll_ipc_server_sockets(&mut vec![&mut ipc_server]);
         if ipc_server.buffer != [0u8; IPC_BUFFER_SIZE] {
-            println!("Received message from ipc client {:?}", ipc_server.buffer);
+            println!("Received message from IPC client {:?}", ipc_server.buffer);
             ipc_server.clear_buffer();
         }
 
@@ -87,8 +102,13 @@ fn main() {
         match stdin_read_res {
             Some(bytes_read) => {
                 if bytes_read > 0 {
-                    println!("Received user input: {:?}", stdin_buf);
-                    handle_user_input(stdin_buf.as_slice(), &mut ipc_server);
+                    let input = String::from_utf8_lossy(&stdin_buf[..bytes_read]);
+                    let mut parts = input.trim().split_whitespace();
+                    if let (Some(component), Some(message_id)) = (parts.next(), parts.next()) {
+                        handle_user_input(component, message_id, &mut ipc_server);
+                    } else {
+                        println!("Invalid input format. Please enter '<component> <message_id>'.");
+                    }
                 }
             }
             None => (),
