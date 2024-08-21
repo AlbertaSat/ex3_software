@@ -18,13 +18,16 @@ TODOs:
 */
 
 use log::{debug, error, info, trace, warn};
-use log::{Level, LevelFilter};
+use log::{LevelFilter};
 use log4rs::filter::threshold::ThresholdFilter;
 use log4rs::{
     append::console::ConsoleAppender,
-    append::file::FileAppender,
+    append::rolling_file::RollingFileAppender,
     config::{Appender, Config, Logger, Root},
     encode::pattern::PatternEncoder,
+};
+use log4rs::append::rolling_file::policy::compound::{
+    CompoundPolicy, roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger,
 };
 
 fn configure_logger(
@@ -37,18 +40,38 @@ fn configure_logger(
         .encoder(Box::new(PatternEncoder::new("{h({l})} {m}{n}")))
         .build();
 
-    // Create a file appender for all logs
-    let all_log_file = format!("{}/all_logs.log", log_path);
-    let all_file = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {l} - {m}{n}")))
-        .build(all_log_file)
+    // Define the rolling policy for all logs
+    let all_roller = FixedWindowRoller::builder()
+        .base(1)
+        .build(&format!("{}/all_logs.{{}}.log", log_path), 5)
         .unwrap();
 
-    // Create a file appender for warning and error logs
-    let filtered_log_file = format!("{}/error_and_warning_logs.log", log_path);
-    let filtered_file = FileAppender::builder()
+    let all_trigger = SizeTrigger::new(4096); // 10MB file size limit
+
+    let all_policy = CompoundPolicy::new(Box::new(all_trigger), Box::new(all_roller));
+
+    // Create a rolling file appender for all logs
+    let all_log_file = format!("{}/all_logs.log", log_path);
+    let all_file = RollingFileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {l} - {m}{n}")))
-        .build(filtered_log_file)
+        .build(all_log_file, Box::new(all_policy))
+        .unwrap();
+
+    // Define the rolling policy for filtered logs (warning and error)
+    let filtered_roller = FixedWindowRoller::builder()
+        .base(1)
+        .build(&format!("{}/error_and_warning_logs.{{}}.log", log_path), 5)
+        .unwrap();
+
+    let filtered_trigger = SizeTrigger::new(4096); // 10MB file size limit
+
+    let filtered_policy = CompoundPolicy::new(Box::new(filtered_trigger), Box::new(filtered_roller));
+
+    // Create a rolling file appender for warning and error logs
+    let filtered_log_file = format!("{}/error_and_warning_logs.log", log_path);
+    let filtered_file = RollingFileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{d} - {l} - {m}{n}")))
+        .build(filtered_log_file, Box::new(filtered_policy))
         .unwrap();
 
     let filtered_file = Appender::builder()
@@ -105,5 +128,16 @@ mod tests {
         debug!("This is a debug message");
         warn!("This is a warning message");
         trace!("This is a trace message");
+    }
+
+    #[test]
+    fn test_rolling_system() {
+        for _ in 0..5000 {
+            error!("This is an error message");
+            info!("This is an info message");
+            debug!("This is a debug message");
+            warn!("This is a warning message");
+            trace!("This is a trace message");
+        }
     }
 }
