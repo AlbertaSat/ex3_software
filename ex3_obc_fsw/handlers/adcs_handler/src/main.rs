@@ -14,7 +14,7 @@ use tcp_interface::*;
 
 const CMD_DELIMITER: u8 = b":"[0];
 const ADCS_DATA_DIR_PATH: &str = "adcs_data";
-const ADCS_PACKET_SIZE: usize = 1252;
+const ADCS_PACKET_SIZE: usize = 1024;
 const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 
 // TODO check where to add this
@@ -106,15 +106,15 @@ impl ADCSHandler {
     }
 
     fn handle_msg_for_adcs(&mut self, msg: Msg) -> Result<(), Error> {
-        match msg.header.op_code {
-            opcodes::adcs::DETUMBLE => {
+        match opcodes::ADCS::from(msg.header.op_code) {
+            opcodes::ADCS::Detumble => {
                 eprintln!("Error: Detumble is not implemented");
                 Err(Error::new(
                     ErrorKind::NotFound,
                     "Detumble is not implemented for the ADCS yet",
                 ))
             }
-            opcodes::adcs::ON_OFF => match msg.msg_body[0] {
+            opcodes::ADCS::OnOff => match msg.msg_body[0] {
                 0 => {
                     self.toggle_adcs = false;
                     self.send_cmd(adcs_body::OFF, msg)
@@ -126,24 +126,24 @@ impl ADCSHandler {
                 2 => self.send_cmd(adcs_body::GET_STATE, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::adcs::WHEEL_SPEED => match msg.msg_body[0] {
+            opcodes::ADCS::WheelSpeed => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_WHEEL_SPEED, msg),
                 1 => self.send_cmd(adcs_body::SET_WHEEL_SPEED, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::adcs::GET_HK => self.send_cmd(adcs_body::STATUS_CHECK, msg),
-            opcodes::adcs::MAGNETORQUER_CURRENT => match msg.msg_body[0] {
+            opcodes::ADCS::GetHk => self.send_cmd(adcs_body::STATUS_CHECK, msg),
+            opcodes::ADCS::MagnetometerCurrent => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_MAGNETORQUER_CURRENT, msg),
                 1 => self.send_cmd(adcs_body::SET_MAGNETORQUER_CURRENT, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::adcs::ONBOARD_TIME => match msg.msg_body[0] {
+            opcodes::ADCS::OnboardTime => match msg.msg_body[0] {
                 0 => self.send_cmd(adcs_body::GET_TIME, msg),
                 1 => self.send_cmd(adcs_body::SET_TIME, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::adcs::GET_ORIENTATION => self.send_cmd(adcs_body::GET_ORIENTATION, msg),
-            opcodes::adcs::RESET => self.send_cmd(adcs_body::RESET, msg),
+            opcodes::ADCS::GetOrientation => self.send_cmd(adcs_body::GET_ORIENTATION, msg),
+            opcodes::ADCS::Reset => self.send_cmd(adcs_body::RESET, msg),
             _ => {
                 eprintln!(
                     "{}",
@@ -249,7 +249,7 @@ fn main() {
     let adcs_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_ADCS_PORT);
 
     //Create TCP interface for ADCS handler to talk to message dispatcher
-    let dispatcher_interface = IPCInterface::new("adcs_handler".to_string());
+    let dispatcher_interface = IPCInterface::new_client("adcs_handler".to_string());
 
     //Create ADCS handler
     let mut adcs_handler = ADCSHandler::new(adcs_interface, dispatcher_interface);
