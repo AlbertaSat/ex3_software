@@ -209,17 +209,36 @@ pub mod opcodes {
         }
     }
 
-    // TODO: replace mod with enum
-    pub mod adcs {
-        pub const DETUMBLE: u8 = 0;
-        pub const ON_OFF: u8 = 1;
-        pub const WHEEL_SPEED: u8 = 2;
-        pub const GET_HK: u8 = 3;
-        pub const MAGNETORQUER_CURRENT: u8 = 4;
-        pub const ONBOARD_TIME: u8 = 5;
-        pub const GET_ORIENTATION: u8 = 6;
-        pub const RESET: u8 = 7;
-        pub const ORIENT_TO_SBAND: u8 = 9;
+    pub enum ADCS {
+        Detumble = 0,
+        OnOff = 1,
+        WheelSpeed = 2,
+        GetHk = 3,
+        MagnetometerCurrent = 4,
+        OnboardTime = 5,
+        GetOrientation = 6,
+        Reset = 7,
+        OrientToSBand = 9,
+        Error = 99,
+    }
+    impl From<u8> for ADCS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => ADCS::Detumble,
+                1 => ADCS::OnOff,
+                2 => ADCS::WheelSpeed,
+                3 => ADCS::GetHk,
+                4 => ADCS::MagnetometerCurrent,
+                5 => ADCS::OnboardTime,
+                6 => ADCS::GetOrientation,
+                7 => ADCS::Reset,
+                9 => ADCS::OrientToSBand,
+                _ => {
+                    eprintln!("Invalid opcode: {}", value);
+                    ADCS::Error
+                }
+            }
+        }
     }
 }
 
