@@ -200,7 +200,7 @@ fn main() {
                         // await_ack_for_bulk(&mut tcp_interface);
                         // Here where we read incoming bulk msgs from bulk_msg_disp
                         if bulk_msgs_read < expected_msgs {
-                            if let Ok(ipc_bytes_read) = ipc_bytes_read_res {
+                            if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
                                 let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
                                 println!("Bytes read: {}", cur_buf.len());
                                 let cur_msg = deserialize_msg(&cur_buf).unwrap();
