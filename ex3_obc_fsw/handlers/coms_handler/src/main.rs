@@ -168,7 +168,6 @@ fn main() {
 
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
-    let mut bulk_msg = Msg::new(0, 0, 0, 0, 0, vec![]);
     let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
@@ -201,11 +200,13 @@ fn main() {
                         // Here where we read incoming bulk msgs from bulk_msg_disp
                         if bulk_msgs_read < expected_msgs {
                             if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
-                                let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
-                                println!("Bytes read: {}", cur_buf.len());
-                                let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
-                                bulk_msgs_read += 1;
+                                if ipc_name.contains("gs") {
+                                    let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
+                                    println!("Bytes read: {}", cur_buf.len());
+                                    let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                                    write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
+                                    bulk_msgs_read += 1;
+                                }
                             } else {
                                 eprintln!("Error reading bytes from poll.");
                             }
