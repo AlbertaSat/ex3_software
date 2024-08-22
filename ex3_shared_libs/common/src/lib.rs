@@ -137,14 +137,15 @@ pub mod constants {
 /// This is in common lib because components will need to know what opcodes to use when sending messages to other components
 /// For example if a message is sent to the OBC to get housekeeping data,
 pub mod opcodes {
-    pub mod coms {
-        pub const GET_HK: u8 = 3;
-        pub const SET_BEACON: u8 = 4;
-        pub const GET_BEACON: u8 = 5;
+    pub enum COMS {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        Error = 6,
     }
-    pub mod dfgm {
-        pub const TOGGLE_DATA_COLLECTION: u8 = 0;
-        pub const GET_DFGM_DATA: u8 = 1;
+    pub enum DFGM {
+        ToggleDataCollection = 0,
+        Error = 99,
     }
 
     // For IRIS subsystem
@@ -162,6 +163,31 @@ pub mod opcodes {
         Error = 99,
 
     }
+
+    impl From<u8> for COMS {
+        fn from(value: u8) -> Self {
+            match value {
+                3 => COMS::GetHK,
+                4 => COMS::SetBeacon,
+                5 => COMS::GetBeacon,
+                _ => {
+                    COMS::Error // or choose a default value or handle the error in a different way
+                }
+            }
+        }
+    }
+
+    impl From<u8> for DFGM {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => DFGM::ToggleDataCollection,
+                _ => {
+                    DFGM::Error // or choose a default value or handle the error in a different way
+                }
+            }
+        }
+    }
+
     impl From<u8> for IRIS {
         fn from(value: u8) -> Self {
             match value {

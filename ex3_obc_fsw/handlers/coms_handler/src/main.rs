@@ -42,12 +42,12 @@ fn set_beacon_value(new_beacon_value: Vec<u8>) {
 
 /// For messages directed FOR the coms handler directly. Based on the opcode of the message, perform some action
 fn handle_msg_for_coms(msg: &Msg) {
-    let opcode = msg.header.op_code;
-    match opcode {
-        opcodes::coms::GET_HK => {
+    let opcode_enum = opcodes::COMS::from(msg.header.op_code);
+    match opcode_enum {
+        opcodes::COMS::GetHK => {
             trace!("Opcode 3: Get House Keeping Data from COMS Handler for UHF");
         }
-        opcodes::coms::SET_BEACON => {
+        opcodes::COMS::SetBeacon => {
             trace!("Opcode 4: Set the Beacon value");
             //TODO - for now just get the msg body (data) and write that to the beacon
             set_beacon_value(msg.msg_body.clone());

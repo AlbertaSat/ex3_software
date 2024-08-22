@@ -26,7 +26,7 @@ fn main(){
 
     // Define msg to send contents
     let msg_data = vec![0x01, 0x03, 0x0a, 0x00];
-    let msg_to_send = Msg::new(0,0x01, component_ids::COMS, 0x02, opcodes::coms::GET_HK , msg_data);
+    let msg_to_send = Msg::new(0,0x01, component_ids::COMS, 0x02, opcodes::COMS::GetHK as u8, msg_data);
     let msg_bytes = serialize_msg(&msg_to_send).unwrap(); 
 
     println!("Attempting to send: {:?}", msg_bytes);
