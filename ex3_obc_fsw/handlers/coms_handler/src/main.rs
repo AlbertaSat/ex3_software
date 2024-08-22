@@ -210,6 +210,7 @@ fn main() {
                                     let cur_msg = deserialize_msg(&cur_buf).unwrap();
                                     write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
                                     bulk_msgs_read += 1;
+                                }
                             } else {
                                 warn!("Error reading bytes from poll.");
                             }
