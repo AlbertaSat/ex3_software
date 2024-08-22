@@ -39,7 +39,13 @@ bash ./uplink_command_msg.sh <path_to_simulated_subsystem_directory>
 Once all the processes are running, Send the command:
 
 ```@sh
-DFGM 1
+BulkMsgDispatcher <onboard_path>
 ```
 
-in the CLI_GS. This will commence the bulk data transfer from the payload handler to the GS. One can run a diff on the created file from the GS and the data in the  *dfgm_data* folder to ensure everything was copied down correctly.
+in the CLI_GS. The GS expects any path that is onboard to the data that it will slice and downlink. This will commence the bulk data transfer from the payload handler to the GS. One can run a diff on the created file from the GS and the data in the  *dfgm_data* folder to ensure everything was copied down correctly.
+
+Since this path depends on where the bulk_msg_dispatcher is in the OBC flight software, an example of this command could look like:
+
+```@sh
+BulkMsgDispatcher ../handlers/dfgm_handler/dfgm_data
+```
