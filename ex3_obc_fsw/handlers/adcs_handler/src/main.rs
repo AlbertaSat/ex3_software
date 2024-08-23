@@ -29,7 +29,7 @@ const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 pub mod sim_adcs {
     pub struct ADCSCmdParam<'a> {
         pub data: &'a [u8],
-        pub params: i32,
+        pub params: usize,
     }
     pub const ON: ADCSCmdParam = ADCSCmdParam {
         data: b"ON",
@@ -243,7 +243,7 @@ impl ADCSHandler {
 
         // TODO: later figure out how to check we've sent the correct amount of parameters using an end-body flag maybe use 0xFF?
         // First param in msg body will specify the operation type e.g. getting or setting
-        for i in 1..((cmd.params + 1) as usize) {
+        for i in 1..(cmd.params + 1) {
             data.push(CMD_DELIMITER);
             data.extend_from_slice(msg.msg_body[i].to_string().as_bytes());
         }
