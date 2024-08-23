@@ -44,6 +44,7 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
+        UHF = 13,
         //..
         DUMMY = 99,
     }
@@ -60,6 +61,7 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
+                ComponentIds::UHF => write!(f, "UHF"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
@@ -77,6 +79,7 @@ pub mod component_ids {
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
+                "UHF" => Ok(ComponentIds::UHF),
                 //...
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
@@ -98,6 +101,8 @@ pub mod component_ids {
                 7 => ComponentIds::GS,
                 8 => ComponentIds::COMS,
                 9 => ComponentIds::BulkMsgDispatcher,
+                //...
+                13 => ComponentIds::UHF,
                 //...
                 99 => ComponentIds::DUMMY,
                 _ => {
@@ -121,6 +126,8 @@ pub mod component_ids {
                 ComponentIds::GS => 7,
                 ComponentIds::COMS => 8,
                 ComponentIds::BulkMsgDispatcher => 9,
+                //...
+                ComponentIds::UHF => 13,
                 //...
                 ComponentIds::DUMMY => 99,
             }
@@ -162,6 +169,16 @@ pub mod opcodes {
         GetImageSize = 9,
         Error = 99,
 
+    }
+    pub enum UHF {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        SetBaudRate = 6,
+        Reset = 7,
+        GetBaudRate = 8,
+        //...
+        Error = 10,
     }
 
     impl From<u8> for COMS {
@@ -208,6 +225,21 @@ pub mod opcodes {
         }
     }
 
+    impl From<u8> for UHF {
+        fn from(value: u8) -> Self {
+            match value {
+                3 => UHF::GetHK,
+                4 => UHF::SetBeacon,
+                5 => UHF::GetBeacon,
+                6 => UHF::SetBaudRate,
+                7 => UHF::Reset,
+                8 => UHF::GetBaudRate,
+                _ => UHF::Error // or choose a default value or handle the error in a different way
+                
+            }
+        }
+    }
+
     // For dummy subsystem - used in testing and development
     pub enum DUMMY {
         SetDummyVariable = 0,
@@ -237,6 +269,9 @@ mod tests {
     #[test]
     fn get_component_enum_from_u8() {
         //Test conversion from u8 to ComponentIds enum for all
+        let uhf = component_ids::ComponentIds::from(13);
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let eps = component_ids::ComponentIds::from(1);
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -267,6 +302,10 @@ mod tests {
 
     #[test]
     fn get_component_enum_from_str() {
+
+        let uhf = component_ids::ComponentIds::from_str("UHF").unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let eps = component_ids::ComponentIds::from_str("EPS").unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -297,6 +336,10 @@ mod tests {
 
     #[test]
     fn get_component_str_from_enum() {
+
+        let uhf = component_ids::ComponentIds::UHF;
+        assert_eq!(uhf.to_string(), "UHF");
+
         let eps = component_ids::ComponentIds::EPS;
         assert_eq!(eps.to_string(), "EPS");
 
