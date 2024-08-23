@@ -45,6 +45,7 @@ pub mod component_ids {
         BulkMsgDispatcher = 9,
         //..
         SHELL = 12,
+        UHF = 13,
         //..
     }
 
@@ -61,6 +62,7 @@ pub mod component_ids {
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
+                ComponentIds::UHF => write!(f, "UHF"),
             }
         }
     }
@@ -79,6 +81,7 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "SHELL" => Ok(ComponentIds::SHELL),
+                "UHF" => Ok(ComponentIds::UHF),
                 _ => Err(()),
             }
         }
@@ -101,6 +104,7 @@ pub mod component_ids {
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
+                x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 _ => Err(()),
             }
         }
@@ -140,6 +144,16 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
+    }
+    pub enum UHF {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        SetBaudRate = 6,
+        Reset = 7,
+        GetBaudRate = 8,
+        //...
+        Error = 10,
     }
 
     impl From<u8> for COMS {
@@ -182,6 +196,21 @@ pub mod opcodes {
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for UHF {
+        fn from(value: u8) -> Self {
+            match value {
+                3 => UHF::GetHK,
+                4 => UHF::SetBeacon,
+                5 => UHF::GetBeacon,
+                6 => UHF::SetBaudRate,
+                7 => UHF::Reset,
+                8 => UHF::GetBaudRate,
+                _ => UHF::Error // or choose a default value or handle the error in a different way
+                
             }
         }
     }
@@ -268,12 +297,16 @@ mod tests {
         let shell = component_ids::ComponentIds::try_from(12).unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
+        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
 
-    #[test]
+    #[test] 
     fn get_component_enum_from_str() {
+
         let eps = component_ids::ComponentIds::from_str("EPS").unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -298,12 +331,16 @@ mod tests {
         let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
+        let uhf = component_ids::ComponentIds::from_str("UHF").unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
 
     #[test]
     fn get_component_str_from_enum() {
+
         let eps = component_ids::ComponentIds::EPS;
         assert_eq!(eps.to_string(), "EPS");
 
@@ -328,7 +365,11 @@ mod tests {
         let shell = component_ids::ComponentIds::SHELL;
         assert_eq!(shell.to_string(), "SHELL");
 
+        let uhf = component_ids::ComponentIds::UHF;
+        assert_eq!(uhf.to_string(), "UHF");
+
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
     }
+
 }
