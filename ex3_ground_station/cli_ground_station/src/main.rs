@@ -238,6 +238,9 @@ fn process_bulk_messages(
 
 #[tokio::main]
 async fn main() {
+    let log_path = "ex3_ground_station/cli_ground_station/logs";
+    init_logger(&log_path);
+    info!("Logger started");
     info!("Beginning CLI Ground Station...");
     info!("Waiting for connection to Coms handler via TCP...");
     let mut tcp_interface =
