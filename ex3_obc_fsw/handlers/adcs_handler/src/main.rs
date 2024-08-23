@@ -1,12 +1,19 @@
 /*
-Written by Amar
+Written by Amar Kulovac
+
+The ADCS subsystem controls the attitude of the satellite, currently the handler is
+based around the simulated subsystem which the commands for it can be found in
+ex3_simulated_subsystems/ADCS/
+
+TODO: figure out how to cleanly handle errors such as improper inputs
+TODO: get an idea of the actual ADCS commands and figure out a clean way to send commands
+TODO: move to using `ipc` and not `ipc_interface`
 */
 use common::{opcodes, ports};
 use ipc_interface::read_socket;
 use ipc_interface::IPCInterface;
 use message_structure::*;
 use std::fs::OpenOptions;
-
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -17,9 +24,9 @@ const ADCS_DATA_DIR_PATH: &str = "adcs_data";
 const ADCS_PACKET_SIZE: usize = 1024;
 const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 
-// TODO check where to add this
-// Probably will move this to another file later
-pub mod adcs_body {
+// TODO check if there is a cleaner way to do this
+/// This represents the simulated subsystems expected commands
+pub mod sim_adcs {
     pub struct ADCSCmdParam<'a> {
         pub data: &'a [u8],
         pub params: i32,
@@ -114,49 +121,58 @@ impl ADCSHandler {
                     "Detumble is not implemented for the ADCS yet",
                 ))
             }
+
             opcodes::ADCS::OnOff => match msg.msg_body[0] {
                 0 => {
                     self.toggle_adcs = false;
-                    self.send_cmd(adcs_body::OFF, msg)
+                    self.send_cmd(sim_adcs::OFF, msg)
                 }
                 1 => {
                     self.toggle_adcs = true;
-                    self.send_cmd(adcs_body::ON, msg)
+                    self.send_cmd(sim_adcs::ON, msg)
                 }
-                2 => self.send_cmd(adcs_body::GET_STATE, msg),
+                2 => self.send_cmd(sim_adcs::GET_STATE, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
+
             opcodes::ADCS::WheelSpeed => match msg.msg_body[0] {
-                0 => self.send_cmd(adcs_body::GET_WHEEL_SPEED, msg),
-                1 => self.send_cmd(adcs_body::SET_WHEEL_SPEED, msg),
+                0 => self.send_cmd(sim_adcs::GET_WHEEL_SPEED, msg),
+                1 => self.send_cmd(sim_adcs::SET_WHEEL_SPEED, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::ADCS::GetHk => self.send_cmd(adcs_body::STATUS_CHECK, msg),
+
+            opcodes::ADCS::GetHk => self.send_cmd(sim_adcs::STATUS_CHECK, msg),
+
             opcodes::ADCS::MagnetometerCurrent => match msg.msg_body[0] {
-                0 => self.send_cmd(adcs_body::GET_MAGNETORQUER_CURRENT, msg),
-                1 => self.send_cmd(adcs_body::SET_MAGNETORQUER_CURRENT, msg),
+                0 => self.send_cmd(sim_adcs::GET_MAGNETORQUER_CURRENT, msg),
+                1 => self.send_cmd(sim_adcs::SET_MAGNETORQUER_CURRENT, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
+
             opcodes::ADCS::OnboardTime => match msg.msg_body[0] {
-                0 => self.send_cmd(adcs_body::GET_TIME, msg),
-                1 => self.send_cmd(adcs_body::SET_TIME, msg),
+                0 => self.send_cmd(sim_adcs::GET_TIME, msg),
+                1 => self.send_cmd(sim_adcs::SET_TIME, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
-            opcodes::ADCS::GetOrientation => self.send_cmd(adcs_body::GET_ORIENTATION, msg),
-            opcodes::ADCS::Reset => self.send_cmd(adcs_body::RESET, msg),
+
+            opcodes::ADCS::GetOrientation => self.send_cmd(sim_adcs::GET_ORIENTATION, msg),
+
+            opcodes::ADCS::Reset => self.send_cmd(sim_adcs::RESET, msg),
+
             _ => {
                 eprintln!(
                     "{}",
-                    format!("Opcode {} not found for ADCS", msg.header.op_code)
+                    format!("Error: Opcode {} not found for ADCS", msg.header.op_code)
                 );
                 Err(Error::new(
                     ErrorKind::NotFound,
-                    format!("Opcode {} not found for ADCS", msg.header.op_code),
+                    format!("Error: Opcode {} not found for ADCS", msg.header.op_code),
                 ))
             }
         }
     }
 
+    /// Main loop for ADCS Handler
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut socket_buf = vec![0u8; ADCS_INTERFACE_BUFFER_SIZE];
         loop {
@@ -165,43 +181,63 @@ impl ADCSHandler {
                 &mut socket_buf,
             ) {
                 if n > 0 {
-                    let recv_msg: Msg = deserialize_msg(&socket_buf).unwrap();
-                    self.handle_msg_for_adcs(recv_msg)?;
-                    println!("Data toggle set to {}", self.toggle_adcs);
-                    socket_buf.flush()?;
-                }
-            }
+                    self.handle_dispatcher_msg(&mut socket_buf);
 
-            if self.toggle_adcs == true {
-                let mut tcp_buf = [0u8; BUFFER_SIZE];
-                let status = TcpInterface::read(
-                    &mut self.peripheral_interface.as_mut().unwrap(),
-                    &mut tcp_buf,
-                );
-                match status {
-                    Ok(data_len) => {
-                        // Notably, the TCP interface will send all 0's when there is no data to send
-                        let mut all_zero = true;
-                        for i in 0..BUFFER_SIZE {
-                            if tcp_buf[i] != 0 {
-                                all_zero = false;
-                            }
-                        }
-
-                        if !all_zero {
-                            println!("Got data {:?}", tcp_buf);
-                            store_adcs_data(&tcp_buf)?;
-                        }
-                    }
-                    Err(e) => {
-                        println!("Error: {}", e);
+                    if self.toggle_adcs == true {
+                        self.handle_data_storing()?;
                     }
                 }
             }
         }
     }
 
-    fn build_cmd(&mut self, cmd: adcs_body::ADCSCmdParam, msg: Msg) -> Result<Vec<u8>, Error> {
+    /// Takes the bytes read from the IPC interface and
+    /// sends it to the ADCS if an error occurred the msg
+    /// is stored in ADCS data
+    fn handle_dispatcher_msg(&mut self, buf: &mut Vec<u8>) {
+        let recv_msg: Msg = deserialize_msg(&buf).unwrap();
+
+        if let Err(invalid_cmd) = self.handle_msg_for_adcs(recv_msg) {
+            // TODO: create some meaningful error handling here
+            let mut msg: Vec<u8> = vec![];
+
+            msg.extend_from_slice(invalid_cmd.to_string().as_bytes());
+            pad_zeros(&mut msg, ADCS_PACKET_SIZE);
+
+            store_adcs_data(&msg);
+        }
+
+        println!("Data toggle set to {}", self.toggle_adcs);
+        buf.flush();
+    }
+
+    /// Reads from the tcp buffer and stores non-zero messages
+    /// in ADCS Data
+    fn handle_data_storing(&mut self) -> Result<(), Error> {
+        let mut tcp_buf = [0u8; BUFFER_SIZE];
+        let status = TcpInterface::read(
+            &mut self.peripheral_interface.as_mut().unwrap(),
+            &mut tcp_buf,
+        );
+
+        match status {
+            Ok(data_len) => {
+                // Notably, the TCP interface will send all 0's when there is no data to send
+                if tcp_buf != [0u8; ADCS_PACKET_SIZE] {
+                    println!("Got data {:?}", tcp_buf);
+                    store_adcs_data(&tcp_buf)?;
+                }
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Builds commands to follow the simulated subsystems expected command structure
+    fn build_cmd(&mut self, cmd: sim_adcs::ADCSCmdParam, msg: Msg) -> Result<Vec<u8>, Error> {
         let mut data: Vec<u8> = vec![];
         data.extend_from_slice(cmd.data);
 
@@ -215,7 +251,7 @@ impl ADCSHandler {
         Ok(data)
     }
 
-    fn send_cmd(&mut self, command: adcs_body::ADCSCmdParam, msg: Msg) -> Result<(), Error> {
+    fn send_cmd(&mut self, command: sim_adcs::ADCSCmdParam, msg: Msg) -> Result<(), Error> {
         let cmd = self.build_cmd(command, msg)?;
         self.peripheral_interface.as_mut().unwrap().send(&cmd)?;
 
@@ -229,6 +265,15 @@ impl ADCSHandler {
             format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
         )
     }
+}
+
+/// Helper function to pad an array to a length "n"
+fn pad_zeros(array: &mut Vec<u8>, n: usize) -> std::io::Result<()> {
+    for _ in 0..(n - array.len()) {
+        array.push(0);
+    }
+
+    Ok(())
 }
 
 fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {

@@ -21,3 +21,4 @@ The handler will translate commands sent from the msg_dispatcher via IPC, and se
 
 - [ ] Eventually move to more realistic ADCS packets
 - [ ] Create a more realized error handling system
+- [ ] Move to use the `ipc` crate
