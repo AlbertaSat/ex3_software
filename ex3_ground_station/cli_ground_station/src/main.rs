@@ -12,6 +12,8 @@ TODO
 
 */
 
+use logging::*;
+use log::{debug, error, info, trace, warn};
 use bulk_msg_slicing::*;
 use common::*;
 use common::opcodes::*;
@@ -38,7 +40,6 @@ use std::time::Duration;
 use tokio;
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufWriter};
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 const STDIN_POLL_TIMEOUT: c_int = 10;
@@ -101,7 +102,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     }
     
     let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
-    println!("Built msg: {:?}", msg);
+    trace!("Built msg: {:?}", msg);
     Ok(msg)
 }
 
@@ -123,7 +124,7 @@ async fn get_operator_input_line() -> String {
 /// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
 fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
     //TODO - handle if the Ack is OK or ERR , OR not an ACK at all
-    println!("Received ACK: {:?}", msg);
+    trace!("Received ACK: {:?}", msg);
     *awaiting_ack = false;
     Ok(())
 }
@@ -131,7 +132,7 @@ fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
 fn send_msg_to_sc(msg: Msg, tcp_interface: &mut TcpInterface) {
     let serialized_msg = serialize_msg(&msg).unwrap();
     let ret = tcp_interface.send(&serialized_msg).unwrap();
-    println!("Sent {} bytes to Coms handler", ret);
+    trace!("Sent {} bytes to Coms handler", ret);
     std::io::stdout().flush().unwrap();
 }
 
@@ -149,7 +150,7 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
     }
     let mut lock = awaiting_ack_clone.lock().await;
     *lock = false;
-    println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
+    debug!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
 }
 /// Function to represent the state of reading bulk msgs continuously.
 /// It modifies the bulk_messages in place by taking a mutable reference.
@@ -160,15 +161,14 @@ fn read_bulk_msgs(
 ) -> Result<(), std::io::Error> {
     let mut bulk_buf = [0u8; 4096];
     let mut num_msgs_recvd = 0;
-    println!("Num msgs incoming: {}", num_msgs_to_recv);
+    trace!("Num msgs incoming: {}", num_msgs_to_recv);
     while num_msgs_recvd < num_msgs_to_recv {
         let bytes_read = tcp_interface.read(&mut bulk_buf)?;
         if bytes_read > 0 {
             let cur_msg = deserialize_msg(&bulk_buf[0..bytes_read])?;
             if cur_msg.header.msg_type == MsgType::Bulk as u8 {
                 let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
-                println!("Received msg #{}", seq_id);
-                // println!("{:?}", cur_msg);
+                trace!("Received msg #{}", seq_id);
                 bulk_messages.push(cur_msg.clone());
                 thread::sleep(Duration::from_millis(10));
                 num_msgs_recvd += 1;
@@ -220,7 +220,7 @@ fn build_and_send_ack(
     let ack_msg = Msg::new(MsgType::Ack as u8, id, dest, src,200, vec![]);
     let ack_bytes = serialize_msg(&ack_msg)?;
     interface.send(&ack_bytes)?;
-    println!("Sent ack to SC");
+    trace!("Sent ack to SC");
     Ok(())
 }
 
@@ -238,11 +238,11 @@ fn process_bulk_messages(
 
 #[tokio::main]
 async fn main() {
-    println!("Beginning CLI Ground Station...");
-    println!("Waiting for connection to Coms handler via TCP...");
+    info!("Beginning CLI Ground Station...");
+    info!("Waiting for connection to Coms handler via TCP...");
     let mut tcp_interface =
         TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
-    println!("Connected to Coms handler via TCP ");
+    info!("Connected to Coms handler via TCP ");
 
     let mut num_bytes_to_recv: u64 = 0;
     let mut num_msgs_to_recv: u16 = 0;
@@ -289,7 +289,7 @@ async fn main() {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error building message: {}", e);
+                    debug!("Error building message: {}", e);
                 }
             }
         } else {
@@ -326,29 +326,29 @@ async fn main() {
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                     match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
-                            println!("Successfully reconstructed 4K messages");
+                            trace!("Successfully reconstructed 4K messages");
                             match save_data_to_file(
                                 large_msg.msg_body,
                                 large_msg.header.source_id,
                             ) {
                                 Ok(_) => {
-                                    println!("Data saved to file");
+                                    trace!("Data saved to file");
                                 }
                                 Err(e) => {
-                                    eprintln!("Error writing data to file: {}", e);
+                                    debug!("Error writing data to file: {}", e);
                                 }
                             }
                         }
-                        Err(e) => eprintln!("Error reconstructing 4K messages: {}", e),
+                        Err(e) => debug!("Error reconstructing 4K messages: {}", e),
                     }
 
-                    println!(
+                    trace!(
                         "We have {} bulk msgs including initial header msg",
                         bulk_messages.len()
                     );
                     
                 }
-                println!("Received Data: {:?}", read_buf);
+                trace!("Received Data: {:?}", read_buf);
             } else {
                 // Deallocate memory of these messages. Reconstructed version 
                 // has been written to a file. This is slightly slower than .clear() though
