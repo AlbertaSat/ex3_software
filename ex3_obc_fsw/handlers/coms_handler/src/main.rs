@@ -42,12 +42,12 @@ fn set_beacon_value(new_beacon_value: Vec<u8>) {
 
 /// For messages directed FOR the coms handler directly. Based on the opcode of the message, perform some action
 fn handle_msg_for_coms(msg: &Msg) {
-    let opcode = msg.header.op_code;
-    match opcode {
-        opcodes::coms::GET_HK => {
+    let opcode_enum = opcodes::COMS::from(msg.header.op_code);
+    match opcode_enum {
+        opcodes::COMS::GetHK => {
             trace!("Opcode 3: Get House Keeping Data from COMS Handler for UHF");
         }
-        opcodes::coms::SET_BEACON => {
+        opcodes::COMS::SetBeacon => {
             trace!("Opcode 4: Set the Beacon value");
             //TODO - for now just get the msg body (data) and write that to the beacon
             set_beacon_value(msg.msg_body.clone());
@@ -203,12 +203,14 @@ fn main() {
                         // await_ack_for_bulk(&mut tcp_interface);
                         // Here where we read incoming bulk msgs from bulk_msg_disp
                         if bulk_msgs_read < expected_msgs {
-                            if let Ok(ipc_bytes_read) = ipc_bytes_read_res {
-                                let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
-                                trace!("Bytes read: {}", cur_buf.len());
-                                let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
-                                bulk_msgs_read += 1;
+                            if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
+                                if ipc_name.contains("gs") {
+                                    let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
+                                    println!("Bytes read: {}", cur_buf.len());
+                                    let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                                    write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
+                                    bulk_msgs_read += 1;
+                                }
                             } else {
                                 warn!("Error reading bytes from poll.");
                             }

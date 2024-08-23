@@ -77,8 +77,9 @@ impl DFGMHandler {
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
         trace!("Matching opcode.");
-        match msg.header.op_code {
-            opcodes::dfgm::TOGGLE_DATA_COLLECTION => {
+        let opcode_enum = opcodes::DFGM::from(msg.header.op_code);
+        match opcode_enum {
+            opcodes::DFGM::ToggleDataCollection => {
                 if msg.msg_body[0] == 0 {
                     self.toggle_data_collection = false;
                     trace!("Data toggle set to {}", self.toggle_data_collection);

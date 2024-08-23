@@ -23,6 +23,10 @@ gnome-terminal -t SIM_IRIS_SUBSYSTEM -- sh -c "cd $PATH_TO_SIM_SUBS/IRIS && pyth
 gnome-terminal -t MSG_DISPATCHER -- sh -c 'cd ../ex3_obc_fsw/msg_dispatcher && make && ./msg_dispatcher; exec bash'
 sleep 0.25
 
+# Create bulk msg dispatcher 
+gnome-terminal -t BULK_MSG_DISPATCHER -- sh -c 'cd ../ex3_obc_fsw/bulk_msg_dispatcher && cargo run; exec bash'
+sleep 0.25
+
 # ## Create the hanlders and other obc fsw components (coms handler, dfgm handler, etc. )
 gnome-terminal -t DFGM_HANDLER -- sh -c 'cd ../ && cargo run --bin dfgm_handler; exec bash'
 gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
