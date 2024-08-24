@@ -12,7 +12,7 @@ allows for the UHF handler program to disconnect from the UHF and continue to lo
 use tcp_interface::{Interface, TcpInterface};
 use message_structure::{deserialize_msg, serialize_msg, Msg};
 use common::opcodes;
-use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
+
 
 fn set_beacon_value(interface: &mut TcpInterface, new_beacon_value: Vec<u8>) {
     // TODO - write this data to the UHF beacon buffer (or however it actually works w/ the hardware)
@@ -107,11 +107,9 @@ pub fn handle_uhf_cmd(interface: &mut TcpInterface, msg: &Msg) {
             set_baud_rate(interface, msg.msg_body.clone());
         },
         opcodes::UHF::GetBaudRate => {
-            println!("Got opcode 8 to set beacon value");
             get_baud_rate(interface)
         },
         opcodes::UHF::Reset => {
-            println!("Got opcode 8 to set beacon value");
             reset_uhf(interface)
         },
         _ => println!("Invalid opcode")
@@ -124,21 +122,10 @@ pub fn handle_uhf_cmd(interface: &mut TcpInterface, msg: &Msg) {
 
 #[test]
 fn test_set_beacon() {
-    let mut uhf_num_bytes_read: usize = 0;
-    let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
-
     let mut interface = TcpInterface::new_client("127.0.0.1".to_string(), 1234).unwrap();
     // Set beacon value to "bacon"
     // Tested using simulated uhf
     // TODO: make better test
     set_beacon_value(&mut interface, vec!(0x62, 0x61, 0x63, 0x6F, 0x6E));
-    let uhf_bytes_read_result = interface.read(&mut uhf_buf);
-    match uhf_bytes_read_result {
-        Ok(num_bytes_read) => {
-            uhf_num_bytes_read = num_bytes_read;
-        }
-        Err(e) => {
-            warn!("Error reading from UHF transceiver: {:?}", e);
-        }
-    }
+    
 }
