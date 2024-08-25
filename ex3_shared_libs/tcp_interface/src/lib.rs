@@ -20,6 +20,7 @@ pub trait Interface {
 }
 
 /// TCP Interface for communication with simulated external peripherals
+#[allow(dead_code)]
 pub struct TcpInterface {
     ip: String,
     port: u16,
