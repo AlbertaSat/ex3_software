@@ -9,9 +9,8 @@ TODO - implement a 'gs' connection flag, which the handler uses to determine whe
 TODO - mucho error handling
 */
 use logging::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace, warn};
 
-use bulk_msg_slicing::*;
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
@@ -24,7 +23,7 @@ use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
 // Something up with the slicing makes this number be the size that each packet ends up 128B
-const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
+// const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
 
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
@@ -56,28 +55,10 @@ fn handle_msg_for_coms(msg: &Msg) {
     }
 }
 
-/// Function to await ACK before sending bulk msgs
-fn await_ack_for_bulk(interface: &mut TcpInterface) -> Result<(), std::io::Error> {
-    loop {
-        let mut buffer = [0; 128];
-        let ack_bytes = interface.read(&mut buffer)?;
-        if ack_bytes > 0 {
-            let ack_msg = deserialize_msg(&buffer)?;
-            if ack_msg.header.msg_type == MsgType::Ack as u8 {
-                break;
-            } else {
-                debug!("Didn't receive ACK type msg for Bulk Downlink");
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Function to send the initial messages containing num of 4KB msgs to expect and the number of
 /// data bytes to expect once the msg is rebuilt
-fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) -> Result<(), std::io::Error> {
+fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
     write_msg_to_uhf_for_downlink(interface, initial_msg);
-    Ok(())
 }
 
 /// Fxn to write the a msg to the UHF transceiver for downlinking. It will wait to receive an ACK
@@ -187,7 +168,9 @@ fn main() {
                     if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
                     {
                         // If we haven't received Bulk ACK, we need to send ack
-                        send_bulk_ack(ipc_gs_interface.fd);
+                        if let Some(e) = send_bulk_ack(ipc_gs_interface.fd).err() {
+                            println!("failed to send bulk ack: {e}");
+                        }
                         received_bulk_ack = true;
                         let expected_msgs_bytes = [
                             deserialized_msg.msg_body[0],
@@ -265,7 +248,7 @@ fn main() {
 
         if uhf_num_bytes_read > 0 {
             trace!("Received bytes from UHF");
-            let mut ack_msg_id = 0;
+            let ack_msg_id = 0;
             let mut ack_msg_body = vec![0x4F, 0x4B]; // 0x4F = O , 0x4B = K  [OK
                                                      //TODO - Decrypt incomming encrypted bytes
             let decrypted_byte_result = decrypt_bytes_from_gs(&uhf_buf);
