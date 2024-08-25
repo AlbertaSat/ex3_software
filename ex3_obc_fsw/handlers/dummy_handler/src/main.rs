@@ -8,7 +8,7 @@ TODO - Setup handler to re-attempt connection to subsystem if it fails or connec
 
 use common::opcodes;
 use common::ports;
-use message_structure::{AckMsg, CmdMsg, SerializeAndDeserialize};
+use message_structure::{CmdMsg, SerializeAndDeserialize};
 
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use tcp_interface::{Interface, TcpInterface};
