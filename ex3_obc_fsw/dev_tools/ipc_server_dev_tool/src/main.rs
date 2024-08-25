@@ -6,7 +6,7 @@ Create an ipc server on the path specified as an arg - and send hardcoded data b
 
 */
 
-use common::component_ids::{self, ComponentIds};
+use common::component_ids::{ComponentIds};
 use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 use message_structure::{CmdMsg, SerializeAndDeserialize};
 
@@ -16,15 +16,12 @@ use std::io::{self, Read};
 const STDIN_POLL_TIMEOUT_MS: i32 = 100;
 
 /// Write a messaage to the IPC - user enteres number to send assoicated example message
-fn handle_user_input(
-    read_data: &[u8],
-    ipc_server: &mut IpcServer,
-) -> Result<usize, std::io::Error> {
+fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
     let first_byte = read_data[0];
     let first_byte_char = first_byte as char;
     println!("First byte: {}", first_byte_char);
 
-    match first_byte_char {
+    let rc = match first_byte_char {
         '1' => {
             println!("Sending msg 1");
             //write first hardcoded msg to ipc client
@@ -41,12 +38,13 @@ fn handle_user_input(
         }
         _ => {
             println!("Invalid input");
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid input",
-            ))
+            Ok(0)
         }
+    };
+    if let Some(e) = rc.err() {
+        println!("ipc_write error: {e}");
     }
+
 }
 
 fn poll_stdin(mut buffer: &mut [u8]) -> Option<usize> {
