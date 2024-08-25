@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     int ret = 0;                          // used for assessing returns of various fxn calls
     int ready;                            // how many fd are ready from the poll (have return event)
 
-    int num_components = 6;
+    int num_components = 7;
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *adcs_handler = component_factory("adcs_handler", ADCS);
