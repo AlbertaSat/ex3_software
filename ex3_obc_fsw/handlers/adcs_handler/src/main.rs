@@ -10,7 +10,7 @@ TODO: get an idea of the actual ADCS commands and figure out a clean way to send
 */
 use common::{opcodes, ports};
 use ipc::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace, warn};
 use logging::*;
 use message_structure::*;
 use std::fs::OpenOptions;
@@ -165,15 +165,14 @@ impl ADCSHandler {
 
     /// Main loop for ADCS Handler
     pub fn run(&mut self) -> std::io::Result<()> {
-        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
-            if let Ok((n, path)) =
+            if let Ok((n, _)) =
                 poll_ipc_clients(&mut vec![self.dispatcher_interface.as_mut().unwrap()])
             {
                 if n > 0 {
-                    socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
+                    let mut socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
 
-                    self.handle_dispatcher_msg(&mut socket_buf);
+                    self.handle_dispatcher_msg(&mut socket_buf)?;
                     self.handle_data_storing()?;
                 }
             }
@@ -183,33 +182,30 @@ impl ADCSHandler {
     /// Takes the bytes read from the IPC interface and
     /// sends it to the ADCS if an error occurred the msg
     /// is stored in ADCS data
-    fn handle_dispatcher_msg(&mut self, buf: &mut Vec<u8>) {
-        let recv_msg: Msg = deserialize_msg(&buf).unwrap();
+    fn handle_dispatcher_msg(&mut self, buf: &mut Vec<u8>) -> std::io::Result<()> {
+        let recv_msg: Msg = deserialize_msg(buf).unwrap();
 
         if let Err(invalid_cmd) = self.handle_msg_for_adcs(recv_msg) {
             // TODO: create some meaningful error handling here
             let mut msg: Vec<u8> = vec![];
 
             msg.extend_from_slice(invalid_cmd.to_string().as_bytes());
-            pad_zeros(&mut msg, ADCS_PACKET_SIZE);
+            pad_zeros(&mut msg, ADCS_PACKET_SIZE)?;
 
-            store_adcs_data(&msg);
+            store_adcs_data(&msg)?;
         }
 
-        buf.flush();
+        buf.flush()
     }
 
     /// Reads from the tcp buffer and stores non-zero messages
     /// in ADCS Data
     fn handle_data_storing(&mut self) -> Result<(), Error> {
         let mut tcp_buf = [0u8; BUFFER_SIZE];
-        let status = TcpInterface::read(
-            &mut self.peripheral_interface.as_mut().unwrap(),
-            &mut tcp_buf,
-        );
+        let status = TcpInterface::read(self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
 
         match status {
-            Ok(data_len) => {
+            Ok(_) => {
                 // Notably, the TCP interface will send all 0's when there is no data to send
                 if tcp_buf != [0u8; ADCS_PACKET_SIZE] {
                     debug!("Got data {:?}", tcp_buf);
@@ -292,7 +288,7 @@ fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Error> {
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
     let log_path = "ex3_obc_fsw/handlers/adcs_handler/logs";
@@ -309,5 +305,5 @@ fn main() {
     //Create ADCS handler
     let mut adcs_handler = ADCSHandler::new(adcs_interface, dispatcher_interface);
 
-    adcs_handler.run();
+    adcs_handler.run()
 }
