@@ -9,11 +9,10 @@ use std::io::Read;
 use std::thread;
 use std::time::Duration;
 use std::path::Path;
-use std::fs;
-use std::io::Write;
-use std::io;
+use std::{fs, io};
 use logging::*;
-use log::{debug, error, info, trace, warn};
+use log::{trace, warn};
+
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
@@ -171,32 +170,4 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
     // Create the Msg object
     let bulk_msg: Msg = Msg::new(MsgType::Bulk as u8, 0, 7, src_id, 0, data);
     Ok(bulk_msg)
-}
-
-// TMP Stolen from gs_cli. Used for testing to run diffs between
-// Files before and after they're downlinked
-fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
-    // ADD future dir names here depending on source
-    let dir_name = if src == DFGM {
-        "dfgm"
-    } else if src == 99 {
-        "test"
-    } else {
-        "misc"
-    };
-
-    fs::create_dir_all(dir_name)?;
-    let mut file_path = Path::new(dir_name).join("data");
-
-    // Append number to file name if it already exists
-    let mut count = 0;
-    while file_path.exists() {
-        count += 1;
-        file_path = Path::new(dir_name).join(format!("data{}", count));
-    }
-    let mut file = File::create(file_path)?;
-
-    file.write_all(&data)?;
-
-    Ok(())
 }
