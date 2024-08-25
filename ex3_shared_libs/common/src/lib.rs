@@ -177,8 +177,10 @@ pub mod opcodes {
         SetBaudRate = 6,
         Reset = 7,
         GetBaudRate = 8,
+        SetMode = 9,
+        GetMode = 10,
         //...
-        Error = 10,
+        Error = 99,
     }
 
     impl From<u8> for COMS {
@@ -234,8 +236,26 @@ pub mod opcodes {
                 6 => UHF::SetBaudRate,
                 7 => UHF::Reset,
                 8 => UHF::GetBaudRate,
+                9 => UHF::SetMode,
+                10 => UHF::GetMode,
                 _ => UHF::Error // or choose a default value or handle the error in a different way
                 
+            }
+        }
+    }
+
+    impl Into<u8> for UHF {
+        fn into(self) -> u8 {
+            match self {
+                UHF::GetHK => 3,
+                UHF::SetBeacon => 4,
+                UHF::GetBeacon => 5,
+                UHF::SetBaudRate => 6,
+                UHF::Reset => 7,
+                UHF::GetBaudRate => 8,
+                UHF::SetMode => 9,
+                UHF::GetMode => 10,
+                UHF::Error => 99
             }
         }
     }
