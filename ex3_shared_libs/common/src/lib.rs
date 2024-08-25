@@ -160,8 +160,10 @@ pub mod opcodes {
         SetBaudRate = 6,
         Reset = 7,
         GetBaudRate = 8,
+        SetMode = 9,
+        GetMode = 10,
         //...
-        Error = 10,
+        Error = 99,
     }
 
     impl From<u8> for COMS {
@@ -214,9 +216,9 @@ pub mod opcodes {
                 3 => UHF::GetHK,
                 4 => UHF::SetBeacon,
                 5 => UHF::GetBeacon,
-                6 => UHF::SetBaudRate,
+                6 => UHF::SetMode,
                 7 => UHF::Reset,
-                8 => UHF::GetBaudRate,
+                8 => UHF::GetMode,
                 _ => UHF::Error, // or choose a default value or handle the error in a different way
             }
         }
