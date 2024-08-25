@@ -10,6 +10,8 @@ TODO: get an idea of the actual ADCS commands and figure out a clean way to send
 */
 use common::{opcodes, ports};
 use ipc::*;
+use log::{debug, error, info, trace, warn};
+use logging::*;
 use message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -18,7 +20,7 @@ use std::io::ErrorKind;
 use tcp_interface::*;
 
 const CMD_DELIMITER: u8 = b":"[0];
-const ADCS_DATA_DIR_PATH: &str = "adcs_data";
+const ADCS_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/adcs_handler/adcs_data";
 const ADCS_PACKET_SIZE: usize = 1024;
 
 // TODO check if there is a cleaner way to do this
@@ -89,13 +91,13 @@ impl ADCSHandler {
         dispatcher_interface: Result<IpcClient, std::io::Error>,
     ) -> ADCSHandler {
         if adcs_interface.is_err() {
-            println!(
+            warn!(
                 "Error creating ADCS interface: {:?}",
                 adcs_interface.as_ref().err().unwrap()
             );
         }
         if dispatcher_interface.is_err() {
-            println!(
+            warn!(
                 "Error creating dispatcher interface: {:?}",
                 dispatcher_interface.as_ref().err().unwrap()
             );
@@ -110,7 +112,7 @@ impl ADCSHandler {
     fn handle_msg_for_adcs(&mut self, msg: Msg) -> Result<(), Error> {
         match opcodes::ADCS::from(msg.header.op_code) {
             opcodes::ADCS::Detumble => {
-                eprintln!("Error: Detumble is not implemented");
+                warn!("Error: Detumble is not implemented");
                 Err(Error::new(
                     ErrorKind::NotFound,
                     "Detumble is not implemented for the ADCS yet",
@@ -149,7 +151,7 @@ impl ADCSHandler {
             opcodes::ADCS::Reset => self.send_cmd(sim_adcs::RESET, msg),
 
             _ => {
-                eprintln!(
+                warn!(
                     "{}",
                     format!("Error: Opcode {} not found for ADCS", msg.header.op_code)
                 );
@@ -210,22 +212,21 @@ impl ADCSHandler {
             Ok(data_len) => {
                 // Notably, the TCP interface will send all 0's when there is no data to send
                 if tcp_buf != [0u8; ADCS_PACKET_SIZE] {
-                    println!("Got data {:?}", tcp_buf);
+                    debug!("Got data {:?}", tcp_buf);
 
-                    // print everything in the TCP buffer until the first zero is
-                    // seen, treating it like a C string
-                    print!("ADCS MSG: \"");
-                    tcp_buf
+                    // converts the tcp_buf into a `String`
+                    let adcs_msg: String = tcp_buf
                         .iter()
-                        .take_while(|&&c| c != 0)
-                        .for_each(|&c| print!("{}", c as char));
-                    println!("\"");
+                        .take_while(|&&x| x != 0)
+                        .map(|&x| x as char)
+                        .collect();
+                    trace!("ADCS MSG: \"{}\"", adcs_msg);
 
                     store_adcs_data(&tcp_buf)?;
                 }
             }
             Err(e) => {
-                println!("Error: {}", e);
+                warn!("Error: {}", e);
             }
         }
 
@@ -255,7 +256,7 @@ impl ADCSHandler {
     }
 
     fn invalid_msg_body(&mut self, msg: Msg) -> Error {
-        eprintln!(
+        warn!(
             "Error: Unknown msg body for opcode {}, {}",
             msg.header.op_code,
             opcodes::ADCS::from(msg.header.op_code)
@@ -280,8 +281,7 @@ fn pad_zeros(array: &mut Vec<u8>, n: usize) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Stores `data` into `adcs_data/data` and prints
-/// to `stdout`
+/// Stores `data` into `adcs_data/data`
 fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {
     std::fs::create_dir_all(ADCS_DATA_DIR_PATH)?;
     let mut file = OpenOptions::new()
@@ -293,13 +293,17 @@ fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {
 }
 
 fn main() {
-    println!("Beginning ADCS Handler...");
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
+
+    let log_path = "ex3_obc_fsw/handlers/adcs_handler/logs";
+    init_logger(log_path);
+    trace!("Logger initialized");
+    trace!("Beginning ADCS Handler...");
 
     //Create TCP interface for ADCS handler to talk to simulated ADCS
     let adcs_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_ADCS_PORT);
 
-    //Create TCP interface for ADCS handler to talk to message dispatcher
+    //Create IPC interface for ADCS handler to talk to message dispatcher
     let dispatcher_interface = IpcClient::new("adcs_handler".to_string());
 
     //Create ADCS handler
