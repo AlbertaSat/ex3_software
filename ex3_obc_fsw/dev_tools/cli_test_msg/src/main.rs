@@ -25,7 +25,7 @@ fn main() {
 
     let subsystem: &String = &args[2];
     // Default DFGM msg
-    let mut data: Msg = Msg::new(0,0,0,0,0,vec![]);
+    let data: Msg;
     if subsystem == "scheduler" {
         let timestamp: &String = &args[3];
 
@@ -33,14 +33,17 @@ fn main() {
         let msg_time: u64 = timestamp_to_epoch(timestamp.clone()).unwrap();
         let msg_time_bytes = msg_time.to_le_bytes().to_vec();
 
-        let mut data: Msg = Msg::new(0,22,3,25,25,msg_time_bytes.clone());
         let inner_msg: Msg = Msg::new(0,22,4,0,0,msg_time_bytes);
         let serialized_inner_msg = serialize_msg(&inner_msg).unwrap();
         data = Msg::new(0,0,8,1,2,serialized_inner_msg);
-    } else if subsystem == "dfgm" {
-        data = Msg::new(0,0,3,0,0,vec![0]);
+    } else {
+        if subsystem == "dfgm" {
+            data = Msg::new(0,0,3,0,0,vec![0]);
+        }
+        else {
+            data = Msg::new(0,0,0,0,0,vec![]);
+        }
     }
-
     let mut stream = TcpStream::connect((Ipv4Addr::new(127, 0, 0, 1), port)).unwrap();
     let output_stream = &mut stream;
 
