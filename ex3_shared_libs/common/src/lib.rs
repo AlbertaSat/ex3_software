@@ -102,7 +102,9 @@ pub mod component_ids {
                 x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
-                x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::BulkMsgDispatcher as u8 => {
+                    Ok(ComponentIds::BulkMsgDispatcher)
+                }
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 _ => Err(()),
@@ -152,8 +154,10 @@ pub mod opcodes {
         SetBaudRate = 6,
         Reset = 7,
         GetBaudRate = 8,
+        SetMode = 9,
+        GetMode = 10,
         //...
-        Error = 10,
+        Error = 99,
     }
 
     impl From<u8> for COMS {
@@ -209,8 +213,9 @@ pub mod opcodes {
                 6 => UHF::SetBaudRate,
                 7 => UHF::Reset,
                 8 => UHF::GetBaudRate,
-                _ => UHF::Error // or choose a default value or handle the error in a different way
-                
+                9 => UHF::SetMode,
+                10 => UHF::GetMode,
+                _ => UHF::Error, // or choose a default value or handle the error in a different way
             }
         }
     }
@@ -304,9 +309,8 @@ mod tests {
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
 
-    #[test] 
+    #[test]
     fn get_component_enum_from_str() {
-
         let eps = component_ids::ComponentIds::from_str("EPS").unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -340,7 +344,6 @@ mod tests {
 
     #[test]
     fn get_component_str_from_enum() {
-
         let eps = component_ids::ComponentIds::EPS;
         assert_eq!(eps.to_string(), "EPS");
 
@@ -371,5 +374,4 @@ mod tests {
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
     }
-
 }
