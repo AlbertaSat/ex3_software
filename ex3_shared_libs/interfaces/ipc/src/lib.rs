@@ -150,7 +150,7 @@ impl IpcServer {
         let socket_path = format!("{}{}", SOCKET_PATH_PREPEND, socket_name);
         let socket_conn_fd = create_socket()?;
         let mut server = IpcServer {
-            socket_path: socket_path,
+            socket_path,
             conn_fd: Some(socket_conn_fd),
             data_fd: None,
             connected: false,
@@ -224,7 +224,7 @@ impl IpcServer {
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut IpcServer>) {
+pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
