@@ -7,10 +7,12 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: table
       - name: build
         uses: actions-rs/cargo@v1
         with:
           command: build
-        env:
-          RUSTFLAGS: "-D warnings"
+      - name: lint
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
