@@ -222,6 +222,16 @@ impl ADCSHandler {
                 // Notably, the TCP interface will send all 0's when there is no data to send
                 if tcp_buf != [0u8; ADCS_PACKET_SIZE] {
                     println!("Got data {:?}", tcp_buf);
+
+                    // print everything in the TCP buffer until the first zero is
+                    // seen, treating it like a C string
+                    println!("ADCS MSG:\n");
+                    tcp_buf
+                        .iter()
+                        .take_while(|&&c| c != 0)
+                        .for_each(|&c| print!("{}", c as char));
+                    println!("\n");
+
                     store_adcs_data(&tcp_buf)?;
                 }
             }
