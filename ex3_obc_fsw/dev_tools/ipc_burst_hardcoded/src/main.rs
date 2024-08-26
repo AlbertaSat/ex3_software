@@ -12,13 +12,13 @@ Usage:
 */
 
 
-use ipc_interface::{IPCInterface, send_over_socket};
+use ipc::*;
 use message_structure::{Msg, serialize_msg};
 use common::*;
 
 fn main() {
     //Setup interface for comm with OBC FSW components (IPC), by acting as a client connecting to msg dispatcher server
-    let ipc_interface = IPCInterface::new_client("test_handler".to_string()).unwrap();
+    let ipc_interface = IpcClient::new("test_handler".to_string()).unwrap();
 
     // Define msg to send contents
     let msg_data = vec![0x01, 0x03, 0x0a, 0x00];
@@ -28,7 +28,7 @@ fn main() {
     println!("Attempting to send: {:?}", msg_bytes);
 
     // Send the msg
-    send_over_socket(ipc_interface.fd, msg_bytes).unwrap();
+    ipc_write(ipc_interface.fd, &msg_bytes).unwrap();
 
     println!("Sent successful");
 
