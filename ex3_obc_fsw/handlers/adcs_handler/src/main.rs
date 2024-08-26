@@ -79,7 +79,6 @@ pub mod sim_adcs {
 }
 
 struct ADCSHandler {
-    toggle_adcs: bool, // TODO make this more related to booting-up possibly? (affects sim sub sys as well)
     peripheral_interface: Option<TcpInterface>,
     dispatcher_interface: Option<IpcClient>,
 }
@@ -103,7 +102,6 @@ impl ADCSHandler {
         }
 
         ADCSHandler {
-            toggle_adcs: false,
             peripheral_interface: adcs_interface.ok(),
             dispatcher_interface: dispatcher_interface.ok(),
         }
@@ -120,14 +118,8 @@ impl ADCSHandler {
             }
 
             opcodes::ADCS::OnOff => match msg.msg_body[0] {
-                0 => {
-                    self.toggle_adcs = false;
-                    self.send_cmd(sim_adcs::OFF, msg)
-                }
-                1 => {
-                    self.toggle_adcs = true;
-                    self.send_cmd(sim_adcs::ON, msg)
-                }
+                0 => self.send_cmd(sim_adcs::OFF, msg),
+                1 => self.send_cmd(sim_adcs::ON, msg),
                 2 => self.send_cmd(sim_adcs::GET_STATE, msg),
                 _ => Err(self.invalid_msg_body(msg)),
             },
@@ -179,10 +171,7 @@ impl ADCSHandler {
                     socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
 
                     self.handle_dispatcher_msg(&mut socket_buf);
-
-                    if self.toggle_adcs == true {
-                        self.handle_data_storing()?;
-                    }
+                    self.handle_data_storing()?;
                 }
             }
         }
@@ -204,7 +193,6 @@ impl ADCSHandler {
             store_adcs_data(&msg);
         }
 
-        println!("Data toggle set to {}", self.toggle_adcs);
         buf.flush();
     }
 
@@ -226,7 +214,8 @@ impl ADCSHandler {
                     // print everything in the TCP buffer until the first zero is
                     // seen, treating it like a C string
                     print!("ADCS MSG: \"");
-                    tcp_buf.iter()
+                    tcp_buf
+                        .iter()
                         .take_while(|&&c| c != 0)
                         .for_each(|&c| print!("{}", c as char));
                     println!("\"");
