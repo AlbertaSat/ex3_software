@@ -13,15 +13,20 @@ fn main() -> Result<()> {
     let mut coms_handler: IpcServer = IpcServer::new("coms_disp".to_string())?;
     let mut test_handler: IpcServer = IpcServer::new("test_disp".to_string())?;
 
-    // let mut components: Vec<&mut IpcServer> = vec![
-    //     &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
-    //     ];
+    let mut components: Vec<&mut IpcServer> = vec![
+        &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
+        ];
 
     loop {
         
-        let mut components: Vec<&mut IpcServer> = vec![
-            &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
-        ];
+        // let mut iris_handler: IpcServer = iris_handler.clone();
+        // let mut dfgm_handler: IpcServer = dfgm_handler.clone();
+        // let mut coms_handler: IpcServer = coms_handler.clone();
+        // let mut test_handler: IpcServer = test_handler.clone();
+
+        // let mut components: Vec<&mut IpcServer> = vec![
+        // &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
+        // ];
 
         poll_ipc_server_sockets(&mut components);
 
