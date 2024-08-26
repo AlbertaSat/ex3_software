@@ -7,11 +7,9 @@ ex3_simulated_subsystems/ADCS/
 
 TODO: figure out how to cleanly handle errors such as improper inputs
 TODO: get an idea of the actual ADCS commands and figure out a clean way to send commands
-TODO: move to using `ipc` and not `ipc_interface`
 */
 use common::{opcodes, ports};
-use ipc_interface::read_socket;
-use ipc_interface::IPCInterface;
+use ipc::*;
 use message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -22,7 +20,6 @@ use tcp_interface::*;
 const CMD_DELIMITER: u8 = b":"[0];
 const ADCS_DATA_DIR_PATH: &str = "adcs_data";
 const ADCS_PACKET_SIZE: usize = 1024;
-const ADCS_INTERFACE_BUFFER_SIZE: usize = ADCS_PACKET_SIZE;
 
 // TODO check if there is a cleaner way to do this
 /// This represents the simulated subsystems expected commands
@@ -84,13 +81,13 @@ pub mod sim_adcs {
 struct ADCSHandler {
     toggle_adcs: bool, // TODO make this more related to booting-up possibly? (affects sim sub sys as well)
     peripheral_interface: Option<TcpInterface>,
-    dispatcher_interface: Option<IPCInterface>,
+    dispatcher_interface: Option<IpcClient>,
 }
 
 impl ADCSHandler {
     pub fn new(
         adcs_interface: Result<TcpInterface, std::io::Error>,
-        dispatcher_interface: Result<IPCInterface, std::io::Error>,
+        dispatcher_interface: Result<IpcClient, std::io::Error>,
     ) -> ADCSHandler {
         if adcs_interface.is_err() {
             println!(
@@ -174,13 +171,13 @@ impl ADCSHandler {
 
     /// Main loop for ADCS Handler
     pub fn run(&mut self) -> std::io::Result<()> {
-        let mut socket_buf = vec![0u8; ADCS_INTERFACE_BUFFER_SIZE];
+        let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
-            if let Ok(n) = read_socket(
-                self.dispatcher_interface.clone().unwrap().fd,
-                &mut socket_buf,
-            ) {
+            if let Ok(n) = poll_ipc_clients(&mut vec![self.dispatcher_interface.as_mut().unwrap()])
+            {
                 if n > 0 {
+                    socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
+
                     self.handle_dispatcher_msg(&mut socket_buf);
 
                     if self.toggle_adcs == true {
@@ -294,7 +291,7 @@ fn main() {
     let adcs_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_ADCS_PORT);
 
     //Create TCP interface for ADCS handler to talk to message dispatcher
-    let dispatcher_interface = IPCInterface::new_client("adcs_handler".to_string());
+    let dispatcher_interface = IpcClient::new("adcs_handler".to_string());
 
     //Create ADCS handler
     let mut adcs_handler = ADCSHandler::new(adcs_interface, dispatcher_interface);
