@@ -225,12 +225,11 @@ impl ADCSHandler {
 
                     // print everything in the TCP buffer until the first zero is
                     // seen, treating it like a C string
-                    println!("ADCS MSG:\n");
-                    tcp_buf
-                        .iter()
+                    print!("ADCS MSG: \"");
+                    tcp_buf.iter()
                         .take_while(|&&c| c != 0)
                         .for_each(|&c| print!("{}", c as char));
-                    println!("\n");
+                    println!("\"");
 
                     store_adcs_data(&tcp_buf)?;
                 }
@@ -283,6 +282,8 @@ fn pad_zeros(array: &mut Vec<u8>, n: usize) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Stores `data` into `adcs_data/data` and prints
+/// to `stdout`
 fn store_adcs_data(data: &[u8]) -> std::io::Result<()> {
     std::fs::create_dir_all(ADCS_DATA_DIR_PATH)?;
     let mut file = OpenOptions::new()
