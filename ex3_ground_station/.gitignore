@@ -48,6 +48,7 @@ Cargo.lock
 **/dfgm/
 **/iris/
 **/DFGM/
+**/IRIS/
 
 # Except commands.json
 server/data/*
