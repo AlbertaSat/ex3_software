@@ -32,7 +32,7 @@ First cd into the scripts directory, then run the following command.
 bash ./uplink_command_msg.sh <path_to_simulated_subsystem_directory>
 ```
 
-**As of now**, you'll need to run the bulk_msg_dispatcher seperatly as well for downlinking purposes. Find [here](./ex3_obc_fsw/bulk_msg_dispatcher/).
+**As of now**, you'll need to run the bulk_msg_dispatcher separately as well for downlinking purposes. Find [here](./ex3_obc_fsw/bulk_msg_dispatcher/).
 
 ### Testing Uplink
 
