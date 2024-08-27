@@ -132,7 +132,7 @@ impl ADCSHandler {
 
             opcodes::ADCS::GetHk => self.send_cmd(sim_adcs::STATUS_CHECK, msg),
 
-            opcodes::ADCS::MagnetometerCurrent => match msg.msg_body[0] {
+            opcodes::ADCS::MagnetorquerCurrent => match msg.msg_body[0] {
                 0 => self.send_cmd(sim_adcs::GET_MAGNETORQUER_CURRENT, msg),
                 1 => self.send_cmd(sim_adcs::SET_MAGNETORQUER_CURRENT, msg),
                 _ => Err(self.invalid_msg_body(msg)),
@@ -254,10 +254,18 @@ impl ADCSHandler {
     }
 
     fn invalid_msg_body(&mut self, msg: Msg) -> Error {
-        eprintln!("Error: Unknown msg body for opcode {}", msg.header.op_code);
+        eprintln!(
+            "Error: Unknown msg body for opcode {}, {}",
+            msg.header.op_code,
+            opcodes::ADCS::from(msg.header.op_code)
+        );
         Error::new(
             ErrorKind::NotFound,
-            format!("Error: Unknown msg body for opcode {}", msg.header.op_code),
+            format!(
+                "Error: Unknown msg body for opcode {}, {}",
+                msg.header.op_code,
+                opcodes::ADCS::from(msg.header.op_code)
+            ),
         )
     }
 }
