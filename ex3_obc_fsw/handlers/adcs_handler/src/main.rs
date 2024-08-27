@@ -165,7 +165,8 @@ impl ADCSHandler {
     pub fn run(&mut self) -> std::io::Result<()> {
         let mut socket_buf = vec![0u8; IPC_BUFFER_SIZE];
         loop {
-            if let Ok(n) = poll_ipc_clients(&mut vec![self.dispatcher_interface.as_mut().unwrap()])
+            if let Ok((n, path)) =
+                poll_ipc_clients(&mut vec![self.dispatcher_interface.as_mut().unwrap()])
             {
                 if n > 0 {
                     socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
