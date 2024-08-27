@@ -257,7 +257,14 @@ async fn main() {
             }
         } else {
             let mut read_buf = [0; 128];
-            let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
+
+            let bytes_received = match tcp_interface.read(&mut read_buf) {
+                Ok(len) => len,
+                Err(e) => {
+                    println!("read failed: {e}");
+                    break;
+                }
+            };
             if bytes_received > 0 {
                 let recvd_msg = deserialize_msg(&read_buf).unwrap();
                 // Bulk Msg Downlink Mode. Will stay in this mode until all packets are received (as of now).
