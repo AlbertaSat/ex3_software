@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
+    ComponentStruct *cmd_handler = component_factory("coms_handler", CMD);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
     ComponentStruct *bulk_dispatcher = component_factory("bulk_disp", BULK_MSG_DISPATCHER);
 
@@ -47,7 +48,7 @@ int main(int argc, char *argv[])
     for (nfds_t i = 0; i < num_components; i++)
     {
         pfds[i].fd = components[i]->conn_socket_fd;
-        printf("pfds %lu : %d\n", i, pfds[i].fd);
+        printf("pfds %u : %d\n", (unsigned) i, pfds[i].fd);
         pfds[i].events = POLLIN;
     }
 
@@ -79,7 +80,7 @@ int main(int argc, char *argv[])
                         continue;
                     }
 
-                    if (!strncmp(buffer, "DOWN", sizeof(buffer)))
+                    if (!strncmp(buffer, "DOWN", MSG_UNIT_SIZE))
                     {
                         printf("Received DOWN - server shutting down \n");
                         goto CleanEnd;
