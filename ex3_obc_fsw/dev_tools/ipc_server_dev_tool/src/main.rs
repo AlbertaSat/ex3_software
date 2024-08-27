@@ -25,14 +25,14 @@ fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
         '1' => {
             println!("Sending msg 1");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(1, ComponentIds::DUMMY.into(), 3, 0, vec![5, 6, 7, 8, 9, 10]);
+            let msg = CmdMsg::new(1, ComponentIds::DUMMY as u8, 3, 0, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
         '2' => {
             println!("Sending msg 2");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(2, ComponentIds::DUMMY.into(), 3, 1, vec![5, 6, 7, 8, 9, 10]);
+            let msg = CmdMsg::new(2, ComponentIds::DUMMY as u8, 3, 1, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
