@@ -14,9 +14,11 @@ jobs:
           command: build
         env:
           RUSTFLAGS: "-D warnings"
-      - name: lint
+      - name: test
         uses: actions-rs/cargo@v1
         with:
-          command: clippy
-        env:
-          RUSTFLAGS: "-D warnings"
+          command: test
+      - name: lint
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
