@@ -214,7 +214,7 @@ pub mod opcodes {
         OnOff = 1,
         WheelSpeed = 2,
         GetHk = 3,
-        MagnetometerCurrent = 4,
+        MagnetorquerCurrent = 4,
         OnboardTime = 5,
         GetOrientation = 6,
         Reset = 7,
@@ -228,7 +228,7 @@ pub mod opcodes {
                 1 => ADCS::OnOff,
                 2 => ADCS::WheelSpeed,
                 3 => ADCS::GetHk,
-                4 => ADCS::MagnetometerCurrent,
+                4 => ADCS::MagnetorquerCurrent,
                 5 => ADCS::OnboardTime,
                 6 => ADCS::GetOrientation,
                 7 => ADCS::Reset,
@@ -237,6 +237,22 @@ pub mod opcodes {
                     eprintln!("Invalid opcode: {}", value);
                     ADCS::Error
                 }
+            }
+        }
+    }
+    impl std::fmt::Display for ADCS {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match *self {
+                ADCS::Detumble => write!(f, "Detumble"),
+                ADCS::OnOff => write!(f, "On/Off"),
+                ADCS::WheelSpeed => write!(f, "Wheel Speed"),
+                ADCS::GetHk => write!(f, "Get Housekeeping"),
+                ADCS::MagnetorquerCurrent => write!(f, "Magnetorquer Current"),
+                ADCS::OnboardTime => write!(f, "Onboard Time"),
+                ADCS::Reset => write!(f, "Reset"),
+                ADCS::GetOrientation => write!(f, "Get Orientation"),
+                ADCS::OrientToSBand => write!(f, "Orient to S-Band"),
+                ADCS::Error => write!(f, "INVALID OPCODE"),
             }
         }
     }
