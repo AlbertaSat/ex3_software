@@ -28,7 +28,7 @@ use std::io::Write;
 use std::os::unix::io::AsRawFd;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::thread;
+use std::{process, thread};
 use std::time::Duration;
 use tokio;
 use tokio::sync::Mutex;
@@ -198,11 +198,18 @@ fn process_bulk_messages(
 
 #[tokio::main]
 async fn main() {
-    println!("Beginning CLI Ground Station...");
-    println!("Waiting for connection to Coms handler via TCP...");
-    let mut tcp_interface =
-        TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
-    println!("Connected to Coms handler via TCP ");
+    let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
+
+    eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
+
+    let mut tcp_interface = match TcpInterface::new_client(ipaddr.to_string(), SIM_COMMS_PORT) {
+	Ok(ti) => ti,
+	Err(e) => {
+	   eprintln!("Can't connect to satellite: {e}");
+	   process::exit(1);
+	}
+    };
+    eprintln!("Connected to Coms handler via TCP ");
 
     let mut bulk_messages: Vec<Msg> = Vec::new();
     let stdin_fd = std::io::stdin().as_raw_fd();
