@@ -44,6 +44,7 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
+        CMD = 10,
         //..
         DUMMY = 99,
     }
@@ -60,6 +61,7 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
+                ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
