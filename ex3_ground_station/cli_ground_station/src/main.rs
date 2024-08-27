@@ -160,14 +160,9 @@ fn read_bulk_msgs(
 
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
-    let src_comp_enum = component_ids::ComponentIds::from(src);
-    // ADD future dir names here depending on source
-    let mut dir_name: String = match src_comp_enum {
-        component_ids::ComponentIds::DFGM => "dfgm".to_string(),
-        component_ids::ComponentIds::IRIS => "iris".to_string(),
-        component_ids::ComponentIds::COMS => "coms".to_string(),
-        component_ids::ComponentIds::DUMMY => "dummy".to_string(),
-        _ => "misc".to_string()
+    let mut dir_name = match component_ids::ComponentIds::try_from(src) {
+        Ok(c) => format!("{c}"),
+        Err(_) => "misc".to_string(),
     };
 
     // Prepend directory we want it to be created in
