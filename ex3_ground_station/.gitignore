@@ -47,6 +47,7 @@ Cargo.lock
 # Payload folders created by downlink
 **/dfgm/
 **/iris/
+**/DFGM/
 
 # Except commands.json
 server/data/*
