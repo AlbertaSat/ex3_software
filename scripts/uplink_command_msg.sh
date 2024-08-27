@@ -29,5 +29,5 @@ gnome-terminal -t DFGM_HANDLER -- sh -c 'cd ../ && cargo run --bin dfgm_handler;
 gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
 gnome-terminal -t IRIS_HANDLER -- sh -c 'cd ../ && cargo run --bin iris_handler; exec bash'
 
-## Launch the GS simulation (this can just be a tcp client for now )
+## Launch the GS simulation (this can just be a tcp server for now )
 gnome-terminal -t SIM_GS -- sh -c 'cd ../ && cargo run --bin cli_ground_station; bash exec'
