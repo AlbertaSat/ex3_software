@@ -13,6 +13,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
+use ipc::ipc_read;
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
@@ -100,10 +101,7 @@ impl DFGMHandler {
             // Borrowing the dispatcher interfaces
             let msg_dispatcher_interface = self.msg_dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
 
-            let mut clients = vec![
-                msg_dispatcher_interface,
-            ];
-            poll_ipc_clients(&mut clients)?;
+            ipc_read(msg_dispatcher_interface.fd, &mut msg_dispatcher_interface.buffer)?;
             
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
