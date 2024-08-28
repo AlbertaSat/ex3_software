@@ -289,12 +289,23 @@ pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut IpcServer>) {
 /// Wrapper for the unistd lib write fxn
 pub fn ipc_write(fd: Option<i32>, data: &[u8]) -> Result<usize, std::io::Error> {
     match write(
-        fd.expect("Write takes a file descriptor in form i32."),
+        fd.expect("Tried to write to a fd with value of None"),
         data,
     ) {
+        Ok(bytes_sent) => Ok(bytes_sent),
+        Err(e) => {
+            eprintln!("Error writing from socket: {}", e);
+            Err(e.into())
+        }
+    }
+}
+
+/// Wrapper for unistd lib read fxn. Blocks, opposite from polling
+pub fn ipc_read(fd: Option<i32>, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
+    match read(fd.expect("Tried to read from fd with value None"), buffer) {
         Ok(bytes_read) => Ok(bytes_read),
         Err(e) => {
-            eprintln!("Error reading from socket: {}", e);
+            eprintln!("Error reading from socket: {e}");
             Err(e.into())
         }
     }
