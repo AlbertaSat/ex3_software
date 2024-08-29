@@ -133,6 +133,7 @@ fn reset_uhf(interface: &mut TcpInterface) -> Vec<u8> {
 }
 
 pub fn handle_uhf_cmd(interface: &mut TcpInterface, msg: &Msg) -> Vec<u8> {
+    // Can Only use this function when we have simulated UHF integrated with rest of OBC software
     let opcode = opcodes::UHF::from(msg.header.op_code);
     
     match opcode {
@@ -169,7 +170,49 @@ pub fn handle_uhf_cmd(interface: &mut TcpInterface, msg: &Msg) -> Vec<u8> {
 
 }
 
+pub fn handle_uhf_cmd_test(interface: &mut TcpInterface, msg: &Msg) {
+    let opcode = opcodes::UHF::from(msg.header.op_code);
+    
+    match opcode {
+        opcodes::UHF::GetHK => {
+            println!("Getting HK...");
+            
+        },
+        opcodes::UHF::SetBeacon => {
+            println!("Setting Beacon...");
+            
+        },
+        opcodes::UHF::GetBeacon => {
+            println!("Getting Beacon...");
+            
+        },
+        opcodes::UHF::SetBaudRate => {
+            println!("Setting Baud Rate...");
+            
+        },
+        opcodes::UHF::GetBaudRate => {
+            println!("Getting Baud Rate...");
+            
+        },
+        opcodes::UHF::SetMode => {
+            println!("Setting Mode...");
+            
+        },
+        opcodes::UHF::GetMode => {
+            println!("Getting Mode...");
+            
+        }
+        opcodes::UHF::Reset => {
+            println!("Resetting UHF");
+            
+        },
+        _ => {
+            println!("Invalid opcode");
+            // return error message if opcode is invalid
+        }
+    }
 
+}
 
 #[test]
 fn test_setting() {

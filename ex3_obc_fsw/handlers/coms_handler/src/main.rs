@@ -12,6 +12,7 @@ use logging::*;
 use log::{debug, trace, warn};
 
 use common::component_ids::{COMS, GS};
+use common::component_ids::ComponentIds;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
@@ -19,8 +20,10 @@ use ipc::*;
 use message_structure::{
     deserialize_msg, serialize_msg, Msg, MsgType,
 };
+use uhf_handler::{handle_uhf_cmd, handle_uhf_cmd_test};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
+mod uhf_handler;
 
 // Something up with the slicing makes this number be the size that each packet ends up 128B
 // const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
@@ -225,8 +228,17 @@ fn main() {
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
                     trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
-                    // Handles msg internally for COMS
-                    handle_msg_for_coms(&deserialized_msg);
+                    match ComponentIds::from(deserialized_msg.header.dest_id) {
+                        ComponentIds::COMS => {
+                            handle_msg_for_coms(&deserialized_msg);
+                        },
+                        ComponentIds::UHF => {
+                            handle_uhf_cmd_test(&mut tcp_interface, &deserialized_msg);
+                        },
+                        _ => {
+                            warn!("Invalid ComponentId");
+                        }
+                    }
                 }
                 Err(e) => {
                     warn!("Error deserializing COMS IPC msg: {:?}", e);
