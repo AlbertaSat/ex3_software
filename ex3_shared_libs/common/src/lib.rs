@@ -108,7 +108,7 @@ pub mod component_ids {
                 _ => Err(()),
             }
         }
-    }
+    }    
 }
 
 /// For constants that are used across the entire project
