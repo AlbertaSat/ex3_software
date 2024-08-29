@@ -19,8 +19,10 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
+use logging::*;
+use log::{debug, trace, warn};
 use common::component_ids::IRIS;
-use common::opcodes::coms::GET_HK;
+use common::opcodes::IRIS::GetHK;
 use common::{opcodes, ports};
 use ipc::*;
 use message_structure::*;
@@ -56,13 +58,13 @@ impl IRISHandler {
     ) -> IRISHandler {
         //if either interfaces are error, print this
         if iris_interface.is_err() {
-            println!(
+            warn!(
                 "Error creating IRIS interface: {:?}",
                 iris_interface.as_ref().err().unwrap()
             );
         }
         if dispatcher_interface.is_err() {
-            println!(
+            warn!(
                 "Error creating dispatcher interface: {:?}",
                 dispatcher_interface.as_ref().err().unwrap()
             );
@@ -78,6 +80,7 @@ impl IRISHandler {
     fn handle_msg_for_iris(&mut self, msg: Msg) -> Option<String> {
         self.dispatcher_interface.as_mut().unwrap().clear_buffer();
         let mut hk = false;
+        let op: String;
         let (command_msg, success) = match opcodes::IRIS::from(msg.header.op_code) {
             opcodes::IRIS::Reset=> {
                 ("RST", true)
@@ -97,17 +100,20 @@ impl IRISHandler {
             }
             opcodes::IRIS::FetchImage=> {
                 // Assumes that there are not more than 255 images being request at any one time
-                (&*format!("FTI:{}", msg.msg_body[0]),true)
+                op = format!("FTI:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetImageSize=> {
                 // Currently can only access the first 255 images stored on IRIS, will be updated if needed
-                (&*format!("FSI:{}", msg.msg_body[0]),true)
+                op = format!("FSI:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetNImagesAvailable=> {
                 ("FNI", true)
             }
             opcodes::IRIS::DelImage=> {
-                (&*format!("DTI:{}", msg.msg_body[0]),true)
+                op = format!("DTI:{}", msg.msg_body[0]);
+                (op.as_str(),true)
             }
             // Housekeeping commands
             opcodes::IRIS::GetTime=> {
@@ -115,14 +121,16 @@ impl IRISHandler {
             }
             opcodes::IRIS::SetTime=> {
                 // Placeholder for reading the total time need to determine how we will handle >255 values (ie. epoch time)
-                (&*format!("STT:{}", msg.msg_body[0]),true)
+                op = format!("STT:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetHK=> {
                 hk = true;
                 ("FTH", true)
             }
             opcodes::IRIS::Error => {
-                (&*format!("Opcode {} not found for IRIS", msg.header.op_code), false)
+                op = format!("Opcode {} not found for IRIS", msg.header.op_code);
+                (op.as_str(), false)
                 
             }
         };
@@ -136,18 +144,18 @@ impl IRISHandler {
                 match status {
                     // Ok(_data_len) => { println!("Got data {:?}", std::str::from_utf8(&response)); }
                     Ok(response) => {
-                    println!("Got data {:?}", response);
+                    trace!("Got data {:?}", response);
                         if hk {
                             return Some(response);
                         }
                     }
-                    Err(e) => { println!("Error: {}", e); }
+                    Err(e) => { debug!("Error: {}", e); }
                 }
 
             }
             return None;
         }
-        eprintln!("{}", command_msg);
+        trace!("Command: {}", command_msg);
         None
     }
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
@@ -164,10 +172,10 @@ impl IRISHandler {
             if last_hk_collect.elapsed() >= hk_interval {
                 match self.collect_hk() {
                     Ok(_) => {
-                        println!("Collected and stored HK!");
+                        trace!("Collected and stored HK!");
                     }
                     Err(e) => {
-                        eprintln!("HK collection failed: {}", e);
+                        debug!("HK collection failed: {}", e);
                     }
                 }
                 last_hk_collect = Instant::now();
@@ -189,7 +197,7 @@ impl IRISHandler {
             if let Some(cmd_msg_dispatcher) = self.dispatcher_interface.as_mut() {
                 if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
                     let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
-                    println!("Received and deserialized msg");
+                    trace!("Received and deserialized msg");
                     self.handle_msg_for_iris(recv_msg);
                 }
             }
@@ -199,7 +207,7 @@ impl IRISHandler {
     /// This function is a first iteration of how a handler will collect HK.
     /// Each handler will have a different version of this function as each HK is unique
     fn collect_hk(&mut self) -> io::Result<()> {
-        let hk_msg = Msg::new(55,55,IRIS, IRIS, GET_HK, vec![]);
+        let hk_msg = Msg::new(55,55,IRIS, IRIS, GetHK as u8, vec![]);
         if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
             let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
             store_iris_data("hk_test", &hk_bytes)?;
@@ -238,14 +246,14 @@ fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         if let Some((key, value)) = line.split_once(": ") {
             hk_map.insert(key.trim().to_string(), value.trim().to_string());
         } else {
-            eprintln!("Failed to process line of HK without ':' ");
+            debug!("Failed to process line of HK without ':' ");
         }
     }
 
     let json_value = json!(hk_map);
     let json_bytes = serde_json::to_vec(&json_value)?;
-    println!("Num HK bytes: {}", json_bytes.len());
-    println!("HK bytes: {:?}", json_bytes);
+    trace!("Num HK bytes: {}", json_bytes.len());
+    trace!("HK bytes: {:?}", json_bytes);
     
     Ok(json_bytes)
 }
@@ -261,7 +269,7 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
         for i in 7..packet_len{
             n_images = n_images * 10 + packet_content[i]-48;
         }
-        print!("\n{}\n", n_images);
+        trace!("\nNum Images: {}\n", n_images);
         for _ in 0..n_images{
             parse_packet(peripheral_interface, &mut packet_content, false, "None")?;
             let status = std::str::from_utf8(&packet_content);
@@ -352,18 +360,17 @@ fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  respons
 fn write_status(status: Result<usize, Error>, cmd: &str) -> bool{
     match status {
         Ok(_data_len) => {
-            println!("Command {} successfully sent", cmd);
+            trace!("Command {} successfully sent", cmd);
             true
         }
         Err(e) => {
-            println!("Error: {}", e);
+            debug!("Error: {}", e);
             false
         }
     }
 }
 
 fn main() {
-    println!("Beginning IRIS Handler...");
     //For now interfaces are created and if their associated ports are not open, they will be ignored rather than causing the program to panic
 
     //Create TCP interface for IRIS handler to talk to simulated IRIS
@@ -375,5 +382,10 @@ fn main() {
     //Create IRIS handler
     let mut iris_handler = IRISHandler::new(iris_interface, dispatcher_interface);
 
+    // Initialize logging
+    let log_path = "ex3_obc_fsw/handlers/iris_handler/logs";
+    init_logger(log_path);
+    
+    trace!("Beginning IRIS Handler...");
     let _ = iris_handler.run();
 }

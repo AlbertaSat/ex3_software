@@ -32,14 +32,36 @@ First cd into the scripts directory, then run the following command.
 bash ./uplink_command_msg.sh <path_to_simulated_subsystem_directory>
 ```
 
-**As of now**, you'll need to run the bulk_msg_dispatcher seperatly as well for downlinking purposes. Find [here](./ex3_obc_fsw/bulk_msg_dispatcher/).
+**As of now**, you'll need to run the bulk_msg_dispatcher separately as well for downlinking purposes. Find [here](./ex3_obc_fsw/bulk_msg_dispatcher/).
+
+### Testing Uplink
+
+Commands for uplink can be found in a master spreadsheet [here].(https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0)
+
+One can send a command by running the uplink script: ```uplink_command_msg.sh```.
+
+```@sh
+./uplink_command_msg <path_to_sim_subsystem_dir>
+```
+
+Next, an operator will send commands from the Ground Station. Right now, it is the SIM_GS terminal that is spawned by the script. Next, type in a command structured as ```<DEST> <opcode> <body>(optional)```. An example to toggle the collection of DFGM data would be:
+
+```@sh
+DFGM 0 1
+```
 
 ### Testing Downlink  
 
 Once all the processes are running, Send the command:
 
 ```@sh
-DFGM 1
+BulkMsgDispatcher <onboard_path>
 ```
 
-in the CLI_GS. This will commence the bulk data transfer from the payload handler to the GS. One can run a diff on the created file from the GS and the data in the  *dfgm_data* folder to ensure everything was copied down correctly.
+in the CLI_GS. The GS expects any path that is onboard to the data that it will slice and downlink. This will commence the bulk data transfer from the payload handler to the GS. One can run a diff on the created file from the GS and the data in the  *dfgm_data* folder to ensure everything was copied down correctly.
+
+Since this path depends on where the bulk_msg_dispatcher is in the OBC flight software, an example of this command could look like:
+
+```@sh
+BulkMsgDispatcher ../handlers/dfgm_handler/dfgm_data
+```

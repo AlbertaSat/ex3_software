@@ -79,8 +79,8 @@ impl fmt::Display for MsgHeaderNew {
             "MsgId: {},\n\tMsgType: {},\n\tDestId: {},\n\tSourceId: {}",
             self.msg_id,
             self.msg_type,
-            ComponentIds::from(self.dest_id),
-            ComponentIds::from(self.source_id),
+            ComponentIds::try_from(self.dest_id).unwrap_or(ComponentIds::DUMMY),
+            ComponentIds::try_from(self.source_id).unwrap_or(ComponentIds::DUMMY),
         )
     }
 }

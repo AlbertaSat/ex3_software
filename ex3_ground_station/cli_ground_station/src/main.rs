@@ -14,31 +14,24 @@ TODO
 
 use bulk_msg_slicing::*;
 use common::*;
-use common::opcodes::*;
 use common::ports::SIM_COMMS_PORT;
-use serde_json::de;
-use core::num;
 use libc::c_int;
 use message_structure::*;
 use std::fs::File;
 use std::path::Path;
 use tcp_interface::*;
 
-use chrono::prelude::*;
 use libc::{poll, POLLIN};
-use serde_json::json;
 use std::fs;
 use std::io::prelude::*;
 use std::io::Write;
 use std::os::unix::io::AsRawFd;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::thread;
+use std::{process, thread};
 use std::time::Duration;
 use tokio;
-use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufWriter};
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 const STDIN_POLL_TIMEOUT: c_int = 10;
@@ -105,21 +98,6 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     Ok(msg)
 }
 
-/// Blocking io read operator input from stdin, trim, and store command in JSON
-async fn get_operator_input_line() -> String {
-    let mut input = String::new();
-    print!("Ex3 CLI GS > ");
-    io::stdout().flush().await.unwrap();
-    let stdin = io::BufReader::new(io::stdin());
-    let mut lines = stdin.lines();
-    if let Some(line) = lines.next_line().await.unwrap() {
-        input = line.trim().to_string();
-    }
-
-    // store_operator_entered_string(input.clone());
-    input
-}
-
 /// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
 fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
     //TODO - handle if the Ack is OK or ERR , OR not an ACK at all
@@ -182,13 +160,9 @@ fn read_bulk_msgs(
 
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
-    let src_comp_enum = component_ids::ComponentIds::from(src);
-    // ADD future dir names here depending on source
-    let mut dir_name: String = match src_comp_enum {
-        component_ids::ComponentIds::DFGM => "dfgm".to_string(),
-        component_ids::ComponentIds::IRIS => "iris".to_string(),
-        component_ids::ComponentIds::DUMMY => "dummy".to_string(),
-        _ => "misc".to_string()
+    let mut dir_name = match component_ids::ComponentIds::try_from(src) {
+        Ok(c) => format!("{c}"),
+        Err(_) => "misc".to_string(),
     };
 
     // Prepend directory we want it to be created in
@@ -209,19 +183,6 @@ fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Generic function that builds and sends an ACK on whatever interface is passed
-fn build_and_send_ack(
-    interface: &mut TcpInterface,
-    id: u8,
-    dest: u8,
-    src: u8,
-) -> Result<(), std::io::Error> {
-    let ack_msg = Msg::new(MsgType::Ack as u8, id, dest, src,200, vec![]);
-    let ack_bytes = serialize_msg(&ack_msg)?;
-    interface.send(&ack_bytes)?;
-    println!("Sent ack to SC");
-    Ok(())
-}
 
 /// Function for rebuilding msgs that have been downlinked from the SC
 /// First, it takes a chunk of 128B msgs and makes a 4KB packet out of that
@@ -237,14 +198,19 @@ fn process_bulk_messages(
 
 #[tokio::main]
 async fn main() {
-    println!("Beginning CLI Ground Station...");
-    println!("Waiting for connection to Coms handler via TCP...");
-    let mut tcp_interface =
-        TcpInterface::new_server("127.0.0.1".to_string(), SIM_COMMS_PORT).unwrap();
-    println!("Connected to Coms handler via TCP ");
+    let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
 
-    let mut num_bytes_to_recv: u64 = 0;
-    let mut num_msgs_to_recv: u16 = 0;
+    eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
+
+    let mut tcp_interface = match TcpInterface::new_client(ipaddr.to_string(), SIM_COMMS_PORT) {
+	Ok(ti) => ti,
+	Err(e) => {
+	   eprintln!("Can't connect to satellite: {e}");
+	   process::exit(1);
+	}
+    };
+    eprintln!("Connected to Coms handler via TCP ");
+
     let mut bulk_messages: Vec<Msg> = Vec::new();
     let stdin_fd = std::io::stdin().as_raw_fd();
 
@@ -293,12 +259,19 @@ async fn main() {
             }
         } else {
             let mut read_buf = [0; 128];
-            let bytes_received = tcp_interface.read(&mut read_buf).unwrap();
+
+            let bytes_received = match tcp_interface.read(&mut read_buf) {
+                Ok(len) => len,
+                Err(e) => {
+                    println!("read failed: {e}");
+                    break;
+                }
+            };
             if bytes_received > 0 {
                 let recvd_msg = deserialize_msg(&read_buf).unwrap();
                 // Bulk Msg Downlink Mode. Will stay in this mode until all packets are received (as of now).
                 if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
-                    num_msgs_to_recv =
+                    let num_msgs_to_recv =
                         u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
                     let bytes = [recvd_msg.msg_body[2],
                         recvd_msg.msg_body[3],
@@ -308,7 +281,7 @@ async fn main() {
                         recvd_msg.msg_body[7],
                         recvd_msg.msg_body[8],
                         recvd_msg.msg_body[9]];
-                    num_bytes_to_recv = u64::from_le_bytes(bytes);
+                    let num_bytes_to_recv = u64::from_le_bytes(bytes);
                     // build_and_send_ack(
                     //     &mut tcp_interface,
                     //     recvd_msg.header.msg_id.clone(),
