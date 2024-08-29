@@ -121,7 +121,7 @@ fn main() {
     
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
+        TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
     let ipc_gs_interface_res = IpcClient::new("gs_bulk".to_string());

@@ -24,6 +24,7 @@ sleep 0.25
 gnome-terminal -t BULK_MSG_DISPATCHER -- sh -c 'cd ../ex3_obc_fsw/bulk_msg_dispatcher && cargo run; exec bash'
 
 # ## Create the hanlders and other obc fsw components (coms handler, dfgm handler, etc. )
+gnome-terminal -t SIM_UHF_SUBSYSTEM -- sh -c "cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py ; bash exec;"
 gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
 gnome-terminal -t IRIS_HANDLER -- sh -c 'cd ../ && cargo run --bin iris_handler; exec bash'
 
