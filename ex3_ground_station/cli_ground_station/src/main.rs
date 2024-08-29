@@ -319,6 +319,8 @@ async fn main() {
                         bulk_messages.len()
                     );
                     
+                } else if recvd_msg.header.msg_type == MsgType::Ack as u8 {
+                    println!("Got response: {}", String::from_utf8(recvd_msg.msg_body).unwrap_or("Couldn't desrialize body bytes to string".to_string()));
                 }
                 println!("Received Data: {:?}", read_buf);
             } else {

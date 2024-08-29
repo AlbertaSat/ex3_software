@@ -17,6 +17,7 @@ const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed int
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     let mut coms_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
+    let mut coms_resp_interface: IpcServer = IpcServer::new("gs_bulk_resp".to_string())?;
     let mut cmd_msg_disp_interface: IpcClient = IpcClient::new("bulk_disp".to_string())?;
     let mut messages = Vec::new();
 
@@ -25,7 +26,8 @@ fn main() -> Result<(), IoError> {
 
     loop {
         let coms_interface_clone = coms_interface.clone();
-        let mut servers: Vec<&mut IpcServer> = vec![&mut coms_interface];
+        let coms_resp_interface_clone = coms_resp_interface.clone();
+        let mut servers: Vec<&mut IpcServer> = vec![&mut coms_interface, &mut coms_resp_interface];
         let mut clients: Vec<&mut IpcClient> = vec![&mut cmd_msg_disp_interface];
 
         poll_ipc_clients(&mut clients)?;
@@ -52,11 +54,18 @@ fn main() -> Result<(), IoError> {
                             bulk_msg.msg_body.len() as u64,
                             coms_interface_clone.data_fd,
                         )?;
-                        
                         client.clear_buffer();
                     }
                     Err(e) => {
+                        client.clear_buffer();
                         warn!("Error reading data from path: {}",e);
+                        let err_resp = format!("Error reading data from path: {e}");
+                        match ipc_write(coms_resp_interface_clone.data_fd, err_resp.as_bytes()) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("Error writing resp data to GS: {e}");
+                            }
+                        }
                     }
                 }
             }
