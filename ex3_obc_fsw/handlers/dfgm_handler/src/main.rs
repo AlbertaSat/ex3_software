@@ -13,6 +13,8 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
+use common::component_ids::{DFGM, GS};
+use ipc::ipc_write;
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
@@ -40,12 +42,14 @@ struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
     msg_dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    gs_response_interface: Option<IpcClient>
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
         msg_dispatcher_interface: Result<IpcClient, std::io::Error>,
+        gs_response_interface: Result<IpcClient, std::io::Error>,
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -60,11 +64,18 @@ impl DFGMHandler {
                 msg_dispatcher_interface.as_ref().err().unwrap()
             );
         }
+        if gs_response_interface.is_err() {
+            warn!(
+                "Error creating gs_response_interface: {:?}",
+                msg_dispatcher_interface.as_ref().err().unwrap()
+            );
+        }
 
         DFGMHandler {
             toggle_data_collection: false,
             peripheral_interface: dfgm_interface.ok(),
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
+            gs_response_interface: gs_response_interface.ok(),
         }
     }
 
@@ -77,6 +88,7 @@ impl DFGMHandler {
                 if msg.msg_body[0] == 0 {
                     self.toggle_data_collection = false;
                     trace!("Data toggle set to {}", self.toggle_data_collection);
+                    // TODO - send status to GS. Example can be found in error handled from this function
                     Ok(())
                 } else if msg.msg_body[0] == 1 {
                     self.toggle_data_collection = true;
@@ -88,7 +100,7 @@ impl DFGMHandler {
                 }
             }
             _ => {
-                debug!("Error: invalid msg body for opcode 0");
+                debug!("Error: Opcode not implemented");
                 Err(Error::new(ErrorKind::NotFound, format!("Opcode {} not found for DFGM", msg.header.op_code)))
             }
         }
@@ -110,7 +122,15 @@ impl DFGMHandler {
                 if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
                     let recv_msg: Msg = deserialize_msg(&cmd_msg_dispatcher.buffer).unwrap();
                     trace!("Received and deserialized msg");
-                    self.handle_msg_for_dfgm(recv_msg)?;
+                    match self.handle_msg_for_dfgm(recv_msg) {
+                        Ok(()) => (),
+                        Err(e) => {
+                            debug!("Sending resp to GS");
+                            let err_resp = format!("Error finding DFGM opcode: {e}");
+                            let err_resp_msg = Msg::new(MsgType::Ack as u8, 66, GS, DFGM, 99, err_resp.as_bytes().to_vec());
+                            ipc_write(self.gs_response_interface.as_mut().unwrap().fd, &serialize_msg(&err_resp_msg)?);
+                        }
+                    }
                 }
             }
         
@@ -159,8 +179,11 @@ fn main() -> Result<(), Error> {
     //Create Unix domain socket interface for DFGM handler to talk to command message dispatcher
     let msg_dispatcher_interface = IpcClient::new("dfgm_handler".to_string());
 
+    // Socket for responding from commands. Goes directly to Coms Handler
+    let coms_response_interface = IpcClient::new("dfgm_resp".to_string());
+
     //Create DFGM handler
-    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface);
+    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface, coms_response_interface);
 
     dfgm_handler.run()
 }

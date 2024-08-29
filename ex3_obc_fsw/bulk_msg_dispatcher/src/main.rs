@@ -60,16 +60,16 @@ fn main() -> Result<(), IoError> {
                     Err(e) => {
                         client.clear_buffer();
                         warn!("Error reading data from path: {}", e);
-                        let err_resp_msg = format!("Error reading data from path: {e}");
-                        let err_resp = Msg::new(
+                        let err_resp = format!("Error reading data from path: {e}");
+                        let err_resp_msg = Msg::new(
                             MsgType::Ack as u8,
                             0,
                             GS,
                             component_ids::ComponentIds::BulkMsgDispatcher as u8,
                             0,
-                            err_resp_msg.as_bytes().to_vec(),
+                            err_resp.as_bytes().to_vec(),
                         );
-                        match ipc_write(coms_resp_interface_clone.data_fd, &serialize_msg(&err_resp).unwrap()) {
+                        match ipc_write(coms_resp_interface_clone.data_fd, &serialize_msg(&err_resp_msg).unwrap()) {
                             Ok(_) => {}
                             Err(e) => {
                                 warn!("Error writing resp data to GS: {e}");

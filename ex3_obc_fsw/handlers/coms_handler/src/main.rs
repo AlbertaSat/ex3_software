@@ -19,6 +19,7 @@ use ipc::*;
 use message_structure::{
     deserialize_msg, serialize_msg, Msg, MsgType,
 };
+use std::borrow::BorrowMut;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
@@ -146,15 +147,25 @@ fn main() {
     let mut ipc_coms_interface = ipc_coms_interface_res.unwrap();
 
     //Setup interface for comm with Bulk Disp for errors/responses, for the purpose of passing messages to and from the GS
-    let ipc_gs_resp_interface_res = IpcClient::new("gs_bulk_resp".to_string());
-    if ipc_gs_resp_interface_res.is_err() {
+    let ipc_gs_bulk_resp_interface_res = IpcClient::new("gs_bulk_resp".to_string());
+    if ipc_gs_bulk_resp_interface_res.is_err() {
         warn!(
             "Error creating IPC interface: {:?}",
-            ipc_gs_resp_interface_res.err()
+            ipc_gs_bulk_resp_interface_res.err()
         );
         return;
     }
-    let mut ipc_gs_resp_interface = ipc_gs_resp_interface_res.unwrap();
+    let mut ipc_gs_resp_interface = ipc_gs_bulk_resp_interface_res.unwrap();
+
+    let dfgm_response_interface_res = IpcServer::new("dfgm_resp".to_string());
+    if dfgm_response_interface_res.is_err() {
+        warn!(
+            "Error creating IPC interface: {:?}",
+            dfgm_response_interface_res.err()
+        );
+        return;
+    }
+    let mut ipc_gs_resp_interface = dfgm_response_interface_res.unwrap();
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
@@ -170,6 +181,9 @@ fn main() {
         if ipc_gs_resp_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
             write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialize_msg(&ipc_gs_resp_interface.buffer).unwrap());
             ipc_gs_resp_interface.clear_buffer();
+        } else if dfgm_response_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+            write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialize_msg(&dfgm_response_interface.buffer).unwrap());
+            dfgm_response_interface.clear_buffer();
         }
 
         if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
