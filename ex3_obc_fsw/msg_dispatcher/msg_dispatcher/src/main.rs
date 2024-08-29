@@ -13,12 +13,14 @@ fn main() -> Result<()> {
     let mut coms_handler: IpcServer = IpcServer::new("coms_disp".to_string())?;
     let mut test_handler: IpcServer = IpcServer::new("test_disp".to_string())?;
 
-    let mut components: Vec<&mut IpcServer> = vec![
-        &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
-        ];
+    
 
     loop {
         
+        let mut components: Vec<&mut IpcServer> = vec![
+            &mut iris_handler, &mut dfgm_handler, &mut coms_handler, &mut test_handler
+            ];
+
         // let mut iris_handler: IpcServer = iris_handler.clone();
         // let mut dfgm_handler: IpcServer = dfgm_handler.clone();
         // let mut coms_handler: IpcServer = coms_handler.clone();
@@ -43,7 +45,7 @@ fn main() -> Result<()> {
             }
 
             let dest_id = get_msg_dest_id(&component.buffer);
-            let dest_comp_fd = get_fd_from_id(components, dest_id);
+            let dest_comp_fd = component.data_fd.unwrap();
             if dest_comp_fd > -1 {
                 ipc_write(Some(dest_comp_fd), &component.buffer);
             }
@@ -69,23 +71,6 @@ fn get_msg_dest_id(data_buf: &[u8]) -> i32 {
     let dest_id = data_buf[2] as i32;
     println!("Msg Dest ID: {}", dest_id);
     dest_id
-}
-
-fn get_fd_from_id(components: Vec<&mut IpcServer>, id: i32) -> i32 {
-    for component in components {
-        if component.data_fd == Some(id) {
-            println!("Component match : {}, with id: {}", component.socket_path, component.data_fd.unwrap());
-
-            // if !component.connected {
-            //     println!("Component not connected. Not writing");
-            //     return -2;
-            // }
-            println!("Destination component fd: {}", id);
-            return component.data_fd.unwrap();
-        }
-    }
-    println!("No matching component found with id: {}", id);
-    -1
 }
 
 fn read_data_socket(component: &mut IpcServer) -> i32 {
