@@ -2,16 +2,16 @@ use bulk_msg_slicing::*;
 use common::*;
 use component_ids::{DFGM, GS};
 use ipc::*;
+use log::{trace, warn};
+use logging::*;
 use message_structure::*;
 use std::fs::{File, OpenOptions};
 use std::io::Error as IoError;
 use std::io::Read;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
-use std::path::Path;
 use std::{fs, io};
-use logging::*;
-use log::{trace, warn};
 
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
@@ -39,13 +39,14 @@ fn main() -> Result<(), IoError> {
                 match get_data_from_path(&path) {
                     Ok(bulk_msg) => {
                         trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
-                        // Slice bulk msg
-                        // TODO - Cloning here might affect performance!!
+                                                                                         // Slice bulk msg
+                                                                                         // TODO - Cloning here might affect performance!!
                         messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
 
                         // Calculate num of 4KB msgs
                         let first_msg = messages[0].clone();
-                        let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
+                        let num_of_4kb_msgs =
+                            u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
                         trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
                         // Start coms protocol with coms handler to downlink
@@ -58,9 +59,17 @@ fn main() -> Result<(), IoError> {
                     }
                     Err(e) => {
                         client.clear_buffer();
-                        warn!("Error reading data from path: {}",e);
-                        let err_resp = format!("Error reading data from path: {e}");
-                        match ipc_write(coms_resp_interface_clone.data_fd, err_resp.as_bytes()) {
+                        warn!("Error reading data from path: {}", e);
+                        let err_resp_msg = format!("Error reading data from path: {e}");
+                        let err_resp = Msg::new(
+                            MsgType::Ack as u8,
+                            0,
+                            GS,
+                            component_ids::ComponentIds::BulkMsgDispatcher as u8,
+                            0,
+                            err_resp_msg.as_bytes().to_vec(),
+                        );
+                        match ipc_write(coms_resp_interface_clone.data_fd, &serialize_msg(&err_resp).unwrap()) {
                             Ok(_) => {}
                             Err(e) => {
                                 warn!("Error writing resp data to GS: {e}");
@@ -106,10 +115,7 @@ fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
 /// In charge of getting the file path from a Msg sent to the Bulk dispatcher from a handler
 fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
     if server.buffer != [0u8; IPC_BUFFER_SIZE] {
-        trace!(
-            "Server {} received data",
-            server.socket_path
-        );
+        trace!("Server {} received data", server.socket_path);
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&server.buffer)?))
     } else {
@@ -120,10 +126,7 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 /// Same as handle client but for getting a msg from the cmd_msg_disp
 fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
     if client.buffer != [0u8; IPC_BUFFER_SIZE] {
-        trace!(
-            "Server {} received data",
-            client.socket_path
-        );
+        trace!("Server {} received data", client.socket_path);
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&client.buffer)?))
     } else {
@@ -133,12 +136,16 @@ fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
 
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the coms handler for downlinking.
-fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: Option<i32>) -> Result<(), IoError> {
+fn send_num_msgs_and_bytes_to_gs(
+    num_msgs: u16,
+    num_bytes: u64,
+    fd: Option<i32>,
+) -> Result<(), IoError> {
     // 1. Send Msg to coms handler indicating Bulk Msg and buffer size needed
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
     num_msgs_bytes.append(&mut num_bytes_bytes);
-    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0,  num_msgs_bytes);
+    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0, num_msgs_bytes);
     ipc_write(fd, &serialize_msg(&num_msg)?)?;
     Ok(())
 }
@@ -154,13 +161,16 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
         .find(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
     {
         Some(entry) => entry.path(),
-        None => return Err(io::Error::new(io::ErrorKind::NotFound, "No files found in the directory")),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "No files found in the directory",
+            ))
+        }
     };
 
     // Open the file
-    let mut file: File = OpenOptions::new()
-        .read(true)
-        .open(file_name)?;
+    let mut file: File = OpenOptions::new().read(true).open(file_name)?;
 
     // Read the file content into a vector
     let mut data: Vec<u8> = Vec::new();

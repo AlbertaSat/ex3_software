@@ -169,6 +169,7 @@ fn main() {
 
         if ipc_gs_resp_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
             write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialize_msg(&ipc_gs_resp_interface.buffer).unwrap());
+            ipc_gs_resp_interface.clear_buffer();
         }
 
         if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {

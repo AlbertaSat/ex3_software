@@ -15,6 +15,7 @@ TODO
 use bulk_msg_slicing::*;
 use common::*;
 use common::ports::SIM_COMMS_PORT;
+use component_ids::ComponentIds;
 use libc::c_int;
 use message_structure::*;
 use std::fs::File;
@@ -320,9 +321,8 @@ async fn main() {
                     );
                     
                 } else if recvd_msg.header.msg_type == MsgType::Ack as u8 {
-                    println!("Got response: {}", String::from_utf8(recvd_msg.msg_body).unwrap_or("Couldn't desrialize body bytes to string".to_string()));
+                    println!("Got response from {}: {}", ComponentIds::try_from(recvd_msg.header.source_id).unwrap(), String::from_utf8(recvd_msg.msg_body).unwrap_or("Couldn't desrialize body bytes to string".to_string()));
                 }
-                println!("Received Data: {:?}", read_buf);
             } else {
                 // Deallocate memory of these messages. Reconstructed version 
                 // has been written to a file. This is slightly slower than .clear() though
