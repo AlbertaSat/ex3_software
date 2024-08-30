@@ -3,7 +3,7 @@ Written by Devin Headrick
 Summer 2024
 
 TODO - HANDLE THE FACT THAT THE FD ALWAYS INCREASES WHEN CONNECTION IS DROPPED AND RE-ESTABLISHED
-       EVENTUALLY THIS WILL RESULT IN THE FD IN OVERFLOWING 
+       EVENTUALLY THIS WILL RESULT IN THE FD IN OVERFLOWING
 */
 
 #include <stdio.h>
@@ -29,16 +29,17 @@ int main(int argc, char *argv[])
     int ret = 0;                          // used for assessing returns of various fxn calls
     int ready;                            // how many fd are ready from the poll (have return event)
 
-    int num_components = 6;
+    int num_components = 7;
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
+    ComponentStruct *adcs_handler = component_factory("adcs_handler", ADCS);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
     ComponentStruct *cmd_handler = component_factory("cmd_handler", CMD);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
     ComponentStruct *bulk_dispatcher = component_factory("bulk_disp", BULK_MSG_DISPATCHER);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[6] = {dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, cmd_handler, test_handler};
+    ComponentStruct *components[7] = {adcs_handler, dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, cmd_handler, test_handler};
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling

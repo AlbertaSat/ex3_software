@@ -254,12 +254,7 @@ pub struct MsgHeader {
 
 impl MsgHeader {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
-        let mut bytes = Vec::new();
-        bytes.push(self.msg_type);
-        bytes.push(self.msg_id);
-        bytes.push(self.dest_id);
-        bytes.push(self.source_id);
-        bytes.push(self.op_code);
+        let mut bytes = vec![self.msg_type, self.msg_id, self.dest_id, self.source_id, self.op_code];
         bytes.extend(self.msg_len.to_le_bytes());
         Ok(bytes)
     }
