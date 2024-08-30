@@ -12,6 +12,7 @@ fi;
 echo "Path being used to sim subs: $PATH_TO_SIM_SUBS"
 
 ## Create the simulated subystem components (dfgm and uhf transciever) - because they are tcp servers  
+# gnome-terminal -t SIM_UHF -- sh -c "cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py; bash exec;"
 gnome-terminal -t SIM_DFGM_SUBSYSTEM -- sh -c "cd $PATH_TO_SIM_SUBS/DFGM && python3 ./dfgm_subsystem.py ; bash exec;"
 # For now the UHF transceiver is bypassed and the GS sends msgs directly to the coms handler 
 
@@ -28,4 +29,4 @@ gnome-terminal -t DFGM_HANDLER -- sh -c 'cd ../ && cargo run --bin dfgm_handler;
 gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
 
 ## Launch the GS simulation (this can just be a tcp client for now )
-gnome-terminal -t SIM_GS -- sh -c 'cd ../ && cargo run --bin cli_ground_station; bash exec'
+gnome-terminal -t SIM_GS -- sh -c 'cd ../ && cargo run --bin cli_ground_station; exec bash'
