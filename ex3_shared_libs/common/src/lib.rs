@@ -1,3 +1,4 @@
+
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {
     pub const SIM_DFGM_PORT: u16 = 1802;
@@ -18,6 +19,7 @@ pub mod ports {
 pub mod component_ids {
     use std::fmt;
     use std::str::FromStr;
+    use strum::EnumIter;
 
     // ---------- Depricated but left to not break things -------- //
     pub const OBC: u8 = 0;
@@ -31,7 +33,7 @@ pub mod component_ids {
     pub const COMS: u8 = 8;
     // ----------------------------------------------------------- //
 
-    #[derive(PartialEq, Debug)]
+    #[derive(EnumIter, PartialEq, Debug)]
     pub enum ComponentIds {
         OBC = 0,
         EPS = 1,
