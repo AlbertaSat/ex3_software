@@ -19,6 +19,8 @@ use ipc::*;
 use message_structure::{
     deserialize_msg, serialize_msg, Msg, MsgType,
 };
+use std::os::fd::FromRawFd;
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
@@ -83,11 +85,17 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
 // }
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
-fn send_bulk_ack(fd: Option<i32>) -> Result<(), std::io::Error> {
+fn send_bulk_ack(fd: Option<&OwnedFd>) -> Result<(), std::io::Error> {
     let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
-    ipc_write(fd, &serialize_msg(&ack_msg)?)?;
+    if let Some(fd_ref) = fd {
+        let raw_fd = fd_ref.as_raw_fd();
+        unsafe {
+            ipc_write(Some(OwnedFd::from_raw_fd(raw_fd)), &serialize_msg(&ack_msg)?)?; 
+        }
+    }
     Ok(())
 }
+
 /// All things to be downlinked use this fxn (later on we want a sort of buffer to store what was downlinked until we get confirmation from the GS it was recevied)
 /// This will handle logging all messages attempted to be downlinked, and handle errors associated with writing data to the UHF transceiver for downlink
 fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
@@ -137,7 +145,7 @@ fn main() {
     //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
     // Will have to be changed in msg_dispatcher as well
-    let ipc_coms_interface_res = IpcClient::new("coms_handler".to_string());
+    let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
     if ipc_coms_interface_res.is_err() {
         warn!(
             "Error creating IPC interface: {:?}",
@@ -156,7 +164,9 @@ fn main() {
     let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
-        let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
+        let mut clients = vec![&mut ipc_gs_interface];
+        let mut servers = vec![&mut ipc_coms_interface];
+        let coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
@@ -168,7 +178,7 @@ fn main() {
                     if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
                     {
                         // If we haven't received Bulk ACK, we need to send ack
-                        if let Some(e) = send_bulk_ack(ipc_gs_interface.fd).err() {
+                        if let Some(e) = send_bulk_ack(Some(&ipc_gs_interface.fd)).err() {
                             println!("failed to send bulk ack: {e}");
                         }
                         received_bulk_ack = true;
@@ -255,7 +265,10 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    let _ = ipc_write(ipc_coms_interface.fd, decrypted_byte_vec);
+                    let raw_fd = ipc_coms_interface.data_fd.unwrap().as_raw_fd(); // Get the raw file descriptor
+                    unsafe {
+                        let _ = ipc_write(Some(OwnedFd::from_raw_fd(raw_fd)), &decrypted_byte_vec); 
+                    }
                 }
                 Err(e) => {
                     warn!("Error decrypting bytes from UHF: {:?}", e);

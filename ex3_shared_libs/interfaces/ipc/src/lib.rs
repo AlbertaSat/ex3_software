@@ -281,12 +281,12 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
 /// Wrapper for the unistd lib write fxn
 pub fn ipc_write(fd: Option<OwnedFd>, data: &[u8]) -> Result<usize, std::io::Error> {
     match write(
-        fd.expect("Write takes a file descriptor in form i32.").as_fd(),
+        fd.expect("Tried to write to Fd of type None").as_fd(),
         data,
     ) {
         Ok(bytes_read) => Ok(bytes_read),
         Err(e) => {
-            eprintln!("Error reading from socket: {}", e);
+            eprintln!("Error writing to socket: {}", e);
             Err(e.into())
         }
     }
