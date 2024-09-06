@@ -20,19 +20,7 @@ Contained here is the shared functionality mentioned above between the ground st
 
 Scripts to run various sections of the software together can be found in the [scripts](./scripts) directory.
 
-(For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems.
-
-### Running all components needs for a tall-thin demo of the Command Message Uplink
-
-This script takes the user defined path to wherever the simulated subsytem repo is for them, in order to start the simulated DFGM subsystem.
-
-First cd into the scripts directory, then run the following command.
-
-```@sh
-bash ./uplink_command_msg.sh <path_to_simulated_subsystem_directory>
-```
-
-**As of now**, you'll need to run the bulk_msg_dispatcher separately as well for downlinking purposes. Find [here](./ex3_obc_fsw/bulk_msg_dispatcher/).
+(For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems. *Additionally*, these scripts also use the ex3_simulated_subsystem repo which is on the main AlbertaSat Github page. One must clone this, then provide the relative path to it when running the script as the first command line argument.
 
 ### Testing Uplink
 
@@ -41,10 +29,12 @@ Commands for uplink can be found in a master spreadsheet [here].(https://docs.go
 One can send a command by running the uplink script: ```uplink_command_msg.sh```.
 
 ```@sh
-./uplink_command_msg <path_to_sim_subsystem_dir>
+./uplink_command_msg <relative_path_to_sim_subsystem_dir>
 ```
 
-Next, an operator will send commands from the Ground Station. Right now, it is the SIM_GS terminal that is spawned by the script. Next, type in a command structured as ```<DEST> <opcode> <body>(optional)```. An example to toggle the collection of DFGM data would be:
+Next, an operator will send commands from the Ground Station. Right now, it is the SIM_GS terminal that is spawned by the script. Next, type in a command structured as ```<DEST> <opcode> <body>(optional)```.
+
+An example to toggle the collection of DFGM data would be:
 
 ```@sh
 DFGM 0 1
