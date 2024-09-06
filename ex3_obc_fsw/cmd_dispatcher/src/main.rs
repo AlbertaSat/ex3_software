@@ -2,36 +2,32 @@ use nix::sys::socket::accept;
 use nix::unistd::{read, write, close};
 use nix::Error;
 use strum::IntoEnumIterator;
-use std::os::fd::{AsFd, RawFd, AsRawFd};
+use std::os::fd::{AsRawFd};
 
 use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
 use message_structure::MsgHeaderNew;
 
 fn main() {
-    let component_streams: [Option<IpcClient>; ComponentIds::LAST as usize];
-    for x in 0..(ComponentIds::LAST as usize) {
-        component_streams[x] = {
-            match ComponentIds::try_from(x as u8) {
-                Ok(c) => {
-                    match IpcClient::new(format!("{c}")) {
-                        Ok(client) => Some(client),
-                        Err(e) => {
-                            eprintln!("msg dispatcher couldn't connect to {}: {}", c, e);
-                            None
-                        },
-                    }
+    let component_streams: Vec<Option<IpcClient>> =
+        ComponentIds::iter().map(|c| {
+            match IpcClient::new(format!("{c}")) {
+                Ok(client) => Some(client),
+                Err(e) => {
+                    eprintln!("msg dispatcher couldn't connect to {}: {}", c, e);
+                    None
                 },
-                Err(_) => None,
             }
-        };
-    }
+        }).collect();
 
-    for x in 0..(ComponentIds::LAST as usize) {
+    for x in 0..ComponentIds::LAST as usize {
         let payload = ComponentIds::try_from(x as u8).unwrap();
-        match component_streams[x] {
-            Some(_) => println!("{} connected", payload),
-            None => println!("{} not connected!", payload),
+        match component_streams.get(x) {
+            Some(element) => match element {
+                Some(_) => println!("{} connected", payload),
+                None => println!("{} not connected!", payload),
+            },
+            None => println!("bad index {}", x),
         };
     }
 
@@ -53,11 +49,11 @@ fn main() {
         };
 
         let mut buffer = [0; IPC_BUFFER_SIZE];
-        let bytes_read = match read(data_fd, &mut buffer) {
+        let _bytes_read = match read(data_fd, &mut buffer) {
             Ok(len) => len,
             Err(e) => {
                 eprintln!("read error: {}", e);
-                close(data_fd);
+                let _ = close(data_fd);
                 continue; // try again
             }
         };
@@ -67,7 +63,7 @@ fn main() {
             Ok(payload) => {
                 match &component_streams[dest as usize] {
                     Some(client) => {
-                        write(client.fd, &buffer)
+                        write(client.fd.try_clone().unwrap(), &buffer)
                     },
                     None => {
                         eprintln!("No payload: {payload}!");
@@ -81,10 +77,10 @@ fn main() {
             }
         };
 
-        if let Err(_) = res {
+        if res.is_err() {
             eprintln!("Dispatch failed: NACKing");
             // Should actually NACK
         }
-        close(data_fd);
+        let _= close(data_fd);
     }
 }
