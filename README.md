@@ -40,6 +40,14 @@ An example to toggle the collection of DFGM data would be:
 DFGM 0 1
 ```
 
+followed by:
+
+```@sh
+DFGM 0 1
+```
+
+to toggle off the data collection. **NOTE**: this method of data collection is unique to the DFGM subsystem. Other subsystems will be able to collect data without having to toggle a flag.
+
 ### Testing Downlink  
 
 Once all the processes are running, Send the command:
