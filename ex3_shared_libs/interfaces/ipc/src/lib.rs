@@ -8,7 +8,7 @@ use nix::sys::socket::{self, accept, bind, listen, socket, Backlog, AddressFamil
 use nix::unistd::{read, write};
 use std::ffi::CString;
 use std::io::Error as IoError;
-use std::os::fd::{AsFd, OwnedFd, RawFd, AsRawFd};
+use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
 use std::{fs, io, process};
 
@@ -134,7 +134,7 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, Str
 pub struct IpcServer {
     pub socket_path: String,
     pub conn_fd: OwnedFd,
-    pub data_fd: Option<RawFd>,
+    pub data_fd: Option<OwnedFd>,
     connected: bool,
     pub buffer: [u8; IPC_BUFFER_SIZE],
 }
@@ -187,7 +187,7 @@ impl IpcServer {
             eprintln!("Failed to accept connection: {}", err);
             process::exit(1)
         });
-        self.data_fd = Some(fd);
+        self.data_fd = unsafe {Some(OwnedFd::from_raw_fd(fd))};
         self.connected = true;
         println!("Accepted connection from client socket {} on data fd {:?}", self.socket_path, self.data_fd);
         Ok(())
@@ -230,10 +230,10 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
                 events: libc::POLLIN,
                 revents: 0,
             });
-        } else if let Some(data_fd) = server.data_fd {
+        } else if let Some(ref data_fd) = server.data_fd {
             // Poll data_fd for incoming data
             poll_fds.push(libc::pollfd {
-                fd: data_fd,
+                fd: data_fd.as_raw_fd(),
                 events: libc::POLLIN,
                 revents: 0,
             });
@@ -260,14 +260,14 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
         if poll_fd.revents & libc::POLLIN != 0 {
             let server = servers
                 .iter_mut()
-                .find(|s| s.conn_fd.as_raw_fd() == poll_fd.fd || s.data_fd.unwrap().as_raw_fd() == poll_fd.fd);
+                .find(|s| s.conn_fd.as_raw_fd() == poll_fd.fd || s.data_fd.as_ref().unwrap().as_raw_fd() == poll_fd.fd);
             if let Some(server) = server {
                 if !server.connected {
                     // Handle new connection request from a currently unconnected client
                     server.accept_connection().unwrap();
-                } else if let Some(data_fd) = server.data_fd {
+                } else if let Some(data_fd) = &server.data_fd {
                     // Handle incoming data from a connected client
-                    let bytes_read = read(data_fd, &mut server.buffer).unwrap();
+                    let bytes_read = read(data_fd.as_raw_fd(), &mut server.buffer).unwrap();
                     if bytes_read == 0 {
                         // If 0 bytes read, then the client has disconnected
                         server.client_disconnected();
@@ -279,9 +279,9 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
 }
 
 /// Wrapper for the unistd lib write fxn
-pub fn ipc_write(fd: Option<OwnedFd>, data: &[u8]) -> Result<usize, std::io::Error> {
+pub fn ipc_write(fd: &OwnedFd, data: &[u8]) -> Result<usize, std::io::Error> {
     match write(
-        fd.expect("Tried to write to Fd of type None").as_fd(),
+        fd.as_fd(),
         data,
     ) {
         Ok(bytes_read) => Ok(bytes_read),

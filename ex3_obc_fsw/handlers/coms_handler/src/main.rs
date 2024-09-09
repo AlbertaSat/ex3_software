@@ -85,14 +85,10 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
 // }
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
-fn send_bulk_ack(fd: Option<&OwnedFd>) -> Result<(), std::io::Error> {
+fn send_bulk_ack(fd: &OwnedFd) -> Result<(), std::io::Error> {
     let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
-    if let Some(fd_ref) = fd {
-        let raw_fd = fd_ref.as_raw_fd();
-        unsafe {
-            ipc_write(Some(OwnedFd::from_raw_fd(raw_fd)), &serialize_msg(&ack_msg)?)?; 
-        }
-    }
+    ipc_write(fd, &serialize_msg(&ack_msg)?)?; 
+    
     Ok(())
 }
 
@@ -178,7 +174,7 @@ fn main() {
                     if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
                     {
                         // If we haven't received Bulk ACK, we need to send ack
-                        if let Some(e) = send_bulk_ack(Some(&ipc_gs_interface.fd)).err() {
+                        if let Some(e) = send_bulk_ack(&ipc_gs_interface.fd).err() {
                             println!("failed to send bulk ack: {e}");
                         }
                         received_bulk_ack = true;
@@ -265,10 +261,11 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    let raw_fd = ipc_coms_interface.data_fd.unwrap().as_raw_fd(); // Get the raw file descriptor
-                    unsafe {
-                        let _ = ipc_write(Some(OwnedFd::from_raw_fd(raw_fd)), &decrypted_byte_vec); 
+                    
+                    if let Some(fd) = ipc_coms_interface.data_fd.as_ref() {
+                        let _ = ipc_write(fd, &decrypted_byte_vec);
                     }
+                    
                 }
                 Err(e) => {
                     warn!("Error decrypting bytes from UHF: {:?}", e);

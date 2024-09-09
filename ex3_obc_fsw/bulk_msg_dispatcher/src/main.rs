@@ -6,6 +6,7 @@ use message_structure::*;
 use std::fs::{File, OpenOptions};
 use std::io::Error as IoError;
 use std::io::Read;
+use std::os::fd::OwnedFd;
 use std::thread;
 use std::time::Duration;
 use std::path::Path;
@@ -24,7 +25,6 @@ fn main() -> Result<(), IoError> {
     init_logger(log_path);
 
     loop {
-        let coms_interface_clone = coms_interface.clone();
         let mut servers: Vec<&mut IpcServer> = vec![&mut coms_interface];
         let mut clients: Vec<&mut IpcClient> = vec![&mut cmd_msg_disp_interface];
 
@@ -47,11 +47,15 @@ fn main() -> Result<(), IoError> {
                         trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
 
                         // Start coms protocol with coms handler to downlink
-                        send_num_msgs_and_bytes_to_gs(
-                            num_of_4kb_msgs,
-                            bulk_msg.msg_body.len() as u64,
-                            coms_interface_clone.data_fd,
-                        )?;
+                        if let Some(data_fd) = &coms_interface.data_fd {
+                            send_num_msgs_and_bytes_to_gs(
+                                num_of_4kb_msgs,
+                                bulk_msg.msg_body.len() as u64,
+                                data_fd,
+                            )?;
+                        } else {
+                            warn!("No data file descriptor found in coms_interface.");
+                        }
                         
                         client.clear_buffer();
                     }
@@ -72,7 +76,14 @@ fn main() -> Result<(), IoError> {
                         for (i, message) in messages.iter().enumerate() {
                             let serialized_msgs = serialize_msg(message)?;
                             trace!("Sending {} B", serialized_msgs.len());
-                            ipc_write(coms_interface_clone.data_fd, &serialized_msgs)?;
+                            // Check if data_fd is present and use a reference to it
+                            if let Some(data_fd) = &coms_interface.data_fd {
+                                ipc_write(data_fd, &serialized_msgs)?; // <-- Changed: Passing a reference to data_fd
+                            } else {
+                                warn!("No data file descriptor found in coms_interface.");
+                                break;
+                            }
+
                             trace!("Sent msg #{}", i + 1);
                             // save_data_to_file(message.msg_body.clone(), 0);
                             thread::sleep(Duration::from_millis(100));
@@ -124,7 +135,7 @@ fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
 
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the coms handler for downlinking.
-fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: Option<i32>) -> Result<(), IoError> {
+fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: &OwnedFd) -> Result<(), IoError> {
     // 1. Send Msg to coms handler indicating Bulk Msg and buffer size needed
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
