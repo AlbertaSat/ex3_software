@@ -13,7 +13,6 @@ members = [
     "ex3_obc_fsw/handlers/dfgm_handler",
     "ex3_obc_fsw/handlers/dummy_handler",
     "ex3_obc_fsw/handlers/iris_handler",
-    "ex3_obc_fsw/handlers/cmd_handler",
     "ex3_obc_fsw/handlers/shell_handler",
     "ex3_obc_fsw/scheduler",
     "ex3_obc_fsw/bulk_msg_dispatcher",
