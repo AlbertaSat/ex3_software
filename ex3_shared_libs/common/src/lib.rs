@@ -82,9 +82,9 @@ pub mod component_ids {
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
-                "UHF" => Ok(ComponentIds::UHF),
                 //...
                 "CMD" => Ok(ComponentIds::CMD),
+                "UHF" => Ok(ComponentIds::UHF),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
@@ -108,6 +108,7 @@ pub mod component_ids {
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
                 x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
+                x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
