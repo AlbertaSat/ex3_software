@@ -6,6 +6,7 @@ pub mod ports {
     pub const SIM_COMMS_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
     pub const SIM_DUMMY_PORT: u16 = 1807;
+    pub const SIM_UHF_GS_PORT: u16 = 1808;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
     pub const SCHEDULER_DISPATCHER_PORT: u16 = 1901;
@@ -44,6 +45,7 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
+        CMD = 10,
         UHF = 13,
         //..
         DUMMY = 99,
@@ -61,6 +63,7 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
+                ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::UHF => write!(f, "UHF"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
@@ -81,6 +84,7 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 "UHF" => Ok(ComponentIds::UHF),
                 //...
+                "CMD" => Ok(ComponentIds::CMD),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
@@ -89,50 +93,26 @@ pub mod component_ids {
 
     //TODO - Find a way to make this return a result type instead of panicking
     //       - the 'From<u8> method from std::convert lib does not allow for returning a Result type
-    impl From<u8> for ComponentIds {
-        fn from(value: u8) -> Self {
-            match value {
-                0 => ComponentIds::OBC,
-                1 => ComponentIds::EPS,
-                2 => ComponentIds::ADCS,
-                3 => ComponentIds::DFGM,
-                4 => ComponentIds::IRIS,
-                5 => ComponentIds::GPS,
-                7 => ComponentIds::GS,
-                8 => ComponentIds::COMS,
-                9 => ComponentIds::BulkMsgDispatcher,
-                //...
-                13 => ComponentIds::UHF,
-                //...
-                99 => ComponentIds::DUMMY,
-                _ => {
-                    eprintln!("Invalid component id: {}", value);
-                    ComponentIds::DUMMY // or choose a default value or handle the error in a different way
-                }
-            }
-        }
-    }
+    impl TryFrom<u8> for ComponentIds {
+        type Error = ();
 
-    impl Into<u8> for ComponentIds {
-        fn into(self) -> u8 {
-            match self {
-                ComponentIds::OBC => 0,
-                ComponentIds::EPS => 1,
-                ComponentIds::ADCS => 2,
-                ComponentIds::DFGM => 3,
-                ComponentIds::IRIS => 4,
-                ComponentIds::GPS => 5,
-                //...
-                ComponentIds::GS => 7,
-                ComponentIds::COMS => 8,
-                ComponentIds::BulkMsgDispatcher => 9,
-                //...
-                ComponentIds::UHF => 13,
-                //...
-                ComponentIds::DUMMY => 99,
+        fn try_from(value: u8) -> Result<Self, Self::Error> {
+            match value {
+                x if x == ComponentIds::OBC as u8 => Ok(ComponentIds::OBC),
+                x if x == ComponentIds::EPS as u8 => Ok(ComponentIds::EPS),
+                x if x == ComponentIds::ADCS as u8 => Ok(ComponentIds::ADCS),
+                x if x == ComponentIds::DFGM as u8 => Ok(ComponentIds::DFGM),
+                x if x == ComponentIds::IRIS as u8 => Ok(ComponentIds::IRIS),
+                x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
+                x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
+                x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
+                x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
+                x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
+                _ => Err(()),
             }
         }
-    }
+    }    
 }
 
 /// For constants that are used across the entire project
@@ -168,7 +148,6 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
-
     }
     pub enum UHF {
         GetHK = 3,
@@ -264,7 +243,7 @@ pub mod opcodes {
     pub enum DUMMY {
         SetDummyVariable = 0,
         GetDummyVariable = 1,
-    } 
+    }
 
     impl From<u8> for DUMMY {
         fn from(value: u8) -> Self {
@@ -275,6 +254,54 @@ pub mod opcodes {
                     eprintln!("Invalid opcode: {}", value);
                     DUMMY::GetDummyVariable // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    pub enum ADCS {
+        Detumble = 0,
+        OnOff = 1,
+        WheelSpeed = 2,
+        GetHk = 3,
+        MagnetorquerCurrent = 4,
+        OnboardTime = 5,
+        GetOrientation = 6,
+        Reset = 7,
+        OrientToSBand = 9,
+        Error = 99,
+    }
+    impl From<u8> for ADCS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => ADCS::Detumble,
+                1 => ADCS::OnOff,
+                2 => ADCS::WheelSpeed,
+                3 => ADCS::GetHk,
+                4 => ADCS::MagnetorquerCurrent,
+                5 => ADCS::OnboardTime,
+                6 => ADCS::GetOrientation,
+                7 => ADCS::Reset,
+                9 => ADCS::OrientToSBand,
+                _ => {
+                    eprintln!("Invalid opcode: {}", value);
+                    ADCS::Error
+                }
+            }
+        }
+    }
+    impl std::fmt::Display for ADCS {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match *self {
+                ADCS::Detumble => write!(f, "Detumble"),
+                ADCS::OnOff => write!(f, "On/Off"),
+                ADCS::WheelSpeed => write!(f, "Wheel Speed"),
+                ADCS::GetHk => write!(f, "Get Housekeeping"),
+                ADCS::MagnetorquerCurrent => write!(f, "Magnetorquer Current"),
+                ADCS::OnboardTime => write!(f, "Onboard Time"),
+                ADCS::Reset => write!(f, "Reset"),
+                ADCS::GetOrientation => write!(f, "Get Orientation"),
+                ADCS::OrientToSBand => write!(f, "Orient to S-Band"),
+                ADCS::Error => write!(f, "INVALID OPCODE"),
             }
         }
     }
@@ -289,34 +316,33 @@ mod tests {
     #[test]
     fn get_component_enum_from_u8() {
         //Test conversion from u8 to ComponentIds enum for all
-        let uhf = component_ids::ComponentIds::from(13);
+        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
         assert_eq!(uhf, component_ids::ComponentIds::UHF);
-
-        let eps = component_ids::ComponentIds::from(1);
+        let eps = component_ids::ComponentIds::try_from(1).unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
-        let adcs = component_ids::ComponentIds::from(2);
+        let adcs = component_ids::ComponentIds::try_from(2).unwrap();
         assert_eq!(adcs, component_ids::ComponentIds::ADCS);
 
-        let dfgm = component_ids::ComponentIds::from(3);
+        let dfgm = component_ids::ComponentIds::try_from(3).unwrap();
         assert_eq!(dfgm, component_ids::ComponentIds::DFGM);
 
-        let iris = component_ids::ComponentIds::from(4);
+        let iris = component_ids::ComponentIds::try_from(4).unwrap();
         assert_eq!(iris, component_ids::ComponentIds::IRIS);
 
-        let gps = component_ids::ComponentIds::from(5);
+        let gps = component_ids::ComponentIds::try_from(5).unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
-        let gs = component_ids::ComponentIds::from(7);
+        let gs = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
-        let coms = component_ids::ComponentIds::from(8);
+        let coms = component_ids::ComponentIds::try_from(8).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let test = component_ids::ComponentIds::from(99);
+        let test = component_ids::ComponentIds::try_from(99).unwrap();
         assert_eq!(test, component_ids::ComponentIds::DUMMY);
 
-        let obc = component_ids::ComponentIds::from(0);
+        let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
 

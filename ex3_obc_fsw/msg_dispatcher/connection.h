@@ -27,6 +27,7 @@ enum ComponentId
     GS = 7,
     COMS = 8,
     BULK_MSG_DISPATCHER = 9,
+    CMD = 10,
     TEST = 99,
 };
 

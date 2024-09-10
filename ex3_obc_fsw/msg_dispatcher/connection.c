@@ -165,6 +165,6 @@ int read_data_socket(ComponentStruct *component, struct pollfd *poll_struct, cha
             printf(" %02x |", buffer[i]);
         }
         printf("\n---------------------------------------\n");
-        return ret;
     }
+    return ret;
 }

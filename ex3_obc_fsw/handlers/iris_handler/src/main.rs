@@ -20,7 +20,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 */
 
 use logging::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace, warn};
 use common::component_ids::IRIS;
 use common::opcodes::IRIS::GetHK;
 use common::{opcodes, ports};
@@ -80,6 +80,7 @@ impl IRISHandler {
     fn handle_msg_for_iris(&mut self, msg: Msg) -> Option<String> {
         self.dispatcher_interface.as_mut().unwrap().clear_buffer();
         let mut hk = false;
+        let op: String;
         let (command_msg, success) = match opcodes::IRIS::from(msg.header.op_code) {
             opcodes::IRIS::Reset=> {
                 ("RST", true)
@@ -99,17 +100,20 @@ impl IRISHandler {
             }
             opcodes::IRIS::FetchImage=> {
                 // Assumes that there are not more than 255 images being request at any one time
-                (&*format!("FTI:{}", msg.msg_body[0]),true)
+                op = format!("FTI:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetImageSize=> {
                 // Currently can only access the first 255 images stored on IRIS, will be updated if needed
-                (&*format!("FSI:{}", msg.msg_body[0]),true)
+                op = format!("FSI:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetNImagesAvailable=> {
                 ("FNI", true)
             }
             opcodes::IRIS::DelImage=> {
-                (&*format!("DTI:{}", msg.msg_body[0]),true)
+                op = format!("DTI:{}", msg.msg_body[0]);
+                (op.as_str(),true)
             }
             // Housekeeping commands
             opcodes::IRIS::GetTime=> {
@@ -117,14 +121,16 @@ impl IRISHandler {
             }
             opcodes::IRIS::SetTime=> {
                 // Placeholder for reading the total time need to determine how we will handle >255 values (ie. epoch time)
-                (&*format!("STT:{}", msg.msg_body[0]),true)
+                op = format!("STT:{}", msg.msg_body[0]);
+                (op.as_str(), true)
             }
             opcodes::IRIS::GetHK=> {
                 hk = true;
                 ("FTH", true)
             }
             opcodes::IRIS::Error => {
-                (&*format!("Opcode {} not found for IRIS", msg.header.op_code), false)
+                op = format!("Opcode {} not found for IRIS", msg.header.op_code);
+                (op.as_str(), false)
                 
             }
         };

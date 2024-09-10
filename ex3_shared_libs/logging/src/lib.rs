@@ -17,7 +17,6 @@ TODOs:
 
 */
 
-use log::{debug, error, info, trace, warn};
 use log::{LevelFilter};
 use log4rs::filter::threshold::ThresholdFilter;
 use log4rs::{
@@ -116,7 +115,10 @@ pub fn init_logger(log_path: &str) {
 }
 
 #[cfg(test)]
+
 mod tests {
+    use log::{debug, error, info, trace, warn};
+
     use super::*;
 
     #[test]

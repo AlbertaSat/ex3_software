@@ -13,13 +13,9 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use common::component_ids::DFGM;
-use common::component_ids::GS;
-use ipc::ipc_write;
-use ipc::poll_ipc_clients;
-use ipc::IpcClient;
-use ipc::IPC_BUFFER_SIZE;
-use tcp_interface::BUFFER_SIZE;
+use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+
+//use tcp_interface::BUFFER_SIZE;
 use tcp_interface::*;
 use message_structure::*;
 use std::fs::OpenOptions;
@@ -27,14 +23,12 @@ use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
 use common::{ports, opcodes}; 
-use message_structure::*;
 use logging::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace, warn};
 
 
 const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
-const DFGM_PACKET_SIZE: usize = 1252;
-const DFGM_INTERFACE_BUFFER_SIZE: usize = DFGM_PACKET_SIZE;
+//const DFGM_PACKET_SIZE: usize = 1252;
 
 /// Opcodes for messages relating to DFGM functionality
 // pub enum OpCode {

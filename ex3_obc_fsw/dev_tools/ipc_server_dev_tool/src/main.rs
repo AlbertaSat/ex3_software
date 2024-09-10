@@ -6,7 +6,7 @@ Create an ipc server on the path specified as an arg - and send hardcoded data b
 
 */
 
-use common::component_ids::{self, ComponentIds};
+use common::component_ids::{ComponentIds};
 use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 use message_structure::{CmdMsg, SerializeAndDeserialize};
 
@@ -16,37 +16,35 @@ use std::io::{self, Read};
 const STDIN_POLL_TIMEOUT_MS: i32 = 100;
 
 /// Write a messaage to the IPC - user enteres number to send assoicated example message
-fn handle_user_input(
-    read_data: &[u8],
-    ipc_server: &mut IpcServer,
-) -> Result<usize, std::io::Error> {
+fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
     let first_byte = read_data[0];
     let first_byte_char = first_byte as char;
     println!("First byte: {}", first_byte_char);
 
-    match first_byte_char {
+    let rc = match first_byte_char {
         '1' => {
             println!("Sending msg 1");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(1, ComponentIds::DUMMY.into(), 3, 0, vec![5, 6, 7, 8, 9, 10]);
+            let msg = CmdMsg::new(1, ComponentIds::DUMMY as u8, 3, 0, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
         '2' => {
             println!("Sending msg 2");
             //write first hardcoded msg to ipc client
-            let msg = CmdMsg::new(2, ComponentIds::DUMMY.into(), 3, 1, vec![5, 6, 7, 8, 9, 10]);
+            let msg = CmdMsg::new(2, ComponentIds::DUMMY as u8, 3, 1, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
             ipc_write(ipc_server.data_fd, &serialized_msg.as_slice())
         }
         _ => {
             println!("Invalid input");
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid input",
-            ))
+            Ok(0)
         }
+    };
+    if let Some(e) = rc.err() {
+        println!("ipc_write error: {e}");
     }
+
 }
 
 fn poll_stdin(mut buffer: &mut [u8]) -> Option<usize> {

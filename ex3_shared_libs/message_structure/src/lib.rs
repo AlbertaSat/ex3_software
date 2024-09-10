@@ -79,8 +79,8 @@ impl fmt::Display for MsgHeaderNew {
             "MsgId: {},\n\tMsgType: {},\n\tDestId: {},\n\tSourceId: {}",
             self.msg_id,
             self.msg_type,
-            ComponentIds::from(self.dest_id),
-            ComponentIds::from(self.source_id),
+            ComponentIds::try_from(self.dest_id).unwrap_or(ComponentIds::DUMMY),
+            ComponentIds::try_from(self.source_id).unwrap_or(ComponentIds::DUMMY),
         )
     }
 }
@@ -254,12 +254,7 @@ pub struct MsgHeader {
 
 impl MsgHeader {
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
-        let mut bytes = Vec::new();
-        bytes.push(self.msg_type);
-        bytes.push(self.msg_id);
-        bytes.push(self.dest_id);
-        bytes.push(self.source_id);
-        bytes.push(self.op_code);
+        let mut bytes = vec![self.msg_type, self.msg_id, self.dest_id, self.source_id, self.op_code];
         bytes.extend(self.msg_len.to_le_bytes());
         Ok(bytes)
     }
