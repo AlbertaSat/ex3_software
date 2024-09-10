@@ -136,7 +136,7 @@ impl IRISHandler {
         };
         if success {
             // Send command message to IRIS
-            let status = TcpInterface::send(&mut self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
+            let status = TcpInterface::send(self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
 
             if write_status(status, command_msg) { // Write succeeded
                 let status = receive_response(self.peripheral_interface.as_mut().unwrap());
@@ -266,18 +266,17 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
     if packet_len < 8 {}
     else if packet_content[0..7] == *"IMAGES:".as_bytes(){
         let mut n_images = 0;
-        for i in 7..packet_len{
-            n_images = n_images * 10 + packet_content[i]-48;
+        for byte in packet_content.iter().take(packet_len).skip(7) {
+            n_images = n_images * 10 + byte - 48;
         }
         trace!("\nNum Images: {}\n", n_images);
         for _ in 0..n_images{
             parse_packet(peripheral_interface, &mut packet_content, false, "None")?;
             let status = std::str::from_utf8(&packet_content);
-            let image: &str;
-            match status {
-                Ok(image_name) => { image = image_name.trim_matches(char::from(0)); }
+            let image: &str = match status {
+                Ok(image_name) => { image_name.trim_matches(char::from(0)) }
                 Err(_) => {  return Err(Error::new(ErrorKind::InvalidData, "image name improper")); }
-            }
+            };
             // println!("{:?}", image);
             let mut image_success = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
             parse_packet(peripheral_interface, &mut image_success, true, image)?;
@@ -286,11 +285,10 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
         return Ok("All images fetched".to_string());
     }
     let status = String::from_utf8(packet_content.to_vec());
-    let response: String;
-    match status {
-        Ok(result) => { response = result.trim_matches(char::from(0)).to_string(); }
+    let response: String = match status {
+        Ok(result) => { result.trim_matches(char::from(0)).to_string() }
         Err(_) => {  return Err(Error::new(ErrorKind::InvalidData, "image name improper")); }
-    }
+    };
 
     
     Ok(response)
@@ -315,7 +313,7 @@ fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  respons
     while flag_match < flag.len() {
         TcpInterface::read(peripheral_interface, &mut packet_byte)?;
         if packet_byte[0] == flag[flag_match]{
-            flag_match = flag_match + 1;
+            flag_match += 1;
         }
         else { flag_match = 0; }
     }
@@ -335,24 +333,23 @@ fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  respons
         while temp_length > IRIS_INTERFACE_BUFFER_SIZE{ // Read in full packets
             TcpInterface::read(peripheral_interface, &mut packet_buffer)?;
             store_iris_data(image_name, &packet_buffer)?;
-            temp_length = temp_length - IRIS_INTERFACE_BUFFER_SIZE;
+            temp_length -= IRIS_INTERFACE_BUFFER_SIZE;
         }
-        for index in 0..temp_length { // Read the final partial packet
+        for buffer_byte in packet_buffer.iter_mut().take(temp_length) { // Read the final partial packet
             TcpInterface::read(peripheral_interface, &mut packet_byte)?; 
-            packet_buffer[index] = packet_byte[0];
+            *buffer_byte = packet_byte[0];
         }
         store_iris_data(image_name, &packet_buffer)?; // Append packet to image file
     }
     else {
-        for index in 0..packet_length {
+        for res_byte in response.iter_mut().take(packet_length) {
             TcpInterface::read(peripheral_interface, &mut packet_byte)?; 
-            response[index] = packet_byte[0];
+            *res_byte = packet_byte[0];
             // print!("{}", packet_byte[0] as char);
         }
     }
 
-    return Ok(packet_length);
-
+    Ok(packet_length)
 }
 
 /// Verify that a command was successfully sent via checking the return status of a tcp write
