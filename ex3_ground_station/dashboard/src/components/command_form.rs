@@ -32,7 +32,7 @@ async fn send_command(command: Command) -> Result<(), Box<dyn std::error::Error>
 
 #[function_component(CommandForm)]
 pub fn command_form() -> Html {
-    let command = use_state(|| Command::default());
+    let command = use_state(Command::default);
 
     let on_change = {
         let command = command.clone();

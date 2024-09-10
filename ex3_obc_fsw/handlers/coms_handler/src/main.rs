@@ -27,9 +27,9 @@ use tcp_interface::{Interface, TcpInterface};
 
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
-fn decrypt_bytes_from_gs(encrypted_bytes: &Vec<u8>) -> Result<Vec<u8>, std::io::Error> {
+fn decrypt_bytes_from_gs(encrypted_bytes: &[u8]) -> Result<&[u8], std::io::Error> {
     // TODO - Decrypt the message
-    let decrypted_byte_vec = encrypted_bytes.clone();
+    let decrypted_byte_vec = encrypted_bytes;
     Ok(decrypted_byte_vec)
 }
 
@@ -115,7 +115,7 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
 
 fn main() {
     let log_path = "ex3_obc_fsw/handlers/coms_handler/logs";
-    init_logger(&log_path);
+    init_logger(log_path);
     trace!("Logger initialized");
     trace!("Beginning Coms Handler...");
     
@@ -199,7 +199,7 @@ fn main() {
                             }
                         }
                     } else {
-                        let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
+                        write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
                     }
                 }
                 Err(e) => {
@@ -255,7 +255,7 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    let _ = ipc_write(ipc_coms_interface.fd, &decrypted_byte_vec);
+                    let _ = ipc_write(ipc_coms_interface.fd, decrypted_byte_vec);
                 }
                 Err(e) => {
                     warn!("Error decrypting bytes from UHF: {:?}", e);
