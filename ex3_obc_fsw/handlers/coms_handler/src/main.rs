@@ -12,7 +12,6 @@ use logging::*;
 use log::{debug, trace, warn};
 
 use common::component_ids::{COMS, GS};
-use common::component_ids::ComponentIds;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
