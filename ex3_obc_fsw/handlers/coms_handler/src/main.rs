@@ -21,9 +21,9 @@ use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
+use uhf_handler::UHFHandler;
 use uhf_handler::{handle_uhf_cmd, handle_uhf_cmd_test};
 mod uhf_handler;
-
 // Something up with the slicing makes this number be the size that each packet ends up 128B
 // const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
 
@@ -142,7 +142,6 @@ fn main() {
             None
         }
     };
-
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
     let ipc_gs_interfac_res = IpcClient::new("gs_bulk".to_string());
     let mut ipc_gs_interface = match ipc_gs_interfac_res {
@@ -163,6 +162,16 @@ fn main() {
                 None
             }
         };
+    // Set up IPC interface for UHF handler
+    let ipc_uhf_interface_res = IpcClient::new("uhf_handler".to_string());
+    if ipc_uhf_interface_res.is_err() {
+        warn!(
+            "Error creating IPC interface: {:?}",
+            ipc_uhf_interface_res.err()
+        );
+        return;
+    }
+    let mut ipc_uhf_interface = ipc_uhf_interface_res.unwrap();
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
