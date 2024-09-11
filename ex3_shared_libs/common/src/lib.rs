@@ -154,14 +154,12 @@ pub mod opcodes {
         Error = 99,
     }
     pub enum UHF {
-        GetHK = 3,
-        SetBeacon = 4,
-        GetBeacon = 5,
-        SetBaudRate = 6,
-        Reset = 7,
-        GetBaudRate = 8,
-        SetMode = 9,
-        GetMode = 10,
+        GetHK = 8,
+        SetBeacon = 9,
+        GetBeacon = 10,
+        SetMode = 11,
+        Reset = 12,
+        GetMode = 13,
         //...
         Error = 99,
     }
