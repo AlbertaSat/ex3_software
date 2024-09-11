@@ -20,11 +20,10 @@ use ipc::*;
 use message_structure::{
     deserialize_msg, serialize_msg, Msg, MsgType,
 };
-use uhf_handler::{handle_uhf_cmd, handle_uhf_cmd_test};
+use uhf_handler::UHFHandler;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 mod uhf_handler;
-
 // Something up with the slicing makes this number be the size that each packet ends up 128B
 // const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
 
@@ -125,6 +124,9 @@ fn main() {
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
+    
+    // Initialize UHF handler struct once the tcp interface has been created since it requires this (Although not currently for testing purposes.)
+    let mut uhf_handler = UHFHandler::new();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
     let ipc_gs_interface_res = IpcClient::new("gs_bulk".to_string());
@@ -137,7 +139,6 @@ fn main() {
     }
     let mut ipc_gs_interface = ipc_gs_interface_res.unwrap();
 
-    //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
     // Will have to be changed in msg_dispatcher as well
     let ipc_coms_interface_res = IpcClient::new("coms_handler".to_string());
@@ -148,8 +149,18 @@ fn main() {
         );
         return;
     }
-
     let mut ipc_coms_interface = ipc_coms_interface_res.unwrap();
+
+    // Set up IPC interface for UHF handler
+    let ipc_uhf_interface_res = IpcClient::new("uhf_handler".to_string());
+    if ipc_uhf_interface_res.is_err() {
+        warn!(
+            "Error creating IPC interface: {:?}",
+            ipc_uhf_interface_res.err()
+        );
+        return;
+    }
+    let mut ipc_uhf_interface = ipc_uhf_interface_res.unwrap();
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
@@ -159,7 +170,7 @@ fn main() {
     let mut expected_msgs = 0;
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
-        let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface];
+        let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface, &mut ipc_uhf_interface];
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
@@ -228,17 +239,8 @@ fn main() {
             match deserialized_msg_result {
                 Ok(deserialized_msg) => {
                     trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
-                    match ComponentIds::from(deserialized_msg.header.dest_id) {
-                        ComponentIds::COMS => {
-                            handle_msg_for_coms(&deserialized_msg);
-                        },
-                        ComponentIds::UHF => {
-                            handle_uhf_cmd_test(&mut tcp_interface, &deserialized_msg);
-                        },
-                        _ => {
-                            warn!("Invalid ComponentId");
-                        }
-                    }
+                    // Handles msg internally for COMS
+                    handle_msg_for_coms(&deserialized_msg);
                 }
                 Err(e) => {
                     warn!("Error deserializing COMS IPC msg: {:?}", e);
@@ -246,6 +248,24 @@ fn main() {
                 }
             };
             ipc_coms_interface.clear_buffer();
+        }
+
+        // Poll the IPC unix domain socket for the UHF handler channel
+        if ipc_uhf_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+            trace!("Received UHF IPC Msg bytes");
+            let deserialized_msg_result = deserialize_msg(&ipc_uhf_interface.buffer);
+            match deserialized_msg_result {
+                Ok(deserialized_msg) => {
+                    trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
+                    // Handles msg internally for UHF
+                    uhf_handler.handle_msg_for_uhf(&mut tcp_interface, &deserialized_msg);
+                }
+                Err(e) => {
+                    warn!("Error deserializing UHF IPC msg: {:?}", e);
+                    //Handle deserialization of IPC msg failure
+                }
+            };
+            ipc_uhf_interface.clear_buffer();
         }
 
         let uhf_bytes_read_result = tcp_interface.read(&mut uhf_buf);
