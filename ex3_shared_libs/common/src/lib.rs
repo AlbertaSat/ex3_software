@@ -213,11 +213,9 @@ pub mod opcodes {
                 3 => UHF::GetHK,
                 4 => UHF::SetBeacon,
                 5 => UHF::GetBeacon,
-                6 => UHF::SetBaudRate,
+                6 => UHF::SetMode,
                 7 => UHF::Reset,
-                8 => UHF::GetBaudRate,
-                9 => UHF::SetMode,
-                10 => UHF::GetMode,
+                8 => UHF::GetMode,
                 _ => UHF::Error // or choose a default value or handle the error in a different way
                 
             }
