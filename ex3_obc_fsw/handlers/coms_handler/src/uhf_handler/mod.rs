@@ -49,12 +49,6 @@ impl UHFHandler {
             opcodes::UHF::GetBeacon => {
                 println!("Getting UHF Beacon");
             },
-            opcodes::UHF::SetBaudRate => {
-                println!("Setting UHF baud rate");
-            },
-            opcodes::UHF::GetBaudRate => {
-                println!("Getting UHF baud rate");
-            },
             opcodes::UHF::SetMode => {
                 println!("Setting UHF mode");
             },

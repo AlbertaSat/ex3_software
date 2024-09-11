@@ -148,14 +148,12 @@ pub mod opcodes {
         Error = 99,
     }
     pub enum UHF {
-        GetHK = 3,
-        SetBeacon = 4,
-        GetBeacon = 5,
-        SetBaudRate = 6,
-        Reset = 7,
-        GetBaudRate = 8,
-        SetMode = 9,
-        GetMode = 10,
+        GetHK = 8,
+        SetBeacon = 9,
+        GetBeacon = 10,
+        SetMode = 11,
+        Reset = 12,
+        GetMode = 13,
         //...
         Error = 99,
     }
@@ -207,14 +205,12 @@ pub mod opcodes {
     impl From<u8> for UHF {
         fn from(value: u8) -> Self {
             match value {
-                3 => UHF::GetHK,
-                4 => UHF::SetBeacon,
-                5 => UHF::GetBeacon,
-                6 => UHF::SetBaudRate,
-                7 => UHF::Reset,
-                8 => UHF::GetBaudRate,
-                9 => UHF::SetMode,
-                10 => UHF::GetMode,
+                8 => UHF::GetHK,
+                9 => UHF::SetBeacon,
+                10 => UHF::GetBeacon,
+                11 => UHF::SetMode,
+                12 => UHF::Reset,
+                13 => UHF::GetMode,
                 _ => UHF::Error, // or choose a default value or handle the error in a different way
             }
         }
