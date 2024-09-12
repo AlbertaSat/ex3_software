@@ -61,6 +61,8 @@ pub struct MsgHeaderNew {
     pub source_id: u8,
 }
 impl MsgHeaderNew {
+    pub const DEST_INDEX: usize = 3;
+
     pub fn new(msg_id: u16, msg_type: MsgType, dest_id: u8, source_id: u8) -> Self {
         MsgHeaderNew {
             msg_id,
@@ -98,7 +100,7 @@ impl SerializeAndDeserialize for MsgHeaderNew {
         let result_msg_header = MsgHeaderNew {
             msg_id: u16::from_be_bytes([serialized_bytes_slice[0], serialized_bytes_slice[1]]),
             msg_type: MsgType::from(serialized_bytes_slice[2]),
-            dest_id: serialized_bytes_slice[3],
+            dest_id: serialized_bytes_slice[MsgHeaderNew::DEST_INDEX],
             source_id: serialized_bytes_slice[4],
         };
         Ok(result_msg_header)
