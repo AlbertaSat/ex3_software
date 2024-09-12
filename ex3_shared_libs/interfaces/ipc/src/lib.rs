@@ -7,6 +7,7 @@ use nix::libc;
 use nix::sys::socket::{self, accept, bind, listen, socket, Backlog, AddressFamily, SockFlag, SockType, UnixAddr};
 use nix::unistd::{read, write};
 use std::ffi::CString;
+use nix::errno::Errno;
 use std::io::Error as IoError;
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
@@ -46,7 +47,7 @@ impl IpcClient {
         Ok(client)
     }
 
-    fn connect_to_server(&mut self) -> Result<(), IoError> {
+    fn connect_to_server(&mut self) -> Result<(), Errno> {
         let socket_path_c_str = CString::new(self.socket_path.clone()).unwrap();
         let addr = UnixAddr::new(socket_path_c_str.as_bytes()).unwrap_or_else(|err| {
             eprintln!("Failed to create UnixAddr: {}", err);
@@ -57,14 +58,17 @@ impl IpcClient {
             self.socket_path
         );
         let fd: RawFd = self.fd.as_raw_fd();
-        socket::connect(fd, &addr).unwrap_or_else(|err| {
-            eprintln!("Failed to connect to server socket: {}", err);
-            process::exit(1)
-        });
-        println!("Connected to server socket at: {}", self.socket_path);
-        self.connected = true;
-
-        Ok(())
+        match socket::connect(fd, &addr) {
+            Ok(()) => {
+                println!("Connected to server socket at: {}", self.socket_path);
+                self.connected = true;
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Failed to connect to server socket: {}", e);
+                Err(e)
+            }
+        }
     }
 
     /// Users of this lib can call this to clear the buffer - otherwise the preivous read data will remain

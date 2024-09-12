@@ -125,18 +125,17 @@ fn main() {
     
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
+        TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
+    let mut ipc_gs_interface;
     let ipc_gs_interface_res = IpcClient::new("gs_bulk".to_string());
-    if ipc_gs_interface_res.is_err() {
-        warn!(
-            "Error creating IPC interface: {:?}",
-            ipc_gs_interface_res.err()
-        );
-        return;
+    if let Err(e) = ipc_gs_interface_res {
+        warn!("Error creating IPC interface: {e}");
+    } else {
+        ipc_gs_interface = ipc_gs_interface_res.unwrap();
+        
     }
-    let mut ipc_gs_interface = ipc_gs_interface_res.unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
