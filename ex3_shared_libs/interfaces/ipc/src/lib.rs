@@ -86,14 +86,17 @@ impl IpcClient {
         tmp
     }
 }
-
-pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, String), std::io::Error> {
+///
+pub fn poll_ipc_clients(clients: &mut Vec<&mut Option<IpcClient>>) -> Result<(usize, String), std::io::Error> {
     //Create poll fd instances for each client
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
         // Poll data_fd for incoming data
+        if let None = client {
+            return Ok((0,"".to_string()));
+        }
         poll_fds.push(libc::pollfd {
-            fd: client.fd.as_raw_fd(),
+            fd: client.as_ref().unwrap().fd.as_raw_fd(),
             events: libc::POLLIN,
             revents: 0,
         });
@@ -118,16 +121,16 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, Str
     //Poll each client for incoming data
     for poll_fd in poll_fds.iter() {
         if poll_fd.revents & libc::POLLIN != 0 {
-            let client = clients.iter_mut().find(|s| s.fd.as_raw_fd() == poll_fd.fd);
+            let client = clients.iter_mut().find(|s| s.as_ref().unwrap().fd.as_raw_fd() == poll_fd.fd);
             if let Some(client) = client {
                 // Handle incoming data from a connected client
-                let bytes_read = read(client.fd.as_raw_fd(), &mut client.buffer)?;
+                let bytes_read = read(client.as_ref().unwrap().fd.as_raw_fd(), &mut client.as_mut().unwrap().buffer)?;
                 if bytes_read > 0 {
                     println!(
                         "Received {} bytes on socket {}",
-                        bytes_read, client.socket_path
+                        bytes_read, client.as_ref().unwrap().socket_path
                     );
-                    return Ok((bytes_read, client.socket_path.clone()));
+                    return Ok((bytes_read, client.as_ref().unwrap().socket_path.clone()));
                 }
             }
         }

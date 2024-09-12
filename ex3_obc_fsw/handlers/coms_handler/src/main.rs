@@ -128,14 +128,14 @@ fn main() {
         TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
-    let mut ipc_gs_interface;
-    let ipc_gs_interface_res = IpcClient::new("gs_bulk".to_string());
-    if let Err(e) = ipc_gs_interface_res {
-        warn!("Error creating IPC interface: {e}");
-    } else {
-        ipc_gs_interface = ipc_gs_interface_res.unwrap();
-        
-    }
+    let ipc_gs_interfac_res = IpcClient::new("gs_bulk".to_string());
+    let mut ipc_gs_interface = match ipc_gs_interfac_res {
+        Ok(i) => Some(i),
+        Err(e) => {
+            warn!("Cannot connect to bulk interface: {e}");
+            None
+        }
+    };
 
     //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
@@ -164,63 +164,65 @@ fn main() {
         let coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
-        if ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
-            trace!("Received IPC Msg bytes for GS");
-            let deserialized_msg_result = deserialize_msg(&ipc_gs_interface.buffer);
-            match deserialized_msg_result {
-                Ok(deserialized_msg) => {
-                    // writes directly to GS, handling case if it's a bulk message
-                    if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
-                    {
-                        // If we haven't received Bulk ACK, we need to send ack
-                        if let Some(e) = send_bulk_ack(&ipc_gs_interface.fd).err() {
-                            println!("failed to send bulk ack: {e}");
-                        }
-                        received_bulk_ack = true;
-                        let expected_msgs_bytes = [
-                            deserialized_msg.msg_body[0],
-                            deserialized_msg.msg_body[1],
-                        ];
-                        expected_msgs = u16::from_le_bytes(expected_msgs_bytes);
-                        trace!("Expecting {} 4KB msgs", expected_msgs);
-                        // Send msg containing num of 4KB msgs and num of bytes to expect
-                        send_initial_bulk_to_gs(deserialized_msg, &mut tcp_interface);
-                    } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
-                        && received_bulk_ack
-                    {   
-                        // await_ack_for_bulk(&mut tcp_interface);
-                        // Here where we read incoming bulk msgs from bulk_msg_disp
-                        if bulk_msgs_read < expected_msgs {
-                            if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
-                                if ipc_name.contains("gs") {
-                                    let cur_buf = ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
-                                    println!("Bytes read: {}", cur_buf.len());
-                                    let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                    write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
-                                    bulk_msgs_read += 1;
-                                }
-                            } else {
-                                warn!("Error reading bytes from poll.");
+        if let Some(ref mut ipc_gs_interfac) = ipc_gs_interface {
+            if ipc_gs_interfac.buffer != [0u8; IPC_BUFFER_SIZE] {
+                trace!("Received IPC Msg bytes for GS");
+                let deserialized_msg_result = deserialize_msg(&ipc_gs_interfac.buffer);
+                match deserialized_msg_result {
+                    Ok(deserialized_msg) => {
+                        // writes directly to GS, handling case if it's a bulk message
+                        if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
+                        {
+                            // If we haven't received Bulk ACK, we need to send ack
+                            if let Some(e) = send_bulk_ack(&ipc_gs_interfac.fd).err() {
+                                println!("failed to send bulk ack: {e}");
                             }
+                            received_bulk_ack = true;
+                            let expected_msgs_bytes = [
+                                deserialized_msg.msg_body[0],
+                                deserialized_msg.msg_body[1],
+                            ];
+                            expected_msgs = u16::from_le_bytes(expected_msgs_bytes);
+                            trace!("Expecting {} 4KB msgs", expected_msgs);
+                            // Send msg containing num of 4KB msgs and num of bytes to expect
+                            send_initial_bulk_to_gs(deserialized_msg, &mut tcp_interface);
+                        } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
+                            && received_bulk_ack
+                        {   
+                            // await_ack_for_bulk(&mut tcp_interface);
+                            // Here where we read incoming bulk msgs from bulk_msg_disp
+                            if bulk_msgs_read < expected_msgs {
+                                if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
+                                    if ipc_name.contains("gs") {
+                                        let cur_buf = ipc_gs_interfac.buffer[..ipc_bytes_read].to_vec();
+                                        println!("Bytes read: {}", cur_buf.len());
+                                        let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                                        write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
+                                        bulk_msgs_read += 1;
+                                    }
+                                } else {
+                                    warn!("Error reading bytes from poll.");
+                                }
+                            }
+                        } else {
+                            let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
                         }
-                    } else {
-                        write_msg_to_uhf_for_downlink(&mut tcp_interface, deserialized_msg);
                     }
-                }
-                Err(e) => {
-                    warn!("Error deserializing GS IPC msg: {:?}", e);
-                    //Handle deserialization of IPC msg failure
-                }
-            };
-            trace!("Bulk msgs read: {}", bulk_msgs_read);
-            ipc_gs_interface.clear_buffer();
+                    Err(e) => {
+                        warn!("Error deserializing GS IPC msg: {:?}", e);
+                        //Handle deserialization of IPC msg failure
+                    }
+                };
+                trace!("Bulk msgs read: {}", bulk_msgs_read);
+                ipc_gs_interfac.clear_buffer();
+            }
         }
         // If we are done reading bulk msgs, start protocol with GS
         if received_bulk_ack && bulk_msgs_read >= expected_msgs {
             bulk_msgs_read = 0;
             expected_msgs = 0;
             received_bulk_ack = false;
-            ipc_gs_interface.clear_buffer();
+            ipc_gs_interface.as_mut().unwrap().clear_buffer();
         }
 
         // Poll the IPC unix domain socket for the COMS channel
