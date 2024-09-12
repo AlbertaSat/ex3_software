@@ -1,3 +1,4 @@
+
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {
     pub const SIM_DFGM_PORT: u16 = 1802;
@@ -19,6 +20,7 @@ pub mod ports {
 pub mod component_ids {
     use std::fmt;
     use std::str::FromStr;
+    use strum::EnumIter;
 
     // ---------- Depricated but left to not break things -------- //
     pub const OBC: u8 = 0;
@@ -32,7 +34,7 @@ pub mod component_ids {
     pub const COMS: u8 = 8;
     // ----------------------------------------------------------- //
 
-    #[derive(PartialEq, Debug)]
+    #[derive(EnumIter, PartialEq, Debug)]
     pub enum ComponentIds {
         OBC = 0,
         EPS = 1,
@@ -48,6 +50,7 @@ pub mod component_ids {
         SHELL = 12,
         //..
         DUMMY = 99,
+        LAST = 11,
     }
 
     impl fmt::Display for ComponentIds {
@@ -64,6 +67,7 @@ pub mod component_ids {
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
+                ComponentIds::LAST => write!(f, "illegal"),
             }
         }
     }
@@ -83,6 +87,7 @@ pub mod component_ids {
                 //...
                 "SHELL" => Ok(ComponentIds::SHELL),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
+                "LAST" => Err(()),
                 _ => Err(()),
             }
         }
@@ -106,6 +111,7 @@ pub mod component_ids {
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
+                x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
         }
