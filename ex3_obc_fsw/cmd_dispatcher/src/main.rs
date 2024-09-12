@@ -2,7 +2,7 @@ use nix::sys::socket::accept;
 use nix::unistd::{read, write, close};
 use nix::Error;
 use strum::IntoEnumIterator;
-use std::os::fd::{AsRawFd};
+use std::os::fd::{AsFd, AsRawFd};
 
 use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
@@ -21,7 +21,16 @@ fn main() {
         }).collect();
 
     for x in 0..ComponentIds::LAST as usize {
-        let payload = ComponentIds::try_from(x as u8).unwrap();
+        let payload = match ComponentIds::try_from(x as u8) {
+            Ok(p) => {
+                eprintln!("x {} yields {}", x, p);
+                p
+            },
+            Err(()) => {
+                eprintln!("x {} didn't convert", x);
+                continue;
+            }
+        };
         match component_streams.get(x) {
             Some(element) => match element {
                 Some(_) => println!("{} connected", payload),
@@ -38,15 +47,16 @@ fn main() {
             return; // Should fix it and retry
         }
     };
-    
+
+    let data_fd = match accept(server.conn_fd.as_raw_fd()) {
+        Ok(fd) => fd,
+        Err(e) => {
+            eprintln!("accept failed: {}", e);
+            -1
+        }
+    };
+
     loop {
-        let data_fd = match accept(server.conn_fd.as_raw_fd()) {
-            Ok(fd) => fd,
-            Err(e) => {
-                eprintln!("accept failed: {}", e);
-                break; // just start over
-            }
-        };
 
         let mut buffer = [0; IPC_BUFFER_SIZE];
         let _bytes_read = match read(data_fd, &mut buffer) {
@@ -63,7 +73,7 @@ fn main() {
             Ok(payload) => {
                 match &component_streams[dest as usize] {
                     Some(client) => {
-                        write(client.fd.try_clone().unwrap(), &buffer)
+                        write(client.fd.as_fd(), &buffer)
                     },
                     None => {
                         eprintln!("No payload: {payload}!");
