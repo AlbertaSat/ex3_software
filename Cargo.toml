@@ -15,6 +15,8 @@ members = [
     "ex3_obc_fsw/handlers/iris_handler",
     "ex3_obc_fsw/handlers/shell_handler",
     "ex3_obc_fsw/scheduler",
+    "ex3_obc_fsw/bulk_msg_dispatcher",
+    "ex3_obc_fsw/cmd_dispatcher",
     "ex3_shared_libs/bulk_msg_slicing",
     "ex3_shared_libs/common",
     "ex3_shared_libs/interfaces/ipc",
