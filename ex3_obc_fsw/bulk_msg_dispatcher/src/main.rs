@@ -21,7 +21,7 @@ fn main() -> Result<(), IoError> {
     let mut messages = Vec::new();
 
     let log_path = "logs";
-    init_logger(&log_path);
+    init_logger(log_path);
 
     loop {
         let coms_interface_clone = coms_interface.clone();
@@ -69,12 +69,12 @@ fn main() -> Result<(), IoError> {
                 if msg.header.msg_type == MsgType::Ack as u8 {
                     // Is there a better way of differentiating between ACK's?
                     if msg.msg_body[0] == 0 {
-                        for i in 0..messages.len() {
-                            let serialized_msgs = serialize_msg(&messages[i])?;
+                        for (i, message) in messages.iter().enumerate() {
+                            let serialized_msgs = serialize_msg(message)?;
                             trace!("Sending {} B", serialized_msgs.len());
                             ipc_write(coms_interface_clone.data_fd, &serialized_msgs)?;
                             trace!("Sent msg #{}", i + 1);
-                            // save_data_to_file(messages[i].msg_body.clone(), 0);
+                            // save_data_to_file(message.msg_body.clone(), 0);
                             thread::sleep(Duration::from_millis(100));
                         }
                     } else {

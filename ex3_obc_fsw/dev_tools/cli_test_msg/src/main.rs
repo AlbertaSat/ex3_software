@@ -36,13 +36,10 @@ fn main() {
         let inner_msg: Msg = Msg::new(0,22,4,0,0,msg_time_bytes);
         let serialized_inner_msg = serialize_msg(&inner_msg).unwrap();
         data = Msg::new(0,0,8,1,2,serialized_inner_msg);
+    } else if subsystem == "dfgm" {
+        data = Msg::new(0,0,3,0,0,vec![0]);
     } else {
-        if subsystem == "dfgm" {
-            data = Msg::new(0,0,3,0,0,vec![0]);
-        }
-        else {
-            data = Msg::new(0,0,0,0,0,vec![]);
-        }
+        data = Msg::new(0,0,0,0,0,vec![]);
     }
     let mut stream = TcpStream::connect((Ipv4Addr::new(127, 0, 0, 1), port)).unwrap();
     let output_stream = &mut stream;

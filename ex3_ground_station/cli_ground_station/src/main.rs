@@ -30,7 +30,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{process, thread};
 use std::time::Duration;
-use tokio;
 use tokio::sync::Mutex;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
@@ -88,7 +87,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     } else {
         opcode = operator_str_split[1].parse::<u8>().unwrap();
 
-        for data_byte in operator_str_split[2..].into_iter() {
+        for data_byte in operator_str_split[2..].iter() {
         msg_body.push(data_byte.parse::<u8>().unwrap());
         }
     }
@@ -121,7 +120,7 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
         tokio::time::sleep(Duration::from_secs(1)).await;
         count += 1;
         let lock = awaiting_ack_clone.lock().await;
-        if *lock == false {
+        if !(*lock) {
             return;
         }
     }
@@ -217,13 +216,13 @@ async fn main() {
     loop {
         let mut fds = [libc::pollfd {
             fd: stdin_fd,
-            events: POLLIN as i16,
+            events: POLLIN,
             revents: 0,
         }];
 
         // Poll stdin for input
         let ret = unsafe { poll(fds.as_mut_ptr(), 1, STDIN_POLL_TIMEOUT) }; // 10 ms timeout
-        if ret > 0 && fds[0].revents & POLLIN as i16 != 0 {
+        if ret > 0 && fds[0].revents & POLLIN != 0 {
             let mut input = String::new();
             let mut stdin = std::io::stdin().lock();
             stdin.read_line(&mut input).unwrap();
@@ -243,7 +242,7 @@ async fn main() {
                         awaiting_ack_timeout_task(awaiting_ack_clone).await;
                     });
 
-                    while *awaiting_ack.lock().await == true {
+                    while *awaiting_ack.lock().await {
                         let bytes_read = tcp_interface.read(&mut buf).unwrap();
                         if bytes_read > 0 {
                             let recvd_msg = deserialize_msg(&buf).unwrap();

@@ -1,6 +1,6 @@
-# Cmd Handler
+# Shell Handler
 
-The Cmd payload receives linux commands from the ground station and executes
+The Shell payload receives linux commands from the ground station and executes
 them on the OBC. The output of the command is returned to the ground station as
 the response.
 
