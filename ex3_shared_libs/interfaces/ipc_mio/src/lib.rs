@@ -29,6 +29,128 @@ const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 const NUM_EVENTS: usize = 1024;
 const POLL_TIMEOUT_MS: u64 = 100;
 
+pub struct IpcClientPollHandler {
+    pub poll: Poll,
+    pub clients: Vec<IpcClient>,
+}
+impl IpcClientPollHandler {
+    /// Create a new handler for the clients.
+    ///
+    /// Note that the vector is moved out into the struct,
+    /// ideally there should not be a reason to access the
+    /// vector manually.
+    pub fn new(clients: Vec<IpcClient>) -> Result<IpcClientPollHandler, IoError> {
+        let mut poll = Poll::new()?;
+        let mut token_index = 0; // token index will match the order the array came in
+
+        let mut client_handler = IpcClientPollHandler {
+            poll: poll,
+            clients: clients,
+        };
+
+        for client in &mut client_handler.clients {
+            client_handler.poll.registry().register(
+                &mut client.stream,
+                Token(token_index),
+                Interest::READABLE | Interest::WRITABLE,
+            )?;
+            token_index += 1;
+        }
+
+        Ok(client_handler)
+    }
+
+    /// The clients will hang for a connection for a duration of `POLL_TIMEOUT_MS`
+    ///
+    /// returns the number of successfully connected streams
+    pub fn poll_for_conn(&mut self) -> Result<usize, IoError> {
+        let mut events = Events::with_capacity(NUM_EVENTS);
+        let mut num_conns = 0;
+
+        // Consider changing the timeout possibly to `None`
+        self.poll
+            .poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
+
+        for event in &events {
+            if event.is_writable() {
+                // we can probably read/write from the stream now if it wasn't a spurious event
+                let Token(index) = event.token();
+                self.clients[index].connected = true;
+                num_conns += 1;
+            }
+        }
+
+        Ok(num_conns)
+    }
+
+    /// polls clients for data writes to a buffer and returns the number of bytes read
+    /// as well as the socket path
+    ///
+    /// TODO: Consider calling poll_for_conn prior to poll_for_data since poll_for_data
+    /// could result in disconnects
+    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), IoError> {
+        let mut events = Events::with_capacity(NUM_EVENTS);
+
+        // Consider changing the timeout possibly to `None`
+        self.poll
+            .poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
+
+        for event in &events {
+            if event.is_readable() {
+                let Token(index) = event.token();
+                let client = &mut self.clients[index];
+
+                match client.stream.read(buf) {
+                    Ok(0) => {
+                        println!("Client disconnected from {}", client.socket_path);
+                        client.connected = false;
+                    }
+                    Ok(bytes_read) => {
+                        return Ok((bytes_read, client.socket_path.clone()));
+                    }
+                    Err(e) => {
+                        eprintln!("Could not read from {}\n{}", client.socket_path, e);
+                    }
+                };
+            }
+        }
+
+        // No data was read
+        Ok((0, "".to_string()))
+    }
+}
+
+pub struct IpcServerPollHandler {
+    pub poll: Poll,
+    pub servers: Vec<IpcServer>,
+}
+impl IpcServerPollHandler {
+    /// Create a new handler for the servers.
+    ///
+    /// Note that the vector is moved out into the struct,
+    /// ideally there should not be a reason to access the
+    /// vector manually.
+    pub fn new(servers: Vec<IpcServer>) -> Result<IpcServerPollHandler, IoError> {
+        let mut poll = Poll::new()?;
+        let mut token_index = 0; // token index will be 2x the index of the array it came in to keep storage for streams
+
+        let mut server_handler = IpcServerPollHandler {
+            poll: poll,
+            servers: servers,
+        };
+
+        for server in &mut server_handler.servers {
+            server_handler.poll.registry().register(
+                &mut server.listener,
+                Token(token_index),
+                Interest::READABLE | Interest::WRITABLE,
+            )?;
+            token_index += 2;
+        }
+
+        Ok(server_handler)
+    }
+}
 pub struct IpcClient {
     pub socket_path: String,
     pub stream: UnixStream,
@@ -45,38 +167,7 @@ impl IpcClient {
             connected: false,
         };
 
-        client.poll_for_conn()?;
         Ok(client)
-    }
-
-    /// The client will hang for a connection for a duration of `POLL_TIMEOUT_MS`
-    /// afterwards it will either successfully connect to the socket or will
-    /// timeout which then becomes the responsibility of the user to handle.
-    fn poll_for_conn(&mut self) -> Result<(), IoError> {
-        let mut poll = Poll::new()?;
-        let mut events = Events::with_capacity(NUM_EVENTS);
-
-        poll.registry().register(
-            &mut self.stream,
-            Token(0),
-            Interest::READABLE | Interest::WRITABLE,
-        )?;
-
-        // Consider changing the timeout possibly to `None`
-        poll.poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
-
-        for event in &events {
-            if event.token() == Token(0) && event.is_readable() && event.is_writable() {
-                // we can probably read/write from the stream now if it wasn't a spurious event
-                self.connected = true;
-                return Ok(());
-            }
-        }
-
-        return Err(Error::new(
-            ErrorKind::TimedOut,
-            format!("Connection to {:?} timed out", self.socket_path),
-        ));
     }
 }
 
