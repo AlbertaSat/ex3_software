@@ -122,6 +122,20 @@ fn main() {
     init_logger(log_path);
     trace!("Logger initialized");
     trace!("Beginning Coms Handler...");
+
+    //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
+    // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
+    // Will have to be changed in msg_dispatcher as well
+    let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
+    if ipc_coms_interface_res.is_err() {
+        warn!(
+            "Error creating IPC interface: {:?}",
+            ipc_coms_interface_res.err()
+        );
+        return;
+    }
+
+    let mut ipc_coms_interface = ipc_coms_interface_res.unwrap();
     
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
@@ -137,20 +151,6 @@ fn main() {
         }
     };
 
-    //Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
-    // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
-    // Will have to be changed in msg_dispatcher as well
-    let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
-    if ipc_coms_interface_res.is_err() {
-        warn!(
-            "Error creating IPC interface: {:?}",
-            ipc_coms_interface_res.err()
-        );
-        return;
-    }
-
-    let mut ipc_coms_interface = ipc_coms_interface_res.unwrap();
-
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
 
@@ -164,17 +164,17 @@ fn main() {
         let coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
-        if let Some(ref mut ipc_gs_interfac) = ipc_gs_interface {
-            if ipc_gs_interfac.buffer != [0u8; IPC_BUFFER_SIZE] {
+        if let Some(ref mut init_ipc_gs_interface) = ipc_gs_interface {
+            if init_ipc_gs_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
                 trace!("Received IPC Msg bytes for GS");
-                let deserialized_msg_result = deserialize_msg(&ipc_gs_interfac.buffer);
+                let deserialized_msg_result = deserialize_msg(&init_ipc_gs_interface.buffer);
                 match deserialized_msg_result {
                     Ok(deserialized_msg) => {
                         // writes directly to GS, handling case if it's a bulk message
                         if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
                         {
                             // If we haven't received Bulk ACK, we need to send ack
-                            if let Some(e) = send_bulk_ack(&ipc_gs_interfac.fd).err() {
+                            if let Some(e) = send_bulk_ack(&init_ipc_gs_interface.fd).err() {
                                 println!("failed to send bulk ack: {e}");
                             }
                             received_bulk_ack = true;
@@ -194,7 +194,7 @@ fn main() {
                             if bulk_msgs_read < expected_msgs {
                                 if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
                                     if ipc_name.contains("gs") {
-                                        let cur_buf = ipc_gs_interfac.buffer[..ipc_bytes_read].to_vec();
+                                        let cur_buf = init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
                                         println!("Bytes read: {}", cur_buf.len());
                                         let cur_msg = deserialize_msg(&cur_buf).unwrap();
                                         write_msg_to_uhf_for_downlink(&mut tcp_interface, cur_msg);
@@ -214,7 +214,7 @@ fn main() {
                     }
                 };
                 trace!("Bulk msgs read: {}", bulk_msgs_read);
-                ipc_gs_interfac.clear_buffer();
+                init_ipc_gs_interface.clear_buffer();
             }
         }
         // If we are done reading bulk msgs, start protocol with GS

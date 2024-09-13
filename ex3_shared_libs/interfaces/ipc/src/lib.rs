@@ -27,6 +27,7 @@ fn create_socket() -> Result<OwnedFd, IoError> {
 }
 
 /// Client struct using a unix domain socket of type SOCKSEQ packet, that connects to a server socket
+#[derive(Debug)]
 pub struct IpcClient {
     pub socket_path: String,
     pub fd: OwnedFd,

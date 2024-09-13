@@ -19,7 +19,8 @@ fn main() {
                 },
             }
         }).collect();
-
+    
+    println!("GOT {:?}", component_streams.get(7)); // prints COMS connection
     for x in 0..ComponentIds::LAST as usize {
         let payload = match ComponentIds::try_from(x as u8) {
             Ok(p) => {
