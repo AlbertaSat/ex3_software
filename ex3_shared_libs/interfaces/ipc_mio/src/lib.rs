@@ -3,17 +3,12 @@
  * or block indefinitely, considering that servers currently
  * do not accept until they are polled
  *
- * TODO: the efficiency of poll_ipc_* is not great, what I'll need
- * to do is probably add a parameter for how long to wait since having
- * the user constantly call this function is not ideal. Having to create
- * a new poll struct just to check for a change in `POLL_TIMEOUT_MS`
- * is not as good way to do this
+ * TODO: Change the `new` functions for the IpcClient and
+ * IpcServer so the pathname is referenced from the struct
  *
- * An idea to improve this efficiency is to possibly make a handler
- * struct in a way similar to C. The handler struct can store the
- * poll struct so we don't have to recreate and initialize it every
- * time. We can initialize the handler once and then that will improve
- * efficiency
+ * TODO: in poll_for_data, go through all the data before
+ * breaking since we might cause an issue if we're checking
+ * the same events, also figure out how events work exactly.
  */
 use std::fs;
 use std::io::{Error, ErrorKind, Read};
@@ -84,10 +79,7 @@ impl IpcClientPollHandler {
     }
 
     /// polls clients for data writes to a buffer and returns the number of bytes read
-    /// as well as the socket path
-    ///
-    /// TODO: Consider calling poll_for_conn prior to poll_for_data since poll_for_data
-    /// could result in disconnects
+    /// as well as the socket path. Disconnects and reconnects clients accordingly.
     pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), IoError> {
         let mut events = Events::with_capacity(NUM_EVENTS);
 
@@ -96,10 +88,14 @@ impl IpcClientPollHandler {
             .poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
 
         for event in &events {
-            if event.is_readable() {
-                let Token(index) = event.token();
-                let client = &mut self.clients[index];
+            let Token(index) = event.token();
+            let client = &mut self.clients[index];
 
+            if event.is_writable() {
+                // we can probably read/write from the stream now if it wasn't a spurious event
+                client.connected = true;
+            }
+            if event.is_readable() {
                 match client.stream.read(buf) {
                     Ok(0) => {
                         println!("Client disconnected from {}", client.socket_path);
@@ -149,6 +145,74 @@ impl IpcServerPollHandler {
         }
 
         Ok(server_handler)
+    }
+
+    /// polls clients for data writes to a buffer and returns the number of bytes read
+    /// as well as the socket path. Disconnects and reconnects clients accordingly.
+    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), IoError> {
+        let mut events = Events::with_capacity(NUM_EVENTS);
+
+        // Consider changing the timeout possibly to `None`
+        self.poll
+            .poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
+
+        for event in &events {
+            let Token(index) = event.token();
+            let server = &mut self.servers[index / 2];
+
+            match index % 2 {
+                0 => {
+                    // UnixListener
+                    if event.is_readable() {
+                        match server.listener.accept() {
+                            Ok((stream, address)) => {
+                                println!("New client connected from {:?}", address.as_pathname());
+                                server.stream = Some(stream);
+
+                                self.poll.registry().register(
+                                    match &mut server.stream {
+                                        Some(stream) => stream,
+                                        None => {
+                                            panic!("Shouldn't be possible to get here");
+                                        }
+                                    },
+                                    Token(index + 1),
+                                    Interest::READABLE | Interest::WRITABLE,
+                                )?;
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to accept connection: {}", e);
+                            }
+                        }
+                    }
+                }
+                1 => {
+                    //UnixStream
+                    if event.is_readable() {
+                        if let Some(stream) = &mut server.stream {
+                            match stream.read(buf) {
+                                Ok(0) => {
+                                    println!("Client disconnected from {}", server.socket_path);
+                                    self.poll.registry().deregister(stream)?;
+                                    server.stream = None;
+                                    server.connected = false;
+                                }
+                                Ok(bytes_read) => {
+                                    return Ok((bytes_read, server.socket_path.clone()));
+                                }
+                                Err(e) => {
+                                    eprintln!("Could not read from {}\n{}", server.socket_path, e);
+                                }
+                            };
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // No data was read
+        Ok((0, "".to_string()))
     }
 }
 pub struct IpcClient {
@@ -205,139 +269,4 @@ impl IpcServer {
         // Normally a server would accept conn here - but instead we do this in the polling loop
         Ok(server)
     }
-}
-
-/// Polls IpcClient's until one of them detects something was written
-/// to their stream
-///
-/// TODO: the efficiency of this is not great, what I'll need to do
-/// is probably add a parameter for how long to wait since having the
-/// user constantly call this function is not ideal. Having to create
-/// a new poll struct just to check for a change in `POLL_TIMEOUT_MS`
-/// is not as good way to do this
-pub fn poll_ipc_clients(
-    clients: &mut Vec<&mut IpcClient>,
-    buf: &mut [u8],
-) -> Result<(usize, String), std::io::Error> {
-    let mut poll = Poll::new()?;
-    let mut events = Events::with_capacity(NUM_EVENTS);
-    let mut token_index = 0;
-
-    for client in &mut *clients {
-        poll.registry().register(
-            &mut client.stream,
-            Token(token_index),
-            Interest::READABLE | Interest::WRITABLE,
-        )?;
-
-        token_index += 1;
-    }
-
-    poll.poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
-
-    for event in &events {
-        if event.is_readable() {
-            let client = &mut clients[event.token().0];
-            let bytes_read = client.stream.read(buf)?;
-
-            if bytes_read > 0 {
-                println!(
-                    "Received {} bytes on socket {}",
-                    bytes_read, client.socket_path
-                );
-                return Ok((bytes_read, client.socket_path.clone()));
-            }
-        }
-    }
-    Ok((0, "".to_string()))
-}
-
-pub fn poll_ipc_server_sockets(
-    servers: &mut Vec<&mut IpcServer>,
-    buf: &mut [u8],
-) -> Result<(usize, String), std::io::Error> {
-    let mut poll = Poll::new()?;
-    let mut events = Events::with_capacity(NUM_EVENTS);
-    let mut listener_token_index = 0; // listeners will be even
-                                      // streams will be odd
-
-    for server in &mut *servers {
-        poll.registry().register(
-            &mut server.listener,
-            Token(listener_token_index),
-            Interest::READABLE | Interest::WRITABLE,
-        )?;
-
-        listener_token_index += 2;
-    }
-
-    poll.poll(&mut events, Some(Duration::from_millis(POLL_TIMEOUT_MS)))?;
-
-    for event in &events {
-        if event.is_read_closed() {
-            // this will only run on streams
-            println!("Client has closed connection");
-            let Token(t) = event.token();
-            let server = &mut servers[t / 2];
-
-            server.stream = None;
-            server.connected = false;
-            continue;
-        } else if !event.is_readable() {
-            // Nothing to report, keep looping
-            continue;
-        };
-        match event.token() {
-            // accept connection
-            Token(t) if t % 2 == 0 => {
-                // This is a listener
-                match servers[t / 2].listener.accept() {
-                    Ok((connection, _addr)) => {
-                        let server = &mut servers[t / 2];
-
-                        // Adding the stream to Server struct
-                        server.stream = Some(connection);
-                        server.connected = true;
-
-                        // Adding the stream to the poll struct
-                        poll.registry().register(
-                            match &mut server.stream {
-                                Some(stream) => stream,
-                                None => {
-                                    panic!("how'd you get here? Stream was value None after assignment");
-                                }
-                            },
-                            Token(t + 1),
-                            Interest::READABLE | Interest::WRITABLE,
-                        )?;
-                    }
-                    Err(e) => {
-                        println!("failed :( with error, {:?}", e);
-                    }
-                }
-            }
-            // read data
-            Token(t) if t % 2 == 1 => {
-                // This is a stream
-                let server = &mut servers[t / 2];
-                let stream = match &mut server.stream {
-                    Some(stream) => stream,
-                    None => continue, // indicates there is no client conn
-                };
-
-                let bytes_read = stream.read(buf)?;
-
-                if bytes_read > 0 {
-                    println!(
-                        "Received {} bytes on socket {}",
-                        bytes_read, server.socket_path
-                    );
-                    return Ok((bytes_read, server.socket_path.clone()));
-                }
-            }
-            _ => {} // sad useless code
-        }
-    }
-
-    Ok((0, "".to_string()))
 }
