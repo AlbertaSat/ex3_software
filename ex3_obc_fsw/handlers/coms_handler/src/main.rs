@@ -124,7 +124,7 @@ fn main() {
     let mut tcp_interface =
         TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT).unwrap();
     
-    // Initialize UHF handler struct once the tcp interface has been created since it requires this (Although not currently for testing purposes.)
+    // Initialize UHF handler struct 
     let mut uhf_handler = UHFHandler::new();
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
@@ -168,6 +168,8 @@ fn main() {
     let mut bulk_msgs_read = 0;
     let mut expected_msgs = 0;
     loop {
+        // Clear UHF buffer after each iteration
+        uhf_buf.fill(0);
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface, &mut ipc_coms_interface, &mut ipc_uhf_interface];
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
