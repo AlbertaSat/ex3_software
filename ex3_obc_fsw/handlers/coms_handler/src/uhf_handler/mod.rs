@@ -18,18 +18,20 @@ use log::{trace, warn, debug};
 pub struct UHFHandler {
     mode: u8,
     beacon: String,
-    buffer: Vec<u8>
+    buffer: Vec<u8>,
 }
 
 // Implementations (getters and setters) 
 impl UHFHandler {
     pub fn new() -> UHFHandler {
-        // This will eventually actually talk to the UHF and grab the parameters it currently has, for now just dummy values
-        UHFHandler {
+        // create uhf handler
+        let uhf_handler = UHFHandler {
             mode: 0,
             beacon: String::from("Beacon"),
             buffer: vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize],
-        }
+        };
+        // return uhf handler
+        uhf_handler
     }
     pub fn handle_msg_for_uhf(&mut self, uhf_interface: &mut TcpInterface, msg: &Msg) {
         // Can Only use this function when we have simulated UHF integrated with rest of OBC software
@@ -55,7 +57,7 @@ impl UHFHandler {
                 self.reset_uhf();
             },
             _ => {
-                println!("Invalid opcode");
+                warn!("Invalid opcode");
             }
         }
         // clear uhf buffer after command is handled
@@ -104,25 +106,25 @@ impl UHFHandler {
 
     fn get_beacon_value(&mut self, uhf_interface: &mut TcpInterface) {
         // construct command to get UHF beacon
-        let cmd: Vec<u8> = "UHF:GETBEACON:".as_bytes().to_vec();
+        let cmd: Vec<u8> = "UHF:GET_BEACON:".as_bytes().to_vec();
         // send command 
         self.send_msg(uhf_interface, cmd);
         // read response from UHF
         self.read_into_buffer(uhf_interface);
         // convert response to string, return early if it fails
-        let response = match String::from_utf8(self.buffer.clone()) {
+        let response = match String::from_utf8(extract_non_null_bytes(self.buffer.clone())) {
             Ok(response) => response,
             Err(e) => {
                 warn!("Error parsing response from UHF. Could not get beacon value from UHF: {}", e);
                 return;
             }
         };
-        if response == self.beacon {
-            trace!("Current UHF Beacon Message: {}", self.beacon);
-        } else {
-            warn!("UHF beacon and UHF handler beacon values are out of sync");
-            warn!("UHF: {} | UHF handler {}", response, self.beacon)
-        }
+        //clear buffer after extracting response
+        self.clear_buffer();
+        // update beacon value with the beacon value obtained from uhf
+        self.beacon = response;
+        trace!("Current UHF Beacon Message: {}", self.beacon);
+
     }
     
     
@@ -148,7 +150,7 @@ impl UHFHandler {
             }
         };
 
-        let new_mode_as_u8: u8 = match new_mode_as_string.parse() {
+        let new_mode_as_u8: u8 = match new_mode_as_string.trim().parse::<u8>() {
             Ok(new_mode) => new_mode,
             Err(e) => {
                 warn!("Error occured parsing mode into integer: {e}");
@@ -162,9 +164,10 @@ impl UHFHandler {
         let mut cmd: Vec<u8> = new_mode_as_bytes;
         cmd.splice(0..0, prefix);
     
-        // Send Command.
+        // Send Command. 
         self.send_msg(uhf_interface, cmd);
         // Read Buffer uhf buffer, in case we want to use this message later for now we just clear it after read.
+        // TODO, add error handling here to see if UHF gets error
         self.read_into_buffer(uhf_interface);
         self.clear_buffer();
         self.mode = new_mode_as_u8;
@@ -174,25 +177,34 @@ impl UHFHandler {
 
     fn get_mode(&mut self, uhf_interface: &mut TcpInterface) {
         // construct command to get UHF beacon
-        let cmd: Vec<u8> = "UHF:GETMODE:".as_bytes().to_vec();
+        let cmd: Vec<u8> = "UHF:GET_MODE:".as_bytes().to_vec();
         // send command 
         self.send_msg(uhf_interface, cmd);
         // read response from UHF
         self.read_into_buffer(uhf_interface);
         // convert response to string, return early if it fails
-        let response = match String::from_utf8(self.buffer.clone()) {
+        let response = match String::from_utf8(extract_non_null_bytes(self.buffer.clone())) {
             Ok(response) => response,
             Err(e) => {
-                warn!("Error parsing response from UHF. Could not get beacon value from UHF: {}", e);
+                warn!("Error parsing response from UHF. Could not get mode value from UHF: {}", e);
                 return;
             }
         };
-        if response == self.beacon {
-            println!("Current UHF Beacon Message: {}", self.beacon);
-        } else {
-            warn!("UHF beacon and UHF handler beacon values are out of sync");
-            warn!("UHF: {} | UHF handler {}", response, self.beacon)
-        }
+        //clear buffer after extracting response
+        self.clear_buffer();
+        let uhf_mode: u8 = match response.trim().parse() {
+            Ok(new_mode) => new_mode,
+            Err(e) => {
+                warn!("Error occured parsing mode into integer: {e}");
+                warn!("Aborting updating mode value");
+                return
+            }
+        };
+
+        // update structs mode value with the mode value obtained from uhf
+        self.mode = uhf_mode;
+        trace!("Current UHF mode: {}", self.mode);
+
     }
     
 
