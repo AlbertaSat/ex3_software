@@ -12,6 +12,7 @@ use tcp_interface::{Interface, TcpInterface};
 use message_structure::*;
 use common::opcodes;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
+use log::{trace, warn, debug};
 
 // Struct containing UHF parameters to be modified
 pub struct UHFHandler {
@@ -34,7 +35,6 @@ impl UHFHandler {
         // Can Only use this function when we have simulated UHF integrated with rest of OBC software
         let opcode = opcodes::UHF::from(msg.header.op_code);
         let data = msg.msg_body.clone();
-        println!("{:?}", extract_non_null_bytes(data.clone()));
         match opcode {
             opcodes::UHF::GetHK => {
                 self.get_hk_data()
@@ -43,13 +43,13 @@ impl UHFHandler {
                 self.set_beacon_value(uhf_interface, data);
             },
             opcodes::UHF::GetBeacon => {
-                self.get_beacon_value();
+                self.get_beacon_value(uhf_interface);
             },
             opcodes::UHF::SetMode => {
                 self.set_mode(uhf_interface, data);
             },
             opcodes::UHF::GetMode => {
-                self.get_mode();
+                self.get_mode(uhf_interface);
             }
             opcodes::UHF::Reset => {
                 self.reset_uhf();
@@ -58,8 +58,6 @@ impl UHFHandler {
                 println!("Invalid opcode");
             }
         }
-        // print out simulated parameters for troubleshooting purposes
-        println!("Beacon: {} , Mode: {}", self.beacon, self.mode);
         // clear uhf buffer after command is handled
         self.clear_buffer();
 
@@ -74,7 +72,7 @@ impl UHFHandler {
             if is_valid_ascii_digit_or_letter(*ascii_byte) {
                 continue;
             } else {
-                eprintln!("Byte {}, is not a valid ascii encoded digit or letter.", *ascii_byte);
+                warn!("Byte {}, is not a valid ascii encoded digit or letter.", *ascii_byte as char);
                 return;
             }
         }
@@ -82,8 +80,8 @@ impl UHFHandler {
         let new_beacon_as_string = match String::from_utf8(new_beacon_as_bytes.clone()) {
             Ok(beacon_str) => beacon_str,
             Err(e) => {
-                eprintln!("Error converting bytes to UTF-8: {}", e);
-                eprintln!("Abort setting beacon value.");
+                warn!("Error converting bytes to UTF-8: {}", e);
+                warn!("Abort setting beacon value.");
                 return;
             }
         };
@@ -94,17 +92,37 @@ impl UHFHandler {
     
         //Send the command
         self.send_msg(uhf_interface, cmd);
-        // Read Buffer message into uhf handler buffer
+        // Read Buffer uhf buffer, in case we want to use this message later for now we just clear it after read.
         self.read_into_buffer(uhf_interface);
+        self.clear_buffer();
 
 
-        println!("Set Beacon value to {}", &new_beacon_as_string);
+        trace!("Set Beacon value to {}", &new_beacon_as_string);
         self.beacon = new_beacon_as_string;
     }   
 
 
-    fn get_beacon_value(&self) {
-        println!("Current UHF Beacon Message: {}", self.beacon);
+    fn get_beacon_value(&mut self, uhf_interface: &mut TcpInterface) {
+        // construct command to get UHF beacon
+        let cmd: Vec<u8> = "UHF:GETBEACON:".as_bytes().to_vec();
+        // send command 
+        self.send_msg(uhf_interface, cmd);
+        // read response from UHF
+        self.read_into_buffer(uhf_interface);
+        // convert response to string, return early if it fails
+        let response = match String::from_utf8(self.buffer.clone()) {
+            Ok(response) => response,
+            Err(e) => {
+                warn!("Error parsing response from UHF. Could not get beacon value from UHF: {}", e);
+                return;
+            }
+        };
+        if response == self.beacon {
+            trace!("Current UHF Beacon Message: {}", self.beacon);
+        } else {
+            warn!("UHF beacon and UHF handler beacon values are out of sync");
+            warn!("UHF: {} | UHF handler {}", response, self.beacon)
+        }
     }
     
     
@@ -115,8 +133,8 @@ impl UHFHandler {
             if is_valid_ascii_digit(*ascii_byte) {
                 continue;
             } else {
-                eprintln!("Byte {}, is not a valid ascii encoded digit. ", *ascii_byte);
-                eprintln!("Abort setting mode value.");
+                warn!("Byte {}, is not a valid ascii encoded digit. ", *ascii_byte as char);
+                warn!("Abort setting mode value.");
                 return;
             }
         }
@@ -124,8 +142,8 @@ impl UHFHandler {
         let new_mode_as_string = match String::from_utf8(new_mode_as_bytes.clone()) {
             Ok(mode_str) => mode_str,
             Err(e) => {
-                eprintln!("Error converting bytes to UTF-8: {}", e);
-                eprintln!("Abort setting mode value.");
+                warn!("Error converting bytes to UTF-8: {}", e);
+                warn!("Abort setting mode value.");
                 return;
             }
         };
@@ -133,8 +151,8 @@ impl UHFHandler {
         let new_mode_as_u8: u8 = match new_mode_as_string.parse() {
             Ok(new_mode) => new_mode,
             Err(e) => {
-                eprintln!("Error occured parsing mode into integer: {e}");
-                eprintln!("Aborting setting mode value");
+                warn!("Error occured parsing mode into integer: {e}");
+                warn!("Aborting setting mode value");
                 return
             }
         };
@@ -146,25 +164,45 @@ impl UHFHandler {
     
         // Send Command.
         self.send_msg(uhf_interface, cmd);
-        // Read Buffer uhf buffer, in case we want to use this message later
+        // Read Buffer uhf buffer, in case we want to use this message later for now we just clear it after read.
         self.read_into_buffer(uhf_interface);
+        self.clear_buffer();
         self.mode = new_mode_as_u8;
-        println!("UHF Mode Set to: {}", self.mode); 
+        trace!("UHF Mode Set to: {}", self.mode); 
     }
     
 
-    fn get_mode(&self) {
-        println!("Current UHF Mode: {}", self.mode);
+    fn get_mode(&mut self, uhf_interface: &mut TcpInterface) {
+        // construct command to get UHF beacon
+        let cmd: Vec<u8> = "UHF:GETMODE:".as_bytes().to_vec();
+        // send command 
+        self.send_msg(uhf_interface, cmd);
+        // read response from UHF
+        self.read_into_buffer(uhf_interface);
+        // convert response to string, return early if it fails
+        let response = match String::from_utf8(self.buffer.clone()) {
+            Ok(response) => response,
+            Err(e) => {
+                warn!("Error parsing response from UHF. Could not get beacon value from UHF: {}", e);
+                return;
+            }
+        };
+        if response == self.beacon {
+            println!("Current UHF Beacon Message: {}", self.beacon);
+        } else {
+            warn!("UHF beacon and UHF handler beacon values are out of sync");
+            warn!("UHF: {} | UHF handler {}", response, self.beacon)
+        }
     }
     
 
     fn get_hk_data(&self) {
-        println!("Getting HK Data");
+        trace!("Getting HK Data");
     }
     
 
     fn reset_uhf(&self) {
-        println!("Resetting UHF");
+        trace!("Resetting UHF");
     }
 
     fn read_into_buffer(&mut self, uhf_interface: &mut TcpInterface) {
@@ -172,10 +210,10 @@ impl UHFHandler {
         let read_result: Result<usize, std::io::Error> = TcpInterface::read(uhf_interface, &mut self.buffer);
         match read_result {
             Ok(n) => {
-                println!("Read {} bytes from uhf", n)
+                trace!("Read {} bytes from uhf", n)
             }, 
             Err(_) => {
-                eprintln!("Error reading bytes from UHF")
+                debug!("Error reading bytes from UHF")
             }
         }
     }
@@ -184,8 +222,8 @@ impl UHFHandler {
     fn send_msg(&mut self, uhf_interface: &mut TcpInterface, content: Vec<u8>) {
         let send_result = uhf_interface.send(&content);
         match send_result {
-            Ok(_) => println!("Send successful."),
-            Err(e) => println!("Error occured setting beacon value:  {:?}", e)
+            Ok(_) => trace!("Send successful."),
+            Err(e) => warn!("Error occured setting beacon value:  {:?}", e)
         }
     }
 
@@ -211,15 +249,17 @@ pub fn extract_non_null_bytes(buffer: Vec<u8>) -> Vec<u8> {
 }
 
 fn is_valid_ascii_digit_or_letter(byte: u8) -> bool {
+    // checks if byte is a valid base 10 ascii encoded letter or digit
     match byte {
-        48..=57   // '0' to '9'
-        | 65..=90 // 'A' to 'Z'
-        | 97..=122 => true, // 'a' to 'z'
-        _ => false,  // Anything else is invalid
+        48..=57  
+        | 65..=90 
+        | 97..=122 => true, 
+        _ => false,  
     }
 }
 
 fn is_valid_ascii_digit(byte: u8) -> bool {
+    // checks if byte is a valid base 10 ascii encoded digit
     match byte {
         48..=57 => true,
         _ => false
