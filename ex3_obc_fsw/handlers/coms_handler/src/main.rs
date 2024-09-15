@@ -134,16 +134,6 @@ fn main() {
             None
         }
     };
-    
-    //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
-    let mut tcp_interface =
-        match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
-            Ok(tcp) => Some(tcp),
-            Err(e) => {
-                warn!("Error creating UHF interface: {e}");
-                None
-            }
-        };
 
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
     let ipc_gs_interfac_res = IpcClient::new("gs_bulk".to_string());
@@ -154,13 +144,23 @@ fn main() {
             None
         }
     };
+    std::thread::sleep(std::time::Duration::from_secs(10));
+    //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
+    let mut tcp_interface =
+        match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
+            Ok(tcp) => Some(tcp),
+            Err(e) => {
+                warn!("Error creating UHF interface: {e}");
+                None
+            }
+        };
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
-
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
     let mut expected_msgs = 0;
+
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
