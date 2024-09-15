@@ -128,7 +128,16 @@ fn main() {
     // Will have to be changed in msg_dispatcher as well
     let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
     let mut ipc_coms_interface = match ipc_coms_interface_res {
-        Ok(i) => Some(i),
+        Ok(mut i) => {
+            match i.accept_connection() { 
+                Ok(()) => (),
+                Err(e) => {
+                    debug!("Cannot accept COMS pipeline: {e}");
+                }
+            }
+            Some(i)
+            
+        }
         Err(e) => {
             warn!("Cannot create COMS pipeline: {e}");
             None

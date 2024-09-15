@@ -6,7 +6,7 @@ use std::os::fd::{AsFd, AsRawFd};
 
 use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
-use message_structure::MsgHeaderNew;
+use message_structure::MsgHeader;
 
 fn main() {
     let component_streams: Vec<Option<IpcClient>> =
@@ -69,11 +69,12 @@ fn main() {
             }
         };
 
-        let dest = buffer[MsgHeaderNew::DEST_INDEX];
+        let dest = buffer[MsgHeader::DEST_INDEX];
         let res = match ComponentIds::try_from(dest) {
             Ok(payload) => {
                 match &component_streams[dest as usize] {
                     Some(client) => {
+                        println!("Writing to {:?}", client);
                         write(client.fd.as_fd(), &buffer)
                     },
                     None => {

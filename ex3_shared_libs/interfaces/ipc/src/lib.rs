@@ -190,7 +190,7 @@ impl IpcServer {
         Ok(())
     }
 
-    fn accept_connection(&mut self) -> Result<(), IoError> {
+    pub fn accept_connection(&mut self) -> Result<(), IoError> {
         let fd = accept(self.conn_fd.as_raw_fd()).unwrap_or_else(|err| {
             eprintln!("Failed to accept connection: {}", err);
             process::exit(1)
