@@ -226,19 +226,22 @@ impl IpcServer {
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
+pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut Option<IpcServer>>) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
     for server in servers.iter_mut() {
-        if !server.connected {
+        // Handle case where server is None
+        if let None = server {
+            return;
+        } else if !server.as_ref().unwrap().connected {
             // Poll conn_fd for incoming connections
             poll_fds.push(libc::pollfd {
-                fd: server.conn_fd.as_raw_fd(),
+                fd: server.as_ref().unwrap().conn_fd.as_raw_fd(),
                 events: libc::POLLIN,
                 revents: 0,
             });
-        } else if let Some(ref data_fd) = server.data_fd {
+        } else if let Some(ref data_fd) = server.as_ref().unwrap().data_fd {
             // Poll data_fd for incoming data
             poll_fds.push(libc::pollfd {
                 fd: data_fd.as_raw_fd(),
@@ -268,17 +271,17 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
         if poll_fd.revents & libc::POLLIN != 0 {
             let server = servers
                 .iter_mut()
-                .find(|s| s.conn_fd.as_raw_fd() == poll_fd.fd || s.data_fd.as_ref().unwrap().as_raw_fd() == poll_fd.fd);
+                .find(|s| s.as_ref().unwrap().conn_fd.as_raw_fd() == poll_fd.fd || s.as_ref().unwrap().data_fd.as_ref().unwrap().as_raw_fd() == poll_fd.fd);
             if let Some(server) = server {
-                if !server.connected {
+                if !server.as_ref().unwrap().connected {
                     // Handle new connection request from a currently unconnected client
-                    server.accept_connection().unwrap();
-                } else if let Some(data_fd) = &server.data_fd {
+                    server.as_mut().unwrap().accept_connection().unwrap();
+                } else if let Some(data_fd) = &server.as_ref().unwrap().data_fd {
                     // Handle incoming data from a connected client
-                    let bytes_read = read(data_fd.as_raw_fd(), &mut server.buffer).unwrap();
+                    let bytes_read = read(data_fd.as_raw_fd(), &mut server.as_mut().unwrap().buffer).unwrap();
                     if bytes_read == 0 {
                         // If 0 bytes read, then the client has disconnected
-                        server.client_disconnected();
+                        server.as_mut().unwrap().client_disconnected();
                     }
                 }
             }
