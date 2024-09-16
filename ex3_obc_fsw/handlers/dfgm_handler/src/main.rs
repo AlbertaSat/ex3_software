@@ -114,9 +114,9 @@ impl DFGMHandler {
                 }
             }
         
-            if self.toggle_data_collection == true {
+            if self.toggle_data_collection {
                 let mut tcp_buf = [0u8;BUFFER_SIZE];
-                let status = TcpInterface::read(&mut self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+                let status = TcpInterface::read(self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
                 match status {
                     Ok(data_len) => {
                         trace!("Read {}B from DFGM", data_len);

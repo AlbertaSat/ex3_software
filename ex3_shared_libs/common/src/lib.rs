@@ -47,6 +47,7 @@ pub mod component_ids {
         //..
         CMD = 10,
         UHF = 13,
+        SHELL = 12,
         //..
         DUMMY = 99,
     }
@@ -65,6 +66,7 @@ pub mod component_ids {
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::UHF => write!(f, "UHF"),
+                ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
@@ -85,6 +87,7 @@ pub mod component_ids {
                 //...
                 "CMD" => Ok(ComponentIds::CMD),
                 "UHF" => Ok(ComponentIds::UHF),
+                "SHELL" => Ok(ComponentIds::SHELL),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
@@ -109,11 +112,12 @@ pub mod component_ids {
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
                 x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
                 x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
+                x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
         }
-    }    
+    }
 }
 
 /// For constants that are used across the entire project
@@ -338,6 +342,9 @@ mod tests {
         let coms = component_ids::ComponentIds::try_from(8).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
+        let shell = component_ids::ComponentIds::try_from(12).unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
+
         let test = component_ids::ComponentIds::try_from(99).unwrap();
         assert_eq!(test, component_ids::ComponentIds::DUMMY);
 
@@ -372,6 +379,9 @@ mod tests {
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
+        let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
+
         let test = component_ids::ComponentIds::from_str("DUMMY").unwrap();
         assert_eq!(test, component_ids::ComponentIds::DUMMY);
 
@@ -405,6 +415,9 @@ mod tests {
 
         let coms = component_ids::ComponentIds::COMS;
         assert_eq!(coms.to_string(), "COMS");
+
+        let shell = component_ids::ComponentIds::SHELL;
+        assert_eq!(shell.to_string(), "SHELL");
 
         let test = component_ids::ComponentIds::DUMMY;
         assert_eq!(test.to_string(), "DUMMY");

@@ -29,6 +29,7 @@ enum ComponentId
     BULK_MSG_DISPATCHER = 9,
     CMD = 10,
     UHF = 13,
+    SHELL = 12,
     TEST = 99,
 };
 

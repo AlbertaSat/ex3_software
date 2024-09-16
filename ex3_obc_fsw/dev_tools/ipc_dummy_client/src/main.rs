@@ -63,31 +63,29 @@ fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
         }
 
         for poll_fd in &poll_fds {
-            if poll_fd.revents != 0 {
-                if poll_fd.revents & libc::POLLIN != 0 {
-                    if poll_fd.fd == tcp_fd {
-                        let mut tcp_buf = vec![0u8; BUFFER_SIZE];
-                        let ret = tcp_stream.read(&mut tcp_buf).unwrap();
+            if poll_fd.revents != 0 && poll_fd.revents & libc::POLLIN != 0 {
+                if poll_fd.fd == tcp_fd {
+                    let mut tcp_buf = vec![0u8; BUFFER_SIZE];
+                    let ret = tcp_stream.read(&mut tcp_buf).unwrap();
 
-                        if ret == 0 {
-                            println!("TCP client disconnected. Exiting...");
-                            return;
-                        } else {
-                            write(data_socket_fd, &tcp_buf[..ret]).unwrap_or_else(|_| {
-                                eprintln!("write error");
-                                process::exit(1);
-                            });
-                        }
-                    } else if poll_fd.fd == data_socket_fd {
-                        let mut socket_buf = vec![0u8; BUFFER_SIZE];
-                        let ret = read(data_socket_fd, &mut socket_buf).unwrap();
+                    if ret == 0 {
+                        println!("TCP client disconnected. Exiting...");
+                        return;
+                    } else {
+                        write(data_socket_fd, &tcp_buf[..ret]).unwrap_or_else(|_| {
+                            eprintln!("write error");
+                            process::exit(1);
+                        });
+                    }
+                } else if poll_fd.fd == data_socket_fd {
+                    let mut socket_buf = vec![0u8; BUFFER_SIZE];
+                    let ret = read(data_socket_fd, &mut socket_buf).unwrap();
 
-                        if ret == 0 {
-                            println!("Connection to Unix server dropped. Exiting...");
-                            process::exit(0);
-                        } else {
-                            println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
-                        }
+                    if ret == 0 {
+                        println!("Connection to Unix server dropped. Exiting...");
+                        process::exit(0);
+                    } else {
+                        println!("Received: {}", String::from_utf8_lossy(&socket_buf[..ret]));
                     }
                 }
             }

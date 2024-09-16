@@ -8,7 +8,7 @@ use crate::types::command::Command;
 
 #[function_component(CommandHistoryPage)]
 pub fn command_history_page() -> Html {
-    let commands = use_state(|| Vec::new());
+    let commands = use_state(Vec::new);
 
     {
         let commands = commands.clone();
