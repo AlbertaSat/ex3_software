@@ -5,7 +5,6 @@ pub mod ports {
     pub const SIM_EPS_PORT: u16 = 1804;
     pub const SIM_COMMS_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
-    pub const SIM_DUMMY_PORT: u16 = 1807;
     pub const SIM_UHF_GS_PORT: u16 = 1808;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
@@ -47,7 +46,6 @@ pub mod component_ids {
         //..
         SHELL = 12,
         //..
-        DUMMY = 99,
     }
 
     impl fmt::Display for ComponentIds {
@@ -63,7 +61,6 @@ pub mod component_ids {
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
-                ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
         }
     }
@@ -82,7 +79,6 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "SHELL" => Ok(ComponentIds::SHELL),
-                "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
         }
@@ -105,7 +101,6 @@ pub mod component_ids {
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
-                x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
             }
         }
@@ -186,25 +181,6 @@ pub mod opcodes {
                 9 => IRIS::GetImageSize,
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
-                }
-            }
-        }
-    }
-
-    // For dummy subsystem - used in testing and development
-    pub enum DUMMY {
-        SetDummyVariable = 0,
-        GetDummyVariable = 1,
-    }
-
-    impl From<u8> for DUMMY {
-        fn from(value: u8) -> Self {
-            match value {
-                0 => DUMMY::SetDummyVariable,
-                1 => DUMMY::GetDummyVariable,
-                _ => {
-                    eprintln!("Invalid opcode: {}", value);
-                    DUMMY::GetDummyVariable // or choose a default value or handle the error in a different way
                 }
             }
         }
@@ -292,9 +268,6 @@ mod tests {
         let shell = component_ids::ComponentIds::try_from(12).unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
-        let test = component_ids::ComponentIds::try_from(99).unwrap();
-        assert_eq!(test, component_ids::ComponentIds::DUMMY);
-
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -325,9 +298,6 @@ mod tests {
         let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
-        let test = component_ids::ComponentIds::from_str("DUMMY").unwrap();
-        assert_eq!(test, component_ids::ComponentIds::DUMMY);
-
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -357,9 +327,6 @@ mod tests {
 
         let shell = component_ids::ComponentIds::SHELL;
         assert_eq!(shell.to_string(), "SHELL");
-
-        let test = component_ids::ComponentIds::DUMMY;
-        assert_eq!(test.to_string(), "DUMMY");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
