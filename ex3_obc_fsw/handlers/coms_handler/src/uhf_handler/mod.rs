@@ -3,10 +3,7 @@ Written by Drake Boulianne
 Summer 2024
 
 This module contains functions for handling the UHF (UHF simulated as of now). It consists mainly of 
-getting and setting functions for the simulated UHF parameters. Each getter or setter will return a
-vector of bytes containing the data returned from the UHF. The only public function in the module is the 
-handle_uhf_cmd, Which takes the tcp uhf_interface and message as arguments, Then returns a vector of bytes containing
-the data returned from the UHF after the request or an error message if the request times out.
+getting and setting functions for the simulated UHF parameters.
 */
 use tcp_interface::{Interface, TcpInterface};
 use message_structure::*;
@@ -99,7 +96,7 @@ impl UHFHandler {
         self.clear_buffer();
 
 
-        trace!("Set Beacon value to {}", &new_beacon_as_string);
+        trace!("Set UHF Beacon to: {}", &new_beacon_as_string);
         self.beacon = new_beacon_as_string;
     }   
 
@@ -222,7 +219,7 @@ impl UHFHandler {
         let read_result: Result<usize, std::io::Error> = TcpInterface::read(uhf_interface, &mut self.buffer);
         match read_result {
             Ok(n) => {
-                trace!("Read {} bytes from uhf", n)
+                trace!("Command response: {} bytes ", n)
             }, 
             Err(_) => {
                 debug!("Error reading bytes from UHF")
@@ -234,7 +231,7 @@ impl UHFHandler {
     fn send_msg(&mut self, uhf_interface: &mut TcpInterface, content: Vec<u8>) {
         let send_result = uhf_interface.send(&content);
         match send_result {
-            Ok(_) => trace!("Send successful."),
+            Ok(_) => trace!("Sent command successfully"),
             Err(e) => warn!("Error occured setting beacon value:  {:?}", e)
         }
     }
