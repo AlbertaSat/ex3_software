@@ -27,6 +27,8 @@ enum ComponentId
     GS = 7,
     COMS = 8,
     BULK_MSG_DISPATCHER = 9,
+    CMD = 10,
+    UHF = 13,
     SHELL = 12,
     TEST = 99,
 };

@@ -45,6 +45,8 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
+        CMD = 10,
+        UHF = 13,
         SHELL = 12,
         //..
         DUMMY = 99,
@@ -62,6 +64,8 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
+                ComponentIds::CMD => write!(f, "CMD"),
+                ComponentIds::UHF => write!(f, "UHF"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::DUMMY => write!(f, "DUMMY"),
             }
@@ -81,6 +85,8 @@ pub mod component_ids {
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
+                "CMD" => Ok(ComponentIds::CMD),
+                "UHF" => Ok(ComponentIds::UHF),
                 "SHELL" => Ok(ComponentIds::SHELL),
                 "DUMMY" => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
@@ -104,6 +110,8 @@ pub mod component_ids {
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
+                x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
                 _ => Err(()),
@@ -144,6 +152,18 @@ pub mod opcodes {
         Reset = 7,
         DelImage = 8,
         GetImageSize = 9,
+        Error = 99,
+    }
+    pub enum UHF {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        SetBaudRate = 6,
+        Reset = 7,
+        GetBaudRate = 8,
+        SetMode = 9,
+        GetMode = 10,
+        //...
         Error = 99,
     }
 
@@ -187,6 +207,37 @@ pub mod opcodes {
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for UHF {
+        fn from(value: u8) -> Self {
+            match value {
+                3 => UHF::GetHK,
+                4 => UHF::SetBeacon,
+                5 => UHF::GetBeacon,
+                6 => UHF::SetMode,
+                7 => UHF::Reset,
+                8 => UHF::GetMode,
+                _ => UHF::Error // or choose a default value or handle the error in a different way
+                
+            }
+        }
+    }
+
+    impl Into<u8> for UHF {
+        fn into(self) -> u8 {
+            match self {
+                UHF::GetHK => 3,
+                UHF::SetBeacon => 4,
+                UHF::GetBeacon => 5,
+                UHF::SetBaudRate => 6,
+                UHF::Reset => 7,
+                UHF::GetBaudRate => 8,
+                UHF::SetMode => 9,
+                UHF::GetMode => 10,
+                UHF::Error => 99
             }
         }
     }
@@ -268,6 +319,8 @@ mod tests {
     #[test]
     fn get_component_enum_from_u8() {
         //Test conversion from u8 to ComponentIds enum for all
+        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
         let eps = component_ids::ComponentIds::try_from(1).unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -301,6 +354,10 @@ mod tests {
 
     #[test]
     fn get_component_enum_from_str() {
+
+        let uhf = component_ids::ComponentIds::from_str("UHF").unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let eps = component_ids::ComponentIds::from_str("EPS").unwrap();
         assert_eq!(eps, component_ids::ComponentIds::EPS);
 
@@ -334,6 +391,10 @@ mod tests {
 
     #[test]
     fn get_component_str_from_enum() {
+
+        let uhf = component_ids::ComponentIds::UHF;
+        assert_eq!(uhf.to_string(), "UHF");
+
         let eps = component_ids::ComponentIds::EPS;
         assert_eq!(eps.to_string(), "EPS");
 
