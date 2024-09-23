@@ -20,7 +20,7 @@ Contained here is the shared functionality mentioned above between the ground st
 
 Scripts to run various sections of the software together can be found in the [scripts](./scripts) directory.
 
-(For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems.
+(For now) These scripts use bash which is a standard shell, and tmux which is a terminal multiplexer available on most operating systems (e.g. `sudo apt install tmux`).
 
 ### Running all components needs for a tall-thin demo of the Command Message Uplink
 

@@ -11,22 +11,28 @@ if [ "$#" -lt 1 ]; then
 fi;
 echo "Path being used to sim subs: $PATH_TO_SIM_SUBS"
 
+# Create a detached session using our config file to hold our windows
+tmux -f .tmux.conf new-session -d -s "downlink_payload_data"
+
 ## Create the simulated subystem components (dfgm and uhf transciever) - because they are tcp servers  
-gnome-terminal -t SIM_UHF -- sh -c "cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py; bash exec;"
-gnome-terminal -t SIM_DFGM_SUBSYSTEM -- sh -c "cd $PATH_TO_SIM_SUBS/DFGM && python3 ./dfgm_subsystem.py ; bash exec;"
+tmux new-window -n "SIM_UHF" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py; exec bash"
+#                                ^ to continue after CTRL+C
+tmux new-window -n "SIM_DFGM_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/DFGM && python3 ./dfgm_subsystem.py ; exec bash"
 # For now the UHF transceiver is bypassed and the GS sends msgs directly to the coms handler 
 
 # ## Create the msg dispatcher (first component of the obc fsw because it creates ipc servers 
-gnome-terminal -t MSG_DISPATCHER -- sh -c 'cd ../ex3_obc_fsw/msg_dispatcher && make && ./msg_dispatcher; exec bash'
+tmux new-window -n "MSG_DISPATCHER" -- "trap : SIGINT; cd ../ex3_obc_fsw/msg_dispatcher && make && ./msg_dispatcher; exec bash"
 sleep 0.25
 
 # Create bulk msg dispatcher 
-gnome-terminal -t BULK_MSG_DISPATCHER -- sh -c 'cd ../ex3_obc_fsw/bulk_msg_dispatcher && cargo run; exec bash'
+tmux new-window -n "BULK_MSG_DISPATCHER" -- "trap : SIGINT; cd ../ex3_obc_fsw/bulk_msg_dispatcher && cargo run; exec bash"
 
 
 # ## Create the hanlders and other obc fsw components (coms handler, dfgm handler )
-gnome-terminal -t DFGM_HANDLER -- sh -c 'cd ../ && cargo run --bin dfgm_handler; exec bash'
-gnome-terminal -t COMS_HANDLER -- sh -c 'cd ../ && cargo run --bin coms_handler; exec bash'
+tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
+tmux new-window -n "COMS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin coms_handler; exec bash"
 
 ## Launch the GS simulation (this can just be a tcp client for now )
-gnome-terminal -t SIM_GS -- sh -c 'cd ../ && cargo run --bin cli_ground_station; exec bash'
+tmux new-window -n "SIM_GS" -- "trap : SIGINT; cd ../ && cargo run --bin cli_ground_station; exec bash"
+
+tmux attach-session -t "downlink_payload_data"

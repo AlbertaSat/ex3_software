@@ -30,7 +30,7 @@ to run multiple binaries one after another. This can be done with any number of 
 
 ## Usage
 
-Scripts to launch various processes (in separate gnome-terminals) for testing and demonstration can be found in the [scripts](./scripts) directory.
+Scripts to launch various processes (in separate tmux windows) for testing and demonstration can be found in the [scripts](./scripts) directory.
 
 TODO - Change these paths to be relative so they can be used by other members.
 
