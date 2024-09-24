@@ -1,4 +1,3 @@
-
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {
     pub const SIM_DFGM_PORT: u16 = 1802;
@@ -46,8 +45,9 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         //..
-        SHELL = 12,
+        CMD = 10,
         //..
+        LAST = 11,
     }
 
     impl fmt::Display for ComponentIds {
@@ -62,7 +62,8 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
-                ComponentIds::SHELL => write!(f, "SHELL"),
+                ComponentIds::CMD => write!(f, "CMD"),
+                ComponentIds::LAST => write!(f, "illegal"),
             }
         }
     }
@@ -80,7 +81,8 @@ pub mod component_ids {
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
-                "SHELL" => Ok(ComponentIds::SHELL),
+                "CMD" => Ok(ComponentIds::CMD),
+                "LAST" => Err(()),
                 _ => Err(()),
             }
         }
@@ -102,11 +104,12 @@ pub mod component_ids {
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
-                x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
+                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
+                x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
         }
-    }
+    }    
 }
 
 /// For constants that are used across the entire project
@@ -267,9 +270,6 @@ mod tests {
         let coms = component_ids::ComponentIds::try_from(8).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let shell = component_ids::ComponentIds::try_from(12).unwrap();
-        assert_eq!(shell, component_ids::ComponentIds::SHELL);
-
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -297,9 +297,6 @@ mod tests {
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
-        assert_eq!(shell, component_ids::ComponentIds::SHELL);
-
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -326,9 +323,6 @@ mod tests {
 
         let coms = component_ids::ComponentIds::COMS;
         assert_eq!(coms.to_string(), "COMS");
-
-        let shell = component_ids::ComponentIds::SHELL;
-        assert_eq!(shell.to_string(), "SHELL");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
