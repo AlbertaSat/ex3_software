@@ -16,8 +16,6 @@ This is a rudimentary implementation of the message dispatcher architectural com
 
 ## Usage
 
-Use the 'run.sh' script with bash and gnome-terminal.
-
 Use the following command to launch a server and specified number of clients:
 
 ```@sh
