@@ -1,18 +1,20 @@
-use nix::sys::socket::accept;
-use nix::unistd::{read, write, close};
+use nix::unistd::{write, close};
 use nix::Error;
 use strum::IntoEnumIterator;
 use std::os::fd::{AsFd, AsRawFd};
 
-use ipc::{poll_ipc_clients, IpcClient, IpcServer, IPC_BUFFER_SIZE};
+use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
-use message_structure::{deserialize_msg, MsgHeader};
+use message_structure::MsgHeader;
 
 fn main() {
     let component_streams: Vec<Option<IpcClient>> =
-        ComponentIds::iter().map(|c| {
+        ComponentIds::iter().enumerate().map(|(i,c)| {
+            println!("{i}");
             match IpcClient::new(format!("{c}")) {
-                Ok(client) => Some(client),
+                Ok(client) => {
+                    Some(client)
+                }
                 Err(e) => {
                     eprintln!("msg dispatcher couldn't connect to {}: {}", c, e);
                     None
@@ -20,7 +22,7 @@ fn main() {
             }
         }).collect();
     
-    println!("GOT {:?}", component_streams.get(7)); // prints COMS connection
+    println!("GOT {:?}", component_streams.get(8)); // prints BulkMsgDisp connection
     for x in 0..ComponentIds::LAST as usize {
         let payload = match ComponentIds::try_from(x as u8) {
             Ok(p) => {
@@ -34,8 +36,13 @@ fn main() {
         };
         match component_streams.get(x) {
             Some(element) => match element {
-                Some(_) => println!("{} connected", payload),
-                None => println!("{} not connected!", payload),
+                Some(e) => {
+                    println!("{} connected", payload);
+                    println!("{}", e.socket_path);
+                }
+                None => {
+                    println!("{} not connected!", payload);
+                }
             },
             None => println!("bad index {}", x),
         };
@@ -51,7 +58,6 @@ fn main() {
 
     loop {
         let mut clients = vec![&mut client];
-        let mut buffer = [0; IPC_BUFFER_SIZE];
         let (s,bytes) = match poll_ipc_clients(&mut clients) {
             Ok((bytes, sock)) => (bytes,sock),
             Err(e) => {
@@ -68,7 +74,7 @@ fn main() {
                     match &component_streams[dest as usize] {
                         Some(client) => {
                             println!("Writing to {:?}", client);
-                            write(client.fd.as_fd(), &buffer)
+                            write(client.fd.as_fd(), &client.buffer)
                         },
                         None => {
                             eprintln!("No payload: {payload}!");

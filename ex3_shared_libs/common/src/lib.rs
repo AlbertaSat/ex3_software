@@ -40,14 +40,11 @@ pub mod component_ids {
         DFGM = 3,
         IRIS = 4,
         GPS = 5,
-        //...
-        GS = 7,
-        COMS = 8,
-        BulkMsgDispatcher = 9,
-        //..
-        CMD = 10,
-        //..
-        LAST = 11,
+        GS = 6,
+        COMS = 7,
+        BulkMsgDispatcher = 8,
+        CMD = 9,
+        LAST = 10,
     }
 
     impl fmt::Display for ComponentIds {
