@@ -18,21 +18,21 @@ const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed int
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     // This pipeline is directly to the coms_handler to be directly downlinked sliced data packets
-    let mut coms_interface_res = IpcServer::new("gs_bulk".to_string());
+    let coms_interface_res = IpcServer::new("gs_bulk".to_string());
     let mut coms_interface = match coms_interface_res {
         Ok(s) => Some(s),
         Err(e) => {
-            warn!("Connot create bulk to ground pipeline");
+            warn!("Connot create bulk to ground pipeline: {e}");
             None
         }
     };
 
     // This interface is for recieving commands from the cmd_dispatcher telling this bulk_msg_dispatcher what to slice and pass on
-    let mut cmd_disp_interface_res = IpcServer::new("BulkMsgDispatcher".to_string());
+    let cmd_disp_interface_res = IpcServer::new("BulkMsgDispatcher".to_string());
     let mut cmd_disp_interface = match cmd_disp_interface_res {
         Ok(s) => Some(s),
         Err(e) => {
-            warn!("Connot create cmd_disp to bulk_disp pipeline");
+            warn!("Connot create cmd_disp to bulk_disp pipeline: {e}");
             None
         }
     };
@@ -119,20 +119,6 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
         );
         //Build Msg from received bytes and get body which contains path
         Ok(Some(deserialize_msg(&server.buffer)?))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Same as handle client but for getting a msg from the cmd_msg_disp
-fn handle_server_input(client: &IpcClient) -> Result<Option<Msg>, IoError> {
-    if client.buffer != [0u8; IPC_BUFFER_SIZE] {
-        trace!(
-            "Server {} received data",
-            client.socket_path
-        );
-        //Build Msg from received bytes and get body which contains path
-        Ok(Some(deserialize_msg(&client.buffer)?))
     } else {
         Ok(None)
     }
