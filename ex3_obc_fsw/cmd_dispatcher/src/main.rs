@@ -62,7 +62,7 @@ fn main() {
         };
         if client.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
             println!("Got cmd: {:?}", client.as_ref().unwrap().buffer);
-            let dest = buffer[MsgHeader::DEST_INDEX];
+            let dest = client.as_ref().unwrap().buffer[MsgHeader::DEST_INDEX];
             let res = match ComponentIds::try_from(dest) {
                 Ok(payload) => {
                     match &component_streams[dest as usize] {
