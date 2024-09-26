@@ -86,7 +86,6 @@ fn main() {
                 eprintln!("Dispatch failed: NACKing");
                 // Should actually NACK
             }
-            let _= close(client.as_ref().unwrap().fd.as_raw_fd());
             client.as_mut().unwrap().clear_buffer();
         }
     }
