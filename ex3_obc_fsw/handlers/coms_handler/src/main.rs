@@ -124,10 +124,27 @@ fn main() {
     trace!("Beginning Coms Handler...");
 
     // Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
-    // TODO - name this to gs_handler once uhf handler and gs handler are broken up from this program.
-    // Will have to be changed in msg_dispatcher as well
     let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
     let mut ipc_coms_interface = match ipc_coms_interface_res {
+        Ok(mut i) => {
+            match i.accept_connection() { 
+                Ok(()) => (),
+                Err(e) => {
+                    debug!("Cannot accept COMS pipeline: {e}");
+                }
+            }
+            Some(i)
+            
+        }
+        Err(e) => {
+            warn!("Cannot create COMS pipeline: {e}");
+            None
+        }
+    };
+
+    // Interface for IPC of cmd_dispatcher cmds that get sent up with a certain destination
+    let ipc_cmd_interface_res = IpcServer::new("cmd_dispatcher".to_string());
+    let mut ipc_cmd_interface = match ipc_cmd_interface_res {
         Ok(mut i) => {
             match i.accept_connection() { 
                 Ok(()) => (),
@@ -153,7 +170,9 @@ fn main() {
             None
         }
     };
-    std::thread::sleep(std::time::Duration::from_secs(10));
+
+
+    std::thread::sleep(std::time::Duration::from_secs(3));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
         match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
@@ -277,9 +296,9 @@ fn main() {
             match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(decrypted_byte_vec) => {
-                    if let Some(ref mut init_ipc_coms_interface) = ipc_coms_interface {
-                        if let Some(fd) = init_ipc_coms_interface.data_fd.as_ref() {
-                            let _ = ipc_write(fd, &decrypted_byte_vec);
+                    if let Some(ref mut init_ipc_cmd_interface) = ipc_cmd_interface {
+                        if let Some(fd) = init_ipc_cmd_interface.data_fd.as_ref() {
+                            let _ = ipc_write(&fd, &decrypted_byte_vec);
                         }
                     }
                     

@@ -4,9 +4,9 @@ use nix::Error;
 use strum::IntoEnumIterator;
 use std::os::fd::{AsFd, AsRawFd};
 
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE};
+use ipc::{poll_ipc_clients, IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
-use message_structure::MsgHeader;
+use message_structure::{deserialize_msg, MsgHeader};
 
 fn main() {
     let component_streams: Vec<Option<IpcClient>> =
@@ -41,58 +41,53 @@ fn main() {
         };
     }
 
-    let server = match IpcServer::new("msg_dispatcher".to_string()) {
-        Ok(s) => s,
+    let mut client = match IpcClient::new("cmd_dispatcher".to_string()) {
+        Ok(s) => Some(s),
         Err(e) => {
             eprintln!("Server connection error: {}", e);
             return; // Should fix it and retry
         }
     };
 
-    let data_fd = match accept(server.conn_fd.as_raw_fd()) {
-        Ok(fd) => fd,
-        Err(e) => {
-            eprintln!("accept failed: {}", e);
-            -1
-        }
-    };
-
     loop {
-
+        let mut clients = vec![&mut client];
         let mut buffer = [0; IPC_BUFFER_SIZE];
-        let _bytes_read = match read(data_fd, &mut buffer) {
-            Ok(len) => len,
+        let (s,bytes) = match poll_ipc_clients(&mut clients) {
+            Ok((bytes, sock)) => (bytes,sock),
             Err(e) => {
                 eprintln!("read error: {}", e);
-                let _ = close(data_fd);
+                let _ = close(client.as_ref().unwrap().fd.as_raw_fd());
                 continue; // try again
             }
         };
-
-        let dest = buffer[MsgHeader::DEST_INDEX];
-        let res = match ComponentIds::try_from(dest) {
-            Ok(payload) => {
-                match &component_streams[dest as usize] {
-                    Some(client) => {
-                        println!("Writing to {:?}", client);
-                        write(client.fd.as_fd(), &buffer)
-                    },
-                    None => {
-                        eprintln!("No payload: {payload}!");
-                        Err(Error::EPIPE)
+        if client.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
+            println!("Got cmd: {:?}", client.as_ref().unwrap().buffer);
+            let dest = buffer[MsgHeader::DEST_INDEX];
+            let res = match ComponentIds::try_from(dest) {
+                Ok(payload) => {
+                    match &component_streams[dest as usize] {
+                        Some(client) => {
+                            println!("Writing to {:?}", client);
+                            write(client.fd.as_fd(), &buffer)
+                        },
+                        None => {
+                            eprintln!("No payload: {payload}!");
+                            Err(Error::EPIPE)
+                        }
                     }
+                },
+                Err(_) => {
+                    eprintln!("Invalid payload: {dest}");
+                    Err(Error::EINVAL)
                 }
-            },
-            Err(_) => {
-                eprintln!("Invalid payload: {dest}");
-                Err(Error::EINVAL)
-            }
-        };
+            };
 
-        if res.is_err() {
-            eprintln!("Dispatch failed: NACKing");
-            // Should actually NACK
+            if res.is_err() {
+                eprintln!("Dispatch failed: NACKing");
+                // Should actually NACK
+            }
+            let _= close(client.as_ref().unwrap().fd.as_raw_fd());
+            client.as_mut().unwrap().clear_buffer();
         }
-        let _= close(data_fd);
     }
 }
