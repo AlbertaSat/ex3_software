@@ -17,85 +17,90 @@ use log::{trace, warn};
 const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
-    let mut coms_interface: IpcServer = IpcServer::new("gs_bulk".to_string())?;
-    let mut cmd_msg_disp_interface: IpcClient = IpcClient::new("bulk_disp".to_string())?;
+    // This pipeline is directly to the coms_handler to be directly downlinked sliced data packets
+    let mut coms_interface_res = IpcServer::new("gs_bulk".to_string());
+    let mut coms_interface = match coms_interface_res {
+        Ok(s) => Some(s),
+        Err(e) => {
+            warn!("Connot create bulk to ground pipeline");
+            None
+        }
+    };
+
+    // This interface is for recieving commands from the cmd_dispatcher telling this bulk_msg_dispatcher what to slice and pass on
+    let mut cmd_disp_interface_res = IpcServer::new("BulkMsgDispatcher".to_string());
+    let mut cmd_disp_interface = match cmd_disp_interface_res {
+        Ok(s) => Some(s),
+        Err(e) => {
+            warn!("Connot create cmd_disp to bulk_disp pipeline");
+            None
+        }
+    };
+
     let mut messages = Vec::new();
 
     let log_path = "logs";
     init_logger(log_path);
 
     loop {
-        let mut servers: Vec<&mut IpcServer> = vec![&mut coms_interface];
-        let mut clients: Vec<&mut IpcClient> = vec![&mut cmd_msg_disp_interface];
-
-        poll_ipc_clients(&mut clients)?;
-        // Msgs from the cmd_msg_dispatcher. I.e: Commands to downlink data from a certain path.
-        for client in clients {
-            if let Some(msg) = handle_server_input(client)? {
-                let path_bytes: Vec<u8> = msg.msg_body.clone();
-                let path = get_path_from_bytes(path_bytes)?;
-                match get_data_from_path(&path) {
-                    Ok(bulk_msg) => {
-                        trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
-                        // Slice bulk msg
-                        // TODO - Cloning here might affect performance!!
-                        messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
-
-                        // Calculate num of 4KB msgs
-                        let first_msg = messages[0].clone();
-                        let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0],first_msg.msg_body[1]]) + 1; // account for msg containing num of msgs
-                        trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
-
-                        // Start coms protocol with coms handler to downlink
-                        if let Some(data_fd) = &coms_interface.data_fd {
-                            send_num_msgs_and_bytes_to_gs(
-                                num_of_4kb_msgs,
-                                bulk_msg.msg_body.len() as u64,
-                                data_fd,
-                            )?;
-                        } else {
-                            warn!("No data file descriptor found in coms_interface.");
-                        }
-                        
-                        client.clear_buffer();
-                    }
-                    Err(e) => {
-                        warn!("Error reading data from path: {}",e);
-                    }
-                }
-            }
-        }
-
+        let mut servers = vec![&mut coms_interface, &mut cmd_disp_interface];
+    
         poll_ipc_server_sockets(&mut servers);
-        // msgs from coms_handler
-        for server in servers {
-            if let Some(msg) = handle_client(server)? {
-                if msg.header.msg_type == MsgType::Ack as u8 {
-                    // Is there a better way of differentiating between ACK's?
-                    if msg.msg_body[0] == 0 {
-                        for (i, message) in messages.iter().enumerate() {
-                            let serialized_msgs = serialize_msg(message)?;
-                            trace!("Sending {} B", serialized_msgs.len());
-                            // Check if data_fd is present and use a reference to it
-                            if let Some(data_fd) = &coms_interface.data_fd {
-                                ipc_write(data_fd, &serialized_msgs)?; // <-- Changed: Passing a reference to data_fd
+    
+        for server_opt in servers {
+            if let Some(server) = server_opt {
+                if let Some(msg) = handle_client(server)? {
+                    if server.socket_path == "gs_bulk" {
+                        if msg.header.msg_type == MsgType::Ack as u8 {
+                            // Handle ACK message
+                            if msg.msg_body[0] == 0 {
+                                for (i, message) in messages.iter().enumerate() {
+                                    let serialized_msgs = serialize_msg(message)?;
+                                    trace!("Sending {} B", serialized_msgs.len());
+                                    if let Some(data_fd) = &server.data_fd {
+                                        ipc_write(data_fd, &serialized_msgs)?;
+                                    } else {
+                                        warn!("No data file descriptor found in coms_interface.");
+                                        break;
+                                    }
+                                    trace!("Sent msg #{}", i + 1);
+                                    thread::sleep(Duration::from_millis(100));
+                                }
                             } else {
-                                warn!("No data file descriptor found in coms_interface.");
-                                break;
+                                todo!();
                             }
-
-                            trace!("Sent msg #{}", i + 1);
-                            // save_data_to_file(message.msg_body.clone(), 0);
-                            thread::sleep(Duration::from_millis(100));
                         }
-                    } else {
-                        todo!()
+                    } else if server.socket_path == "BulkMsgDispatcher" {
+                        let path_bytes: Vec<u8> = msg.msg_body.clone();
+                        let path = get_path_from_bytes(path_bytes)?;
+                        match get_data_from_path(&path) {
+                            Ok(bulk_msg) => {
+                                trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
+                                messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
+        
+                                let first_msg = messages[0].clone();
+                                let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
+                                trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
+        
+                                if let Some(data_fd) = &server.data_fd {
+                                    send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, bulk_msg.msg_body.len() as u64, data_fd)?;
+                                } else {
+                                    warn!("No data file descriptor found in coms_interface.");
+                                }
+        
+                                server.clear_buffer();
+                            }
+                            Err(e) => {
+                                warn!("Error reading data from path: {}", e);
+                            }
+                        }
                     }
                 }
-                server.clear_buffer();
             }
+            
         }
     }
+    
 }
 
 fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
