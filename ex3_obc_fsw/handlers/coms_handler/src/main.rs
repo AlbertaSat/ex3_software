@@ -19,8 +19,7 @@ use ipc::*;
 use message_structure::{
     deserialize_msg, serialize_msg, Msg, MsgType,
 };
-use std::os::fd::FromRawFd;
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::OwnedFd;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
@@ -126,16 +125,7 @@ fn main() {
     // Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
     let mut ipc_coms_interface = match ipc_coms_interface_res {
-        Ok(mut i) => {
-            match i.accept_connection() { 
-                Ok(()) => (),
-                Err(e) => {
-                    debug!("Cannot accept COMS pipeline: {e}");
-                }
-            }
-            Some(i)
-            
-        }
+        Ok(i) => Some(i),
         Err(e) => {
             warn!("Cannot create COMS pipeline: {e}");
             None
@@ -145,16 +135,7 @@ fn main() {
     // Interface for IPC of cmd_dispatcher cmds that get sent up with a certain destination
     let ipc_cmd_interface_res = IpcServer::new("cmd_dispatcher".to_string());
     let mut ipc_cmd_interface = match ipc_cmd_interface_res {
-        Ok(mut i) => {
-            match i.accept_connection() { 
-                Ok(()) => (),
-                Err(e) => {
-                    debug!("Cannot accept COMS pipeline: {e}");
-                }
-            }
-            Some(i)
-            
-        }
+        Ok(i) => Some(i),
         Err(e) => {
             warn!("Cannot create COMS pipeline: {e}");
             None
@@ -192,8 +173,8 @@ fn main() {
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
-        let mut servers = vec![&mut ipc_coms_interface];
-        let coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
+        let mut servers = vec![&mut ipc_coms_interface, &mut ipc_cmd_interface];
+        let _coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if let Some(ref mut init_ipc_gs_interface) = ipc_gs_interface {
