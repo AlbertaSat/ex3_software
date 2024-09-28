@@ -38,7 +38,6 @@ fn main() {
             Some(element) => match element {
                 Some(e) => {
                     println!("{} connected", payload);
-                    println!("{}", e.socket_path);
                 }
                 None => {
                     println!("{} not connected!", payload);
@@ -48,7 +47,7 @@ fn main() {
         };
     }
 
-    let mut client = match IpcClient::new("cmd_dispatcher".to_string()) {
+    let mut cmd_client = match IpcClient::new("cmd_dispatcher".to_string()) {
         Ok(s) => Some(s),
         Err(e) => {
             eprintln!("Server connection error: {}", e);
@@ -57,24 +56,24 @@ fn main() {
     };
 
     loop {
-        let mut clients = vec![&mut client];
+        let mut clients = vec![&mut cmd_client];
         let (s,bytes) = match poll_ipc_clients(&mut clients) {
             Ok((bytes, sock)) => (bytes,sock),
             Err(e) => {
                 eprintln!("read error: {}", e);
-                let _ = close(client.as_ref().unwrap().fd.as_raw_fd());
+                let _ = close(cmd_client.as_ref().unwrap().fd.as_raw_fd());
                 continue; // try again
             }
         };
-        if client.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
-            println!("Got cmd: {:?}", client.as_ref().unwrap().buffer);
-            let dest = client.as_ref().unwrap().buffer[MsgHeader::DEST_INDEX];
+        if cmd_client.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
+            println!("Got cmd: {:?}", cmd_client.as_ref().unwrap().buffer);
+            let dest = cmd_client.as_ref().unwrap().buffer[MsgHeader::DEST_INDEX];
             let res = match ComponentIds::try_from(dest) {
                 Ok(payload) => {
                     match &component_streams[dest as usize] {
                         Some(client) => {
-                            println!("Writing to {:?}", client);
-                            write(client.fd.as_fd(), &client.buffer)
+                            println!("Writing buffer {:?}", cmd_client.as_ref().unwrap().buffer);
+                            write(client.fd.as_fd(), &cmd_client.as_ref().unwrap().buffer)
                         },
                         None => {
                             eprintln!("No payload: {payload}!");
@@ -92,7 +91,7 @@ fn main() {
                 eprintln!("Dispatch failed: NACKing");
                 // Should actually NACK
             }
-            client.as_mut().unwrap().clear_buffer();
+            cmd_client.as_mut().unwrap().clear_buffer();
         }
     }
 }
