@@ -1,8 +1,3 @@
-use mio::event::Event;
-use mio::net::{UnixListener, UnixStream};
-use mio::{Events, Interest, Poll, Registry, Token};
-use std::array::from_fn;
-use std::collections::VecDeque;
 /**
  * TODO: Check if IpcClient `poll_for_conn` should timeout
  * or block indefinitely, considering that servers currently
@@ -16,12 +11,14 @@ use std::collections::VecDeque;
  * to store the event. This way we can handle the events in
  * order.
  */
+use mio::event::Event;
+use mio::net::{UnixListener, UnixStream};
+use mio::{Events, Interest, Poll, Token};
+use std::collections::VecDeque;
 use std::fs;
-use std::io::Error as IoError;
 use std::io::{Error, ErrorKind, Read, Write};
-use std::ops::Index;
 use std::os::unix::net::SocketAddr;
-use std::path::{self, Path};
+use std::path::Path;
 use std::time::Duration;
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
@@ -33,6 +30,8 @@ pub struct IpcClientPollHandler {
     pub poll: Poll,
     pub clients: Vec<IpcClient>,
     events: Events,
+    roundrobin: VecDeque<Token>,
+    event_arr: Vec<Event>,
 }
 impl IpcClientPollHandler {
     /// Create a new handler for the clients.
@@ -40,14 +39,21 @@ impl IpcClientPollHandler {
     /// Note that the vector is moved out into the struct,
     /// ideally there should not be a reason to access the
     /// vector manually.
-    pub fn new(clients: Vec<IpcClient>) -> Result<IpcClientPollHandler, IoError> {
+    pub fn new(clients: Vec<IpcClient>) -> Result<IpcClientPollHandler, Error> {
         let mut poll = Poll::new()?;
         let mut token_index = 0; // token index will match the order the array came in
+        let mut roundrobin: VecDeque<Token> = VecDeque::new();
+
+        for i in 0..clients.len() {
+            roundrobin.push_back(Token(i));
+        }
 
         let mut client_handler = IpcClientPollHandler {
             poll: poll,
             clients: clients,
             events: Events::with_capacity(NUM_EVENTS),
+            roundrobin: roundrobin,
+            event_arr: vec![],
         };
 
         for client in &mut client_handler.clients {
@@ -62,47 +68,60 @@ impl IpcClientPollHandler {
         Ok(client_handler)
     }
 
-    /// The clients will hang for a connection for a duration of `POLL_TIMEOUT_MS`
-    ///
-    /// returns the number of successfully connected streams
-    pub fn poll_for_conn(&mut self) -> Result<usize, IoError> {
-        let mut num_conns = 0;
-
-        // Consider changing the timeout possibly to `None`
-        self.poll.poll(
-            &mut self.events,
-            Some(Duration::from_millis(POLL_TIMEOUT_MS)),
-        )?;
-
-        for event in &self.events {
-            if event.is_writable() {
-                // we can probably read/write from the stream now if it wasn't a spurious event
-                let Token(index) = event.token();
-                self.clients[index].connected = true;
-                num_conns += 1;
-            }
-        }
-
-        Ok(num_conns)
-    }
-
     /// polls clients for data writes to a buffer and returns the number of bytes read
     /// as well as the socket path. Disconnects and reconnects clients accordingly.
-    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), IoError> {
+    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), Error> {
         // Consider changing the timeout possibly to `None`
         self.poll.poll(
             &mut self.events,
             Some(Duration::from_millis(POLL_TIMEOUT_MS)),
         )?;
+        let _: Vec<_> = self
+            .events
+            .iter()
+            .map(|e| self.event_arr.push(e.clone()))
+            .collect();
 
-        for event in &self.events {
-            let Token(index) = event.token();
+        // TODO: check if this causes issues when adding/removing from roundrobin
+        for _ in 0..self.roundrobin.len() {
+            let Token(index) = match self.roundrobin.pop_front() {
+                Some(t) => t,
+                None => break, // means the queue is empty, technically unreachable
+            };
+
+            let rem_index = match self
+                .event_arr
+                .iter()
+                .enumerate()
+                .find(|(_, x)| x.token() == Token(index))
+            {
+                Some((rem_index, _)) => rem_index,
+                None => {
+                    self.roundrobin.push_back(Token(index));
+                    continue;
+                } // no event corresponding to this index
+            };
+
+            let event = self.event_arr.remove(rem_index);
             let client = &mut self.clients[index];
 
             if event.is_writable() {
                 // we can probably read/write from the stream now if it wasn't a spurious event
                 client.connected = true;
                 println!("Client connected to server on {}", client.socket_path);
+            }
+            if event.is_read_closed() {
+                println!(
+                    "Client disconnected from {}, flushing buffer",
+                    client.socket_path
+                );
+                client.connected = false;
+            }
+            if event.is_writable() {
+                self.event_arr.push(event.clone()); // Not the job of this function to write
+            }
+            if event.is_error() {
+                println!("POLL_FOR_DATA IS ERRORFUL");
             }
             if event.is_readable() {
                 match client.stream.read(buf) {
@@ -112,6 +131,7 @@ impl IpcClientPollHandler {
                     }
                     Ok(bytes_read) => {
                         println!("Read bytes from {}", client.socket_path);
+                        self.roundrobin.push_back(Token(index));
                         return Ok((bytes_read, client.socket_path.clone()));
                     }
                     Err(e) => {
@@ -119,10 +139,61 @@ impl IpcClientPollHandler {
                     }
                 };
             }
+            self.roundrobin.push_back(Token(index));
         }
 
         // No data was read
         Ok((0, "".to_string()))
+    }
+
+    pub fn write_to(&mut self, socket_path: String, buf: &[u8]) -> Result<usize, Error> {
+        self.poll.poll(
+            &mut self.events,
+            Some(Duration::from_millis(POLL_TIMEOUT_MS)),
+        )?;
+
+        let _: Vec<_> = self
+            .events
+            .iter()
+            .map(|e| self.event_arr.push(e.clone()))
+            .collect();
+
+        let (index, write_client): (usize, &mut IpcClient) = match self
+            .clients
+            .iter_mut()
+            .enumerate()
+            .find(|(_, s)| s.socket_path == format!("{}{}", SOCKET_PATH_PREPEND, socket_path))
+        {
+            Some((i, s)) => (i, s),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Socket path, {}, not found", socket_path),
+                ))
+            }
+        };
+
+        let (rem_index, is_readable) = match self
+            .event_arr
+            .iter()
+            .enumerate()
+            .find(|(_, e)| e.token() == Token(index) && e.is_writable())
+        {
+            Some((i, e)) => (i, e.is_readable()),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConnectionRefused,
+                    format!("Socket, {}, not writeable", socket_path),
+                ))
+            }
+        };
+
+        if !is_readable {
+            self.event_arr.remove(rem_index);
+        }
+
+        println!("Writing data to {}", write_client.socket_path);
+        return write_client.stream.write(buf);
     }
 }
 
@@ -139,7 +210,7 @@ impl IpcServerPollHandler {
     /// Note that the vector is moved out into the struct,
     /// ideally there should not be a reason to access the
     /// vector manually.
-    pub fn new(servers: Vec<IpcServer>) -> Result<IpcServerPollHandler, IoError> {
+    pub fn new(servers: Vec<IpcServer>) -> Result<IpcServerPollHandler, Error> {
         let mut poll = Poll::new()?;
         let mut token_index = 0; // token index will be 2x the index of the array it came in to keep storage for streams
         let mut roundrobin: VecDeque<Token> = VecDeque::new();
@@ -170,7 +241,7 @@ impl IpcServerPollHandler {
 
     /// polls clients for data writes to a buffer and returns the number of bytes read
     /// as well as the socket path. Disconnects and reconnects clients accordingly.
-    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), IoError> {
+    pub fn poll_for_data(&mut self, buf: &mut [u8]) -> Result<(usize, String), Error> {
         // Consider changing the timeout possibly to `None`
         self.poll.poll(
             &mut self.events,
@@ -211,39 +282,21 @@ impl IpcServerPollHandler {
                 0 => {
                     // UnixListener
                     if event.is_readable() {
-                        match server.listener.accept() {
-                            Ok((stream, _addr)) => {
-                                println!("New client connected to {:?}", server.socket_path);
-                                server.stream = Some(stream);
-                                server.connected = true;
-                                self.roundrobin.push_back(Token(index + 1));
-
-                                self.poll.registry().register(
-                                    match &mut server.stream {
-                                        Some(stream) => stream,
-                                        None => {
-                                            panic!("Shouldn't be possible to get here");
-                                        }
-                                    },
-                                    Token(index + 1),
-                                    Interest::READABLE | Interest::WRITABLE,
-                                )?;
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to accept connection: {}", e);
-                            }
-                        }
+                        self.accept(index)?;
                     }
                 }
                 1 => {
                     //UnixStream
                     if event.is_read_closed() {
-                        println!(
-                                "Client has disconnected from {}, flushing buffer prior to deregistering",
-                                server.socket_path
-                            );
+                        println!("Client has disconnected from {}, flushing buffer prior to deregistering", server.socket_path);
                         server.connected = false;
                         remove_from_queue = true;
+                    }
+                    if event.is_writable() {
+                        self.event_arr.push(event.clone()); // Not the job of this function to write
+                    }
+                    if event.is_error() {
+                        println!("POLL_FOR_DATA IS ERRORFUL");
                     }
                     if event.is_readable() {
                         if let Some(stream) = &mut server.stream {
@@ -287,58 +340,56 @@ impl IpcServerPollHandler {
         // No data was read
         Ok((0, "".to_string()))
     }
-    pub fn write_to(&mut self, socket_path: String, buf: &[u8]) -> Result<usize, IoError> {
+
+    pub fn write_to(&mut self, socket_path: String, buf: &[u8]) -> Result<usize, Error> {
         self.poll.poll(
             &mut self.events,
             Some(Duration::from_millis(POLL_TIMEOUT_MS)),
         )?;
 
-        for event in &self.events {
-            let Token(index) = event.token();
-            let server = &mut self.servers[index / 2];
+        let _: Vec<_> = self
+            .events
+            .iter()
+            .map(|e| self.event_arr.push(e.clone()))
+            .collect();
 
-            match index % 2 {
-                0 => {
-                    //UnixListener
-                    if event.is_readable() {
-                        match server.listener.accept() {
-                            Ok((stream, _addr)) => {
-                                println!("New client connected to {:?}", server.socket_path);
-                                server.stream = Some(stream);
-                                server.connected = true;
-
-                                self.poll.registry().register(
-                                    match &mut server.stream {
-                                        Some(stream) => stream,
-                                        None => {
-                                            panic!("Shouldn't be possible to get here");
-                                        }
-                                    },
-                                    Token(index + 1),
-                                    Interest::READABLE | Interest::WRITABLE,
-                                )?;
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to accept connection: {}", e);
-                            }
-                        }
-                    }
-                }
-                1 => {
-                    //UnixStream
-                    if event.is_write_closed() {
-                        println!("Client has disconnected from {}, flushing buffer prior to deregistering", server.socket_path);
-                        server.connected = false;
-                    }
-                    if server.socket_path == socket_path && event.is_writable() {
-                        if let Some(stream) = &mut server.stream {
-                            println!("Writing data to {}", server.socket_path);
-                            return stream.write(buf);
-                        }
-                    }
-                }
-                _ => {}
+        let (index, write_server): (usize, &mut IpcServer) = match self
+            .servers
+            .iter_mut()
+            .enumerate()
+            .find(|(_, s)| s.socket_path == format!("{}{}", SOCKET_PATH_PREPEND, socket_path))
+        {
+            Some((i, s)) => (i, s),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Socket path, {}, not found", socket_path),
+                ))
             }
+        };
+
+        let (rem_index, is_readable) = match self
+            .event_arr
+            .iter()
+            .enumerate()
+            .find(|(_, e)| e.token() == Token(2 * index + 1) && e.is_writable())
+        {
+            Some((i, e)) => (i, e.is_readable()),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConnectionRefused,
+                    format!("Socket, {}, not writeable", socket_path),
+                ))
+            }
+        };
+
+        if !is_readable {
+            self.event_arr.remove(rem_index);
+        }
+
+        if let Some(stream) = &mut write_server.stream {
+            println!("Writing data to {}", write_server.socket_path);
+            return stream.write(buf);
         }
 
         return Ok(0);
@@ -352,6 +403,7 @@ impl IpcServerPollHandler {
                 println!("New client connected to {:?}", server.socket_path);
                 server.stream = Some(stream);
                 server.connected = true;
+                self.roundrobin.push_back(Token(index + 1));
 
                 self.poll.registry().register(
                     match &mut server.stream {
@@ -378,7 +430,7 @@ pub struct IpcClient {
     connected: bool,
 }
 impl IpcClient {
-    pub fn new(socket_name: String) -> Result<IpcClient, IoError> {
+    pub fn new(socket_name: String) -> Result<IpcClient, Error> {
         let socket_path = format!("{}{}", SOCKET_PATH_PREPEND, socket_name);
         let stream = UnixStream::connect(&socket_path)?;
 
@@ -399,7 +451,7 @@ pub struct IpcServer {
     connected: bool,
 }
 impl IpcServer {
-    pub fn new(socket_name: String) -> Result<IpcServer, IoError> {
+    pub fn new(socket_name: String) -> Result<IpcServer, Error> {
         let socket_path = format!("{}{}", SOCKET_PATH_PREPEND, socket_name);
         let path = Path::new(&socket_path);
         if path.exists() {
