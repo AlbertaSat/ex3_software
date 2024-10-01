@@ -12,6 +12,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 */
 
 use std::io::Error;
+use std::process::{Command, Stdio};
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use log::{debug, trace, warn};
 use message_structure::*;
@@ -49,7 +50,7 @@ impl ShellHandler {
             // Handling the bulk message dispatcher interface
             let msg_dispatcher_interface = self.msg_dispatcher_interface.as_ref().unwrap();
             if msg_dispatcher_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
-                let recv_msg: Msg = deserialize_msg(&msg_dispatcher_interface.buffer).unwrap();
+                let recv_msg: Msg = deserialize_msg(&msg_dispatcher_interface.buffer).unwrap(); // TODO K: could cut off null bytes here
                 debug!("Received and deserialized msg");
                 self.handle_msg(recv_msg)?;
             }
@@ -59,7 +60,27 @@ impl ShellHandler {
 
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
+
         println!("SHELL msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+
+        let body = String::from_utf8(msg.msg_body.iter().take_while(|c| **c > 0).cloned().collect()).unwrap();
+        //let command, *args = 
+
+        // SHELL 0 echo beans
+        println!("len {} string({})",body.len(),body);
+        let body_split = body.split(" ").collect::<Vec<_>>();
+        let mut child = Command::new(body_split[0]);
+        for arg in &body_split[1..] {
+            child.arg(arg);
+        }
+        let child2 = child.stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start process");
+
+        let out = child2.wait_with_output().expect("Failed to wait on child");
+
+        println!("child out: {:?}",out);
+
         Ok(())
     }
 }

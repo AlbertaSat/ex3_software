@@ -87,9 +87,13 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     } else {
         opcode = operator_str_split[1].parse::<u8>().unwrap();
 
-        for data_byte in operator_str_split[2..].iter() {
-        msg_body.push(data_byte.parse::<u8>().unwrap());
-        }
+        msg_body.extend(operator_str_split[2..].join(" ").bytes());
+//         for data_byte in operator_str_split[2..].iter() {
+//             println!("{}",data_byte);
+//             // println!("{}",std::any::type_name::<data_byte>());
+//             // msg_body.push(data_byte.parse::<u8>().unwrap());
+//             msg_body.extend(data_byte.as_bytes());
+//         }
     }
     
     let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
