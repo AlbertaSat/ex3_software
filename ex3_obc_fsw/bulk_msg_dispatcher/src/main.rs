@@ -38,6 +38,8 @@ fn main() -> Result<(), IoError> {
     };
 
     let mut messages = Vec::new();
+    let mut num_of_4kb_msgs = 1;
+    let mut num_bytes = 4098;
 
     let log_path = "logs";
     init_logger(log_path);
@@ -50,7 +52,7 @@ fn main() -> Result<(), IoError> {
         for server_opt in servers {
             if let Some(server) = server_opt {
                 if let Some(msg) = handle_client(server)? {
-                    if server.socket_path == "gs_bulk" {
+                    if server.socket_path.contains("gs_bulk") {
                         if msg.header.msg_type == MsgType::Ack as u8 {
                             // Handle ACK message
                             if msg.msg_body[0] == 0 {
@@ -70,7 +72,7 @@ fn main() -> Result<(), IoError> {
                                 todo!();
                             }
                         }
-                    } else if server.socket_path == "BulkMsgDispatcher" {
+                    } else if server.socket_path.contains("BulkMsgDispatcher") {
                         let path_bytes: Vec<u8> = msg.msg_body.clone();
                         let path = get_path_from_bytes(path_bytes)?;
                         match get_data_from_path(&path) {
@@ -79,10 +81,12 @@ fn main() -> Result<(), IoError> {
                                 messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
         
                                 let first_msg = messages[0].clone();
-                                let num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
+                                num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
+                                num_bytes = bulk_msg.msg_body.len() as u64;
                                 trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
         
                                 if let Some(data_fd) = &server.data_fd {
+                                    // Want to write to gs_bulk, not BulkMsgDispatcher fd
                                     send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, bulk_msg.msg_body.len() as u64, data_fd)?;
                                 } else {
                                     warn!("No data file descriptor found in coms_interface.");
@@ -95,6 +99,15 @@ fn main() -> Result<(), IoError> {
                             }
                         }
                     }
+                }
+                if messages.len() > 1 {
+                    if let Some(data_fd) = &server.data_fd {
+                        // Want to write to gs_bulk, not BulkMsgDispatcher fd
+                        send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
+                    } else {
+                        warn!("No data file descriptor found in coms_interface.");
+                    }
+                    server.clear_buffer();
                 }
             }
             

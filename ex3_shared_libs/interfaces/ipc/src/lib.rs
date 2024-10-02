@@ -271,7 +271,9 @@ pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut Option<IpcServer>>) {
         if poll_fd.revents & libc::POLLIN != 0 {
             let server = servers
                 .iter_mut()
-                .find(|s| s.as_ref().unwrap().conn_fd.as_raw_fd() == poll_fd.fd || s.as_ref().unwrap().data_fd.as_ref().unwrap().as_raw_fd() == poll_fd.fd);
+                .find(|s| s.as_ref().unwrap().conn_fd.as_raw_fd() == poll_fd.fd ||
+                s.as_ref().unwrap().data_fd
+                .as_ref().unwrap().as_raw_fd() == poll_fd.fd);
             if let Some(server) = server {
                 if !server.as_ref().unwrap().connected {
                     // Handle new connection request from a currently unconnected client
