@@ -1,0 +1,9 @@
+[package]
+name = "i2c_interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nix = "0.26.2"
+message_structure = { path = "../../message_structure" }
+linux_embedded_hal = "0.4.0"
