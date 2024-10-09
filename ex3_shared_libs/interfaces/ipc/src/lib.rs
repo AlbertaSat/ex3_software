@@ -4,13 +4,14 @@ Summer 2024
 
 */
 use nix::libc;
-use nix::sys::socket::{self, accept, bind, listen, AddressFamily, SockFlag, SockType, UnixAddr};
+use nix::sys::socket::{self, accept, bind, listen, socket, Backlog, AddressFamily, SockFlag, SockType, UnixAddr};
 use nix::unistd::{read, write};
 use std::ffi::CString;
+use nix::errno::Errno;
 use std::io::Error as IoError;
+use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
-use std::process;
-use std::{fs, io};
+use std::{fs, io, process};
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 pub const IPC_BUFFER_SIZE: usize = 4096;
@@ -18,21 +19,18 @@ const POLL_TIMEOUT_MS: i32 = 100;
 
 /// Create a unix domain socket with a type of SOCKSEQ packet.
 /// Because both server and client need to create a socket, this is a helper function outside of the structs
-fn create_socket() -> Result<i32, IoError> {
-    let socket_fd = socket::socket(
-        AddressFamily::Unix,
-        SockType::SeqPacket,
-        SockFlag::empty(),
-        None,
-    )?;
-    Ok(socket_fd)
+fn create_socket() -> Result<OwnedFd, IoError> {
+    match socket(AddressFamily::Unix, SockType::SeqPacket, SockFlag::empty(), None) {
+        Ok(fd) => Ok(fd), // unsafe { Ok(OwnedFd::from_raw_fd(fd)) },
+        Err(e) => Err(IoError::from_raw_os_error(e as i32)),
+    }
 }
 
 /// Client struct using a unix domain socket of type SOCKSEQ packet, that connects to a server socket
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct IpcClient {
     pub socket_path: String,
-    pub fd: Option<i32>,
+    pub fd: OwnedFd,
     connected: bool,
     pub buffer: [u8; IPC_BUFFER_SIZE],
 }
@@ -42,7 +40,7 @@ impl IpcClient {
         let socket_fd = create_socket()?;
         let mut client = IpcClient {
             socket_path: socket_path.clone(),
-            fd: Some(socket_fd),
+            fd: socket_fd,
             connected: false,
             buffer: [0u8; IPC_BUFFER_SIZE],
         };
@@ -50,7 +48,7 @@ impl IpcClient {
         Ok(client)
     }
 
-    fn connect_to_server(&mut self) -> Result<(), IoError> {
+    fn connect_to_server(&mut self) -> Result<(), Errno> {
         let socket_path_c_str = CString::new(self.socket_path.clone()).unwrap();
         let addr = UnixAddr::new(socket_path_c_str.as_bytes()).unwrap_or_else(|err| {
             eprintln!("Failed to create UnixAddr: {}", err);
@@ -60,14 +58,18 @@ impl IpcClient {
             "Attempting to connect to server socket at: {}",
             self.socket_path
         );
-        socket::connect(self.fd.unwrap(), &addr).unwrap_or_else(|err| {
-            eprintln!("Failed to connect to server socket: {}", err);
-            process::exit(1)
-        });
-        println!("Connected to server socket at: {}", self.socket_path);
-        self.connected = true;
-
-        Ok(())
+        let fd: RawFd = self.fd.as_raw_fd();
+        match socket::connect(fd, &addr) {
+            Ok(()) => {
+                println!("Connected to server socket at: {}", self.socket_path);
+                self.connected = true;
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Failed to connect to server socket: {}", e);
+                Err(e)
+            }
+        }
     }
 
     /// Users of this lib can call this to clear the buffer - otherwise the preivous read data will remain
@@ -85,19 +87,20 @@ impl IpcClient {
         tmp
     }
 }
-
-pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, String), std::io::Error> {
+///
+pub fn poll_ipc_clients(clients: &mut Vec<&mut Option<IpcClient>>) -> Result<(usize, String), std::io::Error> {
     //Create poll fd instances for each client
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
-        if let Some(data_fd) = client.fd {
-            // Poll data_fd for incoming data
-            poll_fds.push(libc::pollfd {
-                fd: data_fd,
-                events: libc::POLLIN,
-                revents: 0,
-            });
+        // Poll data_fd for incoming data
+        if let None = client {
+            return Ok((0,"".to_string()));
         }
+        poll_fds.push(libc::pollfd {
+            fd: client.as_ref().unwrap().fd.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        });
     }
 
     let poll_result = unsafe {
@@ -119,29 +122,27 @@ pub fn poll_ipc_clients(clients: &mut Vec<&mut IpcClient>) -> Result<(usize, Str
     //Poll each client for incoming data
     for poll_fd in poll_fds.iter() {
         if poll_fd.revents & libc::POLLIN != 0 {
-            let client = clients.iter_mut().find(|s| s.fd == Some(poll_fd.fd));
+            let client = clients.iter_mut().find(|s| s.as_ref().unwrap().fd.as_raw_fd() == poll_fd.fd);
             if let Some(client) = client {
-                if let Some(data_fd) = client.fd {
-                    // Handle incoming data from a connected client
-                    let bytes_read = read(data_fd, &mut client.buffer)?;
-                    if bytes_read > 0 {
-                        println!(
-                            "Received {} bytes on socket {}",
-                            bytes_read, client.socket_path
-                        );
-                        return Ok((bytes_read, client.socket_path.clone()));
-                    }
+                // Handle incoming data from a connected client
+                let bytes_read = read(client.as_ref().unwrap().fd.as_raw_fd(), &mut client.as_mut().unwrap().buffer)?;
+                if bytes_read > 0 {
+                    println!(
+                        "Received {} bytes on socket {}",
+                        bytes_read, client.as_ref().unwrap().socket_path
+                    );
+                    return Ok((bytes_read, client.as_ref().unwrap().socket_path.clone()));
                 }
             }
         }
     }
     Ok((0,"".to_string()))
 }
-#[derive(Clone)]
+
 pub struct IpcServer {
     pub socket_path: String,
-    conn_fd: Option<i32>,
-    pub data_fd: Option<i32>,
+    pub conn_fd: OwnedFd,
+    pub data_fd: Option<OwnedFd>,
     connected: bool,
     pub buffer: [u8; IPC_BUFFER_SIZE],
 }
@@ -151,7 +152,7 @@ impl IpcServer {
         let socket_conn_fd = create_socket()?;
         let mut server = IpcServer {
             socket_path,
-            conn_fd: Some(socket_conn_fd),
+            conn_fd: socket_conn_fd,
             data_fd: None,
             connected: false,
             buffer: [0u8; IPC_BUFFER_SIZE],
@@ -173,12 +174,13 @@ impl IpcServer {
             fs::remove_file(path)?;
         }
 
-        bind(self.conn_fd.unwrap(), &addr).unwrap_or_else(|err| {
+        bind(self.conn_fd.as_raw_fd(), &addr).unwrap_or_else(|err| {
             eprintln!("Failed to bind socket to path: {}", err);
             process::exit(1)
         });
 
-        listen(self.conn_fd.unwrap(), 5).unwrap_or_else(|err| {
+        let sock = self.conn_fd.as_fd();
+        listen(&sock, Backlog::MAXCONN).unwrap_or_else(|err| {
             eprintln!("Failed to listen to socket: {}", err);
             process::exit(1)
         });
@@ -188,12 +190,12 @@ impl IpcServer {
         Ok(())
     }
 
-    fn accept_connection(&mut self) -> Result<(), IoError> {
-        let fd = accept(self.conn_fd.unwrap()).unwrap_or_else(|err| {
+    pub fn accept_connection(&mut self) -> Result<(), IoError> {
+        let fd = accept(self.conn_fd.as_raw_fd()).unwrap_or_else(|err| {
             eprintln!("Failed to accept connection: {}", err);
             process::exit(1)
         });
-        self.data_fd = Some(fd);
+        self.data_fd = unsafe {Some(OwnedFd::from_raw_fd(fd))};
         self.connected = true;
         println!("Accepted connection from client socket {} on data fd {:?}", self.socket_path, self.data_fd);
         Ok(())
@@ -224,27 +226,28 @@ impl IpcServer {
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
+pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut Option<IpcServer>>) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
     for server in servers.iter_mut() {
-        if let Some(fd) = server.conn_fd {
-            if !server.connected {
-                // Poll conn_fd for incoming connections
-                poll_fds.push(libc::pollfd {
-                    fd,
-                    events: libc::POLLIN,
-                    revents: 0,
-                });
-            } else if let Some(data_fd) = server.data_fd {
-                // Poll data_fd for incoming data
-                poll_fds.push(libc::pollfd {
-                    fd: data_fd,
-                    events: libc::POLLIN,
-                    revents: 0,
-                });
-            }
+        // Handle case where server is None
+        if let None = server {
+            return;
+        } else if !server.as_ref().unwrap().connected {
+            // Poll conn_fd for incoming connections
+            poll_fds.push(libc::pollfd {
+                fd: server.as_ref().unwrap().conn_fd.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            });
+        } else if let Some(ref data_fd) = server.as_ref().unwrap().data_fd {
+            // Poll data_fd for incoming data
+            poll_fds.push(libc::pollfd {
+                fd: data_fd.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            });
         }
     }
 
@@ -268,17 +271,19 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
         if poll_fd.revents & libc::POLLIN != 0 {
             let server = servers
                 .iter_mut()
-                .find(|s| s.conn_fd == Some(poll_fd.fd) || s.data_fd == Some(poll_fd.fd));
+                .find(|s| s.as_ref().unwrap().conn_fd.as_raw_fd() == poll_fd.fd ||
+                s.as_ref().unwrap().data_fd
+                .as_ref().unwrap().as_raw_fd() == poll_fd.fd);
             if let Some(server) = server {
-                if !server.connected {
+                if !server.as_ref().unwrap().connected {
                     // Handle new connection request from a currently unconnected client
-                    server.accept_connection().unwrap();
-                } else if let Some(data_fd) = server.data_fd {
+                    server.as_mut().unwrap().accept_connection().unwrap();
+                } else if let Some(data_fd) = &server.as_ref().unwrap().data_fd {
                     // Handle incoming data from a connected client
-                    let bytes_read = read(data_fd, &mut server.buffer).unwrap();
+                    let bytes_read = read(data_fd.as_raw_fd(), &mut server.as_mut().unwrap().buffer).unwrap();
                     if bytes_read == 0 {
                         // If 0 bytes read, then the client has disconnected
-                        server.client_disconnected();
+                        server.as_mut().unwrap().client_disconnected();
                     }
                 }
             }
@@ -287,14 +292,14 @@ pub fn poll_ipc_server_sockets(servers: &mut [&mut IpcServer]) {
 }
 
 /// Wrapper for the unistd lib write fxn
-pub fn ipc_write(fd: Option<i32>, data: &[u8]) -> Result<usize, std::io::Error> {
+pub fn ipc_write(fd: &OwnedFd, data: &[u8]) -> Result<usize, std::io::Error> {
     match write(
-        fd.expect("Write takes a file descriptor in form i32."),
+        fd.as_fd(),
         data,
     ) {
         Ok(bytes_read) => Ok(bytes_read),
         Err(e) => {
-            eprintln!("Error reading from socket: {}", e);
+            eprintln!("Error writing to socket: {}", e);
             Err(e.into())
         }
     }
