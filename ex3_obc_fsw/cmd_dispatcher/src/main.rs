@@ -22,7 +22,6 @@ fn main() {
             }
         }).collect();
     
-    println!("GOT {:?}", component_streams.get(8)); // prints BulkMsgDisp connection
     for x in 0..ComponentIds::LAST as usize {
         let payload = match ComponentIds::try_from(x as u8) {
             Ok(p) => {

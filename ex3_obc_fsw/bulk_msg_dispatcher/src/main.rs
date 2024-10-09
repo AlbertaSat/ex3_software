@@ -85,13 +85,6 @@ fn main() -> Result<(), IoError> {
                                 num_bytes = bulk_msg.msg_body.len() as u64;
                                 trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
         
-                                if let Some(data_fd) = &server.data_fd {
-                                    // Want to write to gs_bulk, not BulkMsgDispatcher fd
-                                    send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, bulk_msg.msg_body.len() as u64, data_fd)?;
-                                } else {
-                                    warn!("No data file descriptor found in coms_interface.");
-                                }
-        
                                 server.clear_buffer();
                             }
                             Err(e) => {
@@ -101,12 +94,14 @@ fn main() -> Result<(), IoError> {
                     }
                 }
                 if messages.len() > 1 {
+                    // doesn't work right now! Donwlink broken :(
                     if let Some(data_fd) = &server.data_fd {
                         // Want to write to gs_bulk, not BulkMsgDispatcher fd
                         send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
                     } else {
                         warn!("No data file descriptor found in coms_interface.");
                     }
+                    messages = Vec::new();
                     server.clear_buffer();
                 }
             }
