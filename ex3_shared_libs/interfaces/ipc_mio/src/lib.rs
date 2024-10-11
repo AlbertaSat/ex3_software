@@ -17,6 +17,7 @@ use mio::{Events, Interest, Poll, Token};
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{Error, ErrorKind, Read, Write};
+use std::net::Shutdown;
 use std::os::unix::net::SocketAddr;
 use std::path::Path;
 use std::time::Duration;
@@ -24,7 +25,6 @@ use std::time::Duration;
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 const NUM_EVENTS: usize = 1024;
 const POLL_TIMEOUT_MS: u64 = 100;
-const BUFFER_SIZE: usize = 1024;
 
 pub struct IpcClientPollHandler {
     pub poll: Poll,
@@ -152,11 +152,9 @@ impl IpcClientPollHandler {
             Some(Duration::from_millis(POLL_TIMEOUT_MS)),
         )?;
 
-        let _: Vec<_> = self
-            .events
-            .iter()
-            .map(|e| self.event_arr.push(e.clone()))
-            .collect();
+        for event in &self.events {
+            self.event_arr.push(event.clone());
+        }
 
         let (index, write_client): (usize, &mut IpcClient) = match self
             .clients
@@ -304,6 +302,10 @@ impl IpcServerPollHandler {
                                 Ok(0) => {
                                     println!("Client disconnected from {}", server.socket_path);
                                     self.poll.registry().deregister(stream)?;
+                                    match stream.shutdown(Shutdown::Both) {
+                                        Ok(_) => println!("successful shutdown"),
+                                        Err(e) => eprintln!("shutdown failed :(,\n{}", e),
+                                    }
                                     server.stream = None;
                                     server.connected = false;
 
@@ -314,6 +316,10 @@ impl IpcServerPollHandler {
                                     if !server.connected {
                                         println!("Client disconnected from {}", server.socket_path);
                                         self.poll.registry().deregister(stream)?;
+                                        match stream.shutdown(Shutdown::Both) {
+                                            Ok(_) => println!("successful shutdown"),
+                                            Err(e) => eprintln!("shutdown failed :(,\n{}", e),
+                                        }
                                         server.stream = None;
                                     }
                                     if !remove_from_queue {
@@ -347,11 +353,9 @@ impl IpcServerPollHandler {
             Some(Duration::from_millis(POLL_TIMEOUT_MS)),
         )?;
 
-        let _: Vec<_> = self
-            .events
-            .iter()
-            .map(|e| self.event_arr.push(e.clone()))
-            .collect();
+        for event in &self.events {
+            self.event_arr.push(event.clone());
+        }
 
         let (index, write_server): (usize, &mut IpcServer) = match self
             .servers
@@ -392,7 +396,7 @@ impl IpcServerPollHandler {
             return stream.write(buf);
         }
 
-        return Ok(0);
+        return Ok(0); // should be unreachable since if the socket does not exist it is caught by the `ConnectionRefused`
     }
 
     fn accept(&mut self, index: usize) -> Result<(), Error> {
