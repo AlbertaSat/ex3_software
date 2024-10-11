@@ -45,6 +45,7 @@ pub mod component_ids {
         BulkMsgDispatcher = 9,
         //..
         SHELL = 12,
+        UHF = 13,
         //..
     }
 
@@ -61,6 +62,7 @@ pub mod component_ids {
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
+                ComponentIds::UHF => write!(f, "UHF"),
             }
         }
     }
@@ -79,6 +81,7 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "SHELL" => Ok(ComponentIds::SHELL),
+                "UHF" => Ok(ComponentIds::UHF),
                 _ => Err(()),
             }
         }
@@ -99,8 +102,11 @@ pub mod component_ids {
                 x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
-                x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::BulkMsgDispatcher as u8 => {
+                    Ok(ComponentIds::BulkMsgDispatcher)
+                }
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
+                x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 _ => Err(()),
             }
         }
@@ -139,6 +145,16 @@ pub mod opcodes {
         Reset = 7,
         DelImage = 8,
         GetImageSize = 9,
+        Error = 99,
+    }
+    pub enum UHF {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        SetMode = 6,
+        Reset = 7,
+        GetMode = 8,
+        //...
         Error = 99,
     }
 
@@ -182,6 +198,20 @@ pub mod opcodes {
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for UHF {
+        fn from(value: u8) -> Self {
+            match value {
+                8 => UHF::GetHK,
+                9 => UHF::SetBeacon,
+                10 => UHF::GetBeacon,
+                11 => UHF::SetMode,
+                12 => UHF::Reset,
+                13 => UHF::GetMode,
+                _ => UHF::Error, // or choose a default value or handle the error in a different way
             }
         }
     }
@@ -268,6 +298,9 @@ mod tests {
         let shell = component_ids::ComponentIds::try_from(12).unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
+        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -298,6 +331,9 @@ mod tests {
         let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
+        let uhf = component_ids::ComponentIds::from_str("UHF").unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -327,6 +363,9 @@ mod tests {
 
         let shell = component_ids::ComponentIds::SHELL;
         assert_eq!(shell.to_string(), "SHELL");
+
+        let uhf = component_ids::ComponentIds::UHF;
+        assert_eq!(uhf.to_string(), "UHF");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");

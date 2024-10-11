@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     int ret = 0;                          // used for assessing returns of various fxn calls
     int ready;                            // how many fd are ready from the poll (have return event)
 
-    int num_components = 7;
+    int num_components = 8;
     ComponentStruct *iris_handler = component_factory("iris_handler", IRIS);
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *adcs_handler = component_factory("adcs_handler", ADCS);
@@ -37,9 +37,11 @@ int main(int argc, char *argv[])
     ComponentStruct *shell_handler = component_factory("shell_handler", SHELL);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
     ComponentStruct *bulk_dispatcher = component_factory("bulk_disp", BULK_MSG_DISPATCHER);
+    ComponentStruct *uhf_handler = component_factory("uhf_handler", UHF);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[7] = {adcs_handler, dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, shell_handler, test_handler};
+    ComponentStruct *components[8] = {adcs_handler, dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, shell_handler, test_handler, uhf_handler};
+
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling
