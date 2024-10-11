@@ -16,7 +16,7 @@ pub mod ports {
 /// Each thing that can emit or receive a message has an associated ID. Each message header includes this id for source and destination.
 /// Referencing this page:
 pub mod component_ids {
-    use std::fmt;
+    use std::fmt::{self, write};
     use std::str::FromStr;
     use strum::EnumIter;
 
@@ -44,7 +44,8 @@ pub mod component_ids {
         COMS = 7,
         BulkMsgDispatcher = 8,
         CMD = 9,
-        LAST = 10,
+        SHELL = 10,
+        LAST = 11,
     }
 
     impl fmt::Display for ComponentIds {
@@ -60,6 +61,7 @@ pub mod component_ids {
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::CMD => write!(f, "CMD"),
+                ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::LAST => write!(f, "illegal"),
             }
         }
