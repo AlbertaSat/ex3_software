@@ -167,7 +167,7 @@ impl ADCSHandler {
     pub fn run(&mut self) -> std::io::Result<()> {
         loop {
             if let Ok((n, _)) =
-                poll_ipc_clients(&mut vec![self.dispatcher_interface.as_mut().unwrap()])
+                poll_ipc_clients(&mut vec![&mut self.dispatcher_interface])
             {
                 if n > 0 {
                     let mut socket_buf = self.dispatcher_interface.as_mut().unwrap().read_buffer();
@@ -300,7 +300,7 @@ fn main() -> Result<(), Error> {
     let adcs_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_ADCS_PORT);
 
     //Create IPC interface for ADCS handler to talk to message dispatcher
-    let dispatcher_interface = IpcClient::new("adcs_handler".to_string());
+    let dispatcher_interface = IpcClient::new("ADCS".to_string());
 
     //Create ADCS handler
     let mut adcs_handler = ADCSHandler::new(adcs_interface, dispatcher_interface);

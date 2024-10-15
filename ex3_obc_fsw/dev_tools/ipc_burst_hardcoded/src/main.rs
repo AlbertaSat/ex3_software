@@ -28,7 +28,7 @@ fn main() {
     println!("Attempting to send: {:?}", msg_bytes);
 
     // Send the msg
-    ipc_write(ipc_interface.fd, &msg_bytes).unwrap();
+    ipc_write(&ipc_interface.fd, &msg_bytes).unwrap();
 
     println!("Sent successful");
 
