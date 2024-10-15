@@ -39,12 +39,22 @@ impl ShellHandler {
     pub fn run(&mut self) -> std::io::Result<()> {
         // Poll for messages
         loop {
-            let msg_dispatcher_interface = self.msg_dispatcher_interface.as_mut().expect("msg_dispatcher_interface has value of None");
+            // First, take the Option<IpcClient> out of `self.dispatcher_interface`
+            // This consumes the Option, so you can work with the owned IpcClient
+            let msg_dispatcher_interface = self.msg_dispatcher_interface.take().expect("Cmd_Disp has value of None");
 
-            let mut clients = vec![
-                msg_dispatcher_interface,
+            // Create a mutable Option<IpcClient> so its lifetime persists
+            let mut msg_dispatcher_interface_option = Some(msg_dispatcher_interface);
+
+            // Now you can borrow this mutable option and place it in the vector
+            let mut clients: Vec<&mut Option<IpcClient>> = vec![
+                &mut msg_dispatcher_interface_option,
             ];
+
             poll_ipc_clients(&mut clients)?;
+
+            // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
+            self.msg_dispatcher_interface = msg_dispatcher_interface_option;
 
             // Handling the bulk message dispatcher interface
             let msg_dispatcher_interface = self.msg_dispatcher_interface.as_ref().unwrap();

@@ -199,7 +199,7 @@ impl IRISHandler {
 
             poll_ipc_clients(&mut clients)?;
 
-            // You can optionally restore the value back into `self.dispatcher_interface` after polling
+            // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.dispatcher_interface = msg_dispatcher_interface_option;
 
 
