@@ -86,9 +86,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
     } else {
         opcode = operator_str_split[1].parse::<u8>().unwrap();
 
-        for data_byte in operator_str_split[2..].iter() {
-        msg_body.push(data_byte.parse::<u8>().unwrap());
-        }
+        msg_body.extend(operator_str_split[2..].join(" ").bytes());
     }
     
     let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
@@ -318,7 +316,7 @@ async fn main() {
                     );
                     
                 }
-                println!("Received Data: {:?}", read_buf);
+                println!("Received Message: {:?}, body {:?} = {}", recvd_msg.header, recvd_msg.msg_body,String::from_utf8(recvd_msg.msg_body.clone()).unwrap());
             } else {
                 // Deallocate memory of these messages. Reconstructed version 
                 // has been written to a file. This is slightly slower than .clear() though

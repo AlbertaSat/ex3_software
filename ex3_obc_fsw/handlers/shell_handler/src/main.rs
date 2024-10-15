@@ -12,17 +12,24 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 */
 
 use std::io::Error;
-use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use std::process::{Command, Stdio};
+
+use common::component_ids::ComponentIds::{GS, SHELL};
+use common::constants::DONWLINK_MSG_BODY_SIZE;
+use ipc::{ipc_write, poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use log::{debug, trace, warn};
+use logging::*;
 use message_structure::*;
 
 struct ShellHandler {
     msg_dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC]
+    gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
 impl ShellHandler {
     pub fn new(
         msg_dispatcher_interface: Result<IpcClient, std::io::Error>,
+        gs_interface: Result<IpcClient, std::io::Error>,
     ) -> ShellHandler {
         if msg_dispatcher_interface.is_err() {
             warn!(
@@ -30,8 +37,15 @@ impl ShellHandler {
                 msg_dispatcher_interface.as_ref().err().unwrap()
             );
         }
+        if gs_interface.is_err() {
+            warn!(
+                "Error creating gs interface: {:?}",
+                gs_interface.as_ref().err().unwrap()
+            );
+        }
         ShellHandler {
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
+            gs_interface: gs_interface.ok(),
         }
     }
 
@@ -69,18 +83,47 @@ impl ShellHandler {
 
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
-        println!("SHELL msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+
+        trace!("SHELL msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+
+        let body = String::from_utf8(msg.msg_body).unwrap();
+        let body_split = body.split(" ").collect::<Vec<_>>();
+
+        let mut command = Command::new(body_split[0]);
+        for arg in &body_split[1..] {
+            command.arg(arg);
+        }
+
+        // TODO K: commands should gracefully fail
+        let out = command.stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to start process")
+            .wait_with_output()
+            .expect("Failed to wait on child");
+
+        trace!("command outputted: {}", String::from_utf8(out.stdout.clone()).unwrap());
+
+        for chunk in out.stdout.chunks(DONWLINK_MSG_BODY_SIZE) {
+            let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
+            let _ = ipc_write(&self.gs_interface.as_ref().unwrap().fd, &serialize_msg(&msg)?);
+        }
+
         Ok(())
     }
 }
 
 fn main() {
+    let log_path = "ex3_obc_fsw/handlers/shell_handler/logs";
+    init_logger(log_path);
+
     trace!("Starting Shell Handler...");
 
     // Create Unix domain socket interface for to talk to message dispatcher
     let msg_dispatcher_interface = IpcClient::new("shell_handler".to_string());
 
-    let mut shell_handler = ShellHandler::new(msg_dispatcher_interface);
+    let gs_interface = IpcClient::new("gs_non_bulk".to_string());
+
+    let mut shell_handler = ShellHandler::new(msg_dispatcher_interface, gs_interface);
 
     let _ = shell_handler.run();
 }

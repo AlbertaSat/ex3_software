@@ -114,6 +114,9 @@ pub mod component_ids {
 /// For constants that are used across the entire project
 pub mod constants {
     pub const UHF_MAX_MESSAGE_SIZE_BYTES: u8 = 128;
+
+    // Something up with the slicing makes this number be the size that each packet ends up 128B
+    pub const DONWLINK_MSG_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number)
 }
 
 /// Here opcodes and their associated meaning are defined for each component

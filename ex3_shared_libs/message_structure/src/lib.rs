@@ -314,9 +314,8 @@ impl Msg {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let header_bytes = &bytes[0..HEADER_SIZE];
-        let msg_body = bytes[HEADER_SIZE..].to_vec();
-        let header = MsgHeader::from_bytes(header_bytes)?;
+        let header = MsgHeader::from_bytes(&bytes[0..HEADER_SIZE])?;
+        let msg_body = bytes[HEADER_SIZE..header.msg_len as usize].to_vec(); // don't include trailing nulls in body
         Ok(Msg { header, msg_body })
     }
 }
