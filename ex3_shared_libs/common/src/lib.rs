@@ -263,10 +263,10 @@ mod tests {
         let gps = component_ids::ComponentIds::try_from(5).unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
-        let gs = component_ids::ComponentIds::try_from(7).unwrap();
+        let gs = component_ids::ComponentIds::try_from(6).unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
-        let coms = component_ids::ComponentIds::try_from(8).unwrap();
+        let coms = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
