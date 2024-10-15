@@ -23,9 +23,6 @@ use std::os::fd::OwnedFd;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
 
-// Something up with the slicing makes this number be the size that each packet ends up 128B
-// const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
-
 /// Setup function for decrypting incoming messages from the UHF transceiver
 /// This just decrypts the bytes and does not return a message from the bytes
 fn decrypt_bytes_from_gs(encrypted_bytes: &[u8]) -> Result<&[u8], std::io::Error> {
@@ -170,6 +167,8 @@ fn main() {
     let mut bulk_msgs_read = 0;
     let mut expected_msgs = 0;
 
+    let mut gs_interface_non_bulk: IpcServer = IpcServer::new("gs_non_bulk".to_string()).unwrap();
+
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
@@ -299,7 +298,24 @@ fn main() {
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
             let ack_msg = Msg::new(0, ack_msg_id, GS, COMS, 200, ack_msg_body);
             write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), ack_msg);
-            // uhf_buf.clear(); //FOR SOME REASON CLEARING THE BUFFERS WOULD CAUSE THE CONNECTION TO DROP AFTER A SINGLE MSG IS READ
+            uhf_buf.fill(0);
+        }
+
+        // Handle regular messages for GS
+        let mut servers: Vec<&mut IpcServer> = vec![&mut gs_interface_non_bulk];
+        poll_ipc_server_sockets(&mut servers);
+        if gs_interface_non_bulk.buffer != [0u8; IPC_BUFFER_SIZE] {
+            trace!("GS msg server \"{}\" received data", gs_interface_non_bulk.socket_path);
+            match deserialize_msg(&gs_interface_non_bulk.buffer) {
+                Ok(msg) => {
+                    trace!("got {:?}", msg);
+                    write_msg_to_uhf_for_downlink(&mut tcp_interface, msg);
+                    gs_interface_non_bulk.clear_buffer();
+                }
+                Err(err) => {
+                    warn!("Error deserialising message for gs ({:?})", err);
+                }
+            }
         }
     }
 }

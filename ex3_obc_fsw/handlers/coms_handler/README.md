@@ -1,6 +1,6 @@
 # Coms Handler
 
-The coms handler is the first and last part of the OBC FSW (aside from the interface the faciliates phsyical communication with the transceiver) for data communicated with the ground station (downlink and uplink).
+The coms handler is the first and last part of the OBC FSW (aside from the interface that facilitates physical communication with the transceiver) for data communicated with the ground station (downlink and uplink).
 
 ## Scope of the Coms handler
 
