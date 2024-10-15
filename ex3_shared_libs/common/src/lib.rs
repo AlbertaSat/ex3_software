@@ -16,7 +16,7 @@ pub mod ports {
 /// Each thing that can emit or receive a message has an associated ID. Each message header includes this id for source and destination.
 /// Referencing this page:
 pub mod component_ids {
-    use std::fmt::{self, write};
+    use std::fmt::{self};
     use std::str::FromStr;
     use strum::EnumIter;
 

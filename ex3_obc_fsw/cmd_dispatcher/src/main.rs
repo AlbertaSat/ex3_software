@@ -35,7 +35,7 @@ fn main() {
         };
         match component_streams.get(x) {
             Some(element) => match element {
-                Some(e) => {
+                Some(_e) => {
                     println!("{} connected", payload);
                 }
                 None => {
@@ -56,7 +56,7 @@ fn main() {
 
     loop {
         let mut clients = vec![&mut cmd_client];
-        let (s,bytes) = match poll_ipc_clients(&mut clients) {
+        let (_s,_bytes) = match poll_ipc_clients(&mut clients) {
             Ok((bytes, sock)) => (bytes,sock),
             Err(e) => {
                 eprintln!("read error: {}", e);

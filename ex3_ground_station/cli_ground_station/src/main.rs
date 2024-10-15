@@ -16,7 +16,6 @@ use bulk_msg_slicing::*;
 use common::*;
 use libc::c_int;
 use message_structure::*;
-use ports::SIM_UHF_GS_PORT;
 use std::fs::File;
 use std::path::Path;
 use tcp_interface::*;
