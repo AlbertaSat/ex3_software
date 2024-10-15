@@ -184,14 +184,25 @@ impl IRISHandler {
             // Sleep to prevent busy waiting
             // TODO - is ths necessary? What condition does this prevent? It works without sleep
             thread::sleep(Duration::from_millis(500));
+            
+            // First, take the Option<IpcClient> out of `self.dispatcher_interface`
+            // This consumes the Option, so you can work with the owned IpcClient
+            let msg_dispatcher_interface = self.dispatcher_interface.take().expect("Cmd_Disp has value of None");
 
-            // Declare ipc interfaces we connect to
-            let msg_dispatcher_interface = self.dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
+            // Create a mutable Option<IpcClient> so its lifetime persists
+            let mut msg_dispatcher_interface_option = Some(msg_dispatcher_interface);
 
-            let mut clients = vec![
-                msg_dispatcher_interface,
+            // Now you can borrow this mutable option and place it in the vector
+            let mut clients: Vec<&mut Option<IpcClient>> = vec![
+                &mut msg_dispatcher_interface_option,
             ];
+
             poll_ipc_clients(&mut clients)?;
+
+            // You can optionally restore the value back into `self.dispatcher_interface` after polling
+            self.dispatcher_interface = msg_dispatcher_interface_option;
+
+
             
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.dispatcher_interface.as_mut() {
@@ -383,6 +394,9 @@ fn main() {
     let log_path = "ex3_obc_fsw/handlers/iris_handler/logs";
     init_logger(log_path);
     
-    trace!("Beginning IRIS Handler...");
-    let _ = iris_handler.run();
+    //Start the IRIS handler
+    match iris_handler.run() {
+        Ok(_) => debug!("IRIS handler run successfully."),
+        Err(e) => debug!("Error running IRIS handler: {}", e),
+    }
 }
