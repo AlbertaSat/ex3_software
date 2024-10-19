@@ -14,6 +14,7 @@ pub trait Interface {
 
 // Structure for I2C Interface, i2c is the actual interface while the slave address is where data
 // is going to be written and/or read from
+#[allow(dead_code)]
 pub struct I2cDeviceInterface {
     device: LinuxI2CDevice,
     bus_path: String,
@@ -49,11 +50,13 @@ impl I2cDeviceInterface {
     }
 
     // This function writes a single byte to a specific register of a SMbus device
+    #[allow(dead_code)]
     fn send_byte(&mut self, register: u8, byte: u8) -> Result<(), LinuxI2CError> {
         self.device.smbus_write_byte_data(register, byte)
     }
 
     // This function reads a single byte from a specific register of a SMbus device
+    #[allow(dead_code)]
     fn read_byte(&mut self, address: u8) -> Result<u8, LinuxI2CError> {
         self.device.smbus_read_byte_data(address)
     }
