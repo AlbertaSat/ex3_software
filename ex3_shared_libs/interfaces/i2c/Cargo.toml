@@ -1,9 +1,7 @@
 [package]
-name = "i2c_interface"
+name = "i2c"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nix = "0.26.2"
-message_structure = { path = "../../message_structure" }
 i2cdev = "0.6.1"
