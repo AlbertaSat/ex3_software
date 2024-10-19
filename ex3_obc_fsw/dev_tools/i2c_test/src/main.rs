@@ -1,6 +1,5 @@
-use core::panicking::panic;
 use i2c::*;
-use std::{thread::sleep, time};
+use std::{process::exit, thread::sleep, time};
 // Enter I2C bus path here
 const BUS_PATH: &str = "/dev/i2c-___";
 
@@ -60,7 +59,7 @@ fn main() {
             Err(e) => {
                 println!("Error reading from device.");
                 println!("{}", e);
-                panic!();
+                exit(-1);
             }
         }
     }
