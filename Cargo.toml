@@ -21,5 +21,5 @@ members = [
     "ex3_shared_libs/interfaces/i2c",
     "ex3_shared_libs/logging",
     "ex3_shared_libs/message_structure",
-    "ex3_shared_libs/tcp_interface",
+    "ex3_shared_libs/tcp_interface", "ex3_obc_fsw/dev_tools/i2c_test",
 ]
