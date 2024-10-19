@@ -13,7 +13,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use ipc::{poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
 use tcp_interface::*;
@@ -39,13 +39,13 @@ const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
 struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
-    msg_dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
-        msg_dispatcher_interface: Result<IpcClient, std::io::Error>,
+        msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -98,12 +98,12 @@ impl DFGMHandler {
         // Read and poll for input for a message
         loop {
             // Borrowing the dispatcher interfaces
-            let msg_dispatcher_interface = self.msg_dispatcher_interface.as_mut().expect("Cmd_Msg_Disp has value of None");
+            // let msg_dispatcher_interface = self.msg_dispatcher_interface;
 
             let mut clients = vec![
-                msg_dispatcher_interface,
+                &mut self.msg_dispatcher_interface,
             ];
-            poll_ipc_clients(&mut clients)?;
+            poll_ipc_server_sockets(&mut clients);
             
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
@@ -157,7 +157,8 @@ fn main() -> Result<(), Error> {
     let dfgm_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_DFGM_PORT);
 
     //Create Unix domain socket interface for DFGM handler to talk to command message dispatcher
-    let msg_dispatcher_interface = IpcClient::new("dfgm_handler".to_string());
+    // Interface for IPC of cmd_dispatcher cmds that get sent up with a certain destination
+    let msg_dispatcher_interface = IpcServer::new("DFGM".to_string());
 
     //Create DFGM handler
     let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface);

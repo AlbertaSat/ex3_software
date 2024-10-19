@@ -27,14 +27,14 @@ fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
             //write first hardcoded msg to ipc client
             let msg = CmdMsg::new(1, ComponentIds::SHELL as u8, 3, 0, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(ipc_server.data_fd, serialized_msg.as_slice())
+            ipc_write(&ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
         }
         '2' => {
             println!("Sending msg 2");
             //write first hardcoded msg to ipc client
             let msg = CmdMsg::new(2, ComponentIds::SHELL as u8, 3, 1, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(ipc_server.data_fd, serialized_msg.as_slice())
+            ipc_write(&ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
         }
         _ => {
             println!("Invalid input");
@@ -70,13 +70,14 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut ipc_server = IpcServer::new(args[1].clone()).unwrap();
+    let mut ipc_server = Some(IpcServer::new(args[1].clone()).unwrap());
 
     loop {
-        poll_ipc_server_sockets(&mut [&mut ipc_server]);
-        if ipc_server.buffer != [0u8; IPC_BUFFER_SIZE] {
-            println!("Received message from ipc client {:?}", ipc_server.buffer);
-            ipc_server.clear_buffer();
+        let mut servers = vec![&mut ipc_server];
+        poll_ipc_server_sockets(&mut servers);
+        if ipc_server.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
+            println!("Received message from ipc client {:?}", ipc_server.as_ref().unwrap().buffer);
+            ipc_server.as_mut().unwrap().clear_buffer();
         }
 
         // Poll stdin for user input
@@ -85,7 +86,7 @@ fn main() {
         if let Some(bytes_read) = stdin_read_res {
             if bytes_read > 0 {
                 println!("Received user input: {:?}", stdin_buf);
-                handle_user_input(stdin_buf.as_slice(), &mut ipc_server);
+                handle_user_input(stdin_buf.as_slice(), &mut ipc_server.as_mut().unwrap());
             }
         }
     }
