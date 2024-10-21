@@ -49,61 +49,59 @@ fn main() -> Result<(), IoError> {
     
         poll_ipc_server_sockets(&mut servers);
     
-        for server_opt in servers {
-            if let Some(server) = server_opt {
-                if let Some(msg) = handle_client(server)? {
-                    if server.socket_path.contains("gs_bulk") {
-                        if msg.header.msg_type == MsgType::Ack as u8 {
-                            // Handle ACK message
-                            if msg.msg_body[0] == 0 {
-                                for (i, message) in messages.iter().enumerate() {
-                                    let serialized_msgs = serialize_msg(message)?;
-                                    trace!("Sending {} B", serialized_msgs.len());
-                                    if let Some(data_fd) = &server.data_fd {
-                                        ipc_write(data_fd, &serialized_msgs)?;
-                                    } else {
-                                        warn!("No data file descriptor found in coms_interface.");
-                                        break;
-                                    }
-                                    trace!("Sent msg #{}", i + 1);
-                                    thread::sleep(Duration::from_millis(100));
+        for server in servers.into_iter().flatten() {
+            if let Some(msg) = handle_client(server)? {
+                if server.socket_path.contains("gs_bulk") {
+                    if msg.header.msg_type == MsgType::Ack as u8 {
+                        // Handle ACK message
+                        if msg.msg_body[0] == 0 {
+                            for (i, message) in messages.iter().enumerate() {
+                                let serialized_msgs = serialize_msg(message)?;
+                                trace!("Sending {} B", serialized_msgs.len());
+                                if let Some(data_fd) = &server.data_fd {
+                                    ipc_write(data_fd, &serialized_msgs)?;
+                                } else {
+                                    warn!("No data file descriptor found in coms_interface.");
+                                    break;
                                 }
-                            } else {
-                                todo!();
+                                trace!("Sent msg #{}", i + 1);
+                                thread::sleep(Duration::from_millis(100));
                             }
+                        } else {
+                            todo!();
                         }
-                    } else if server.socket_path.contains("BulkMsgDispatcher") {
-                        let path_bytes: Vec<u8> = msg.msg_body.clone();
-                        let path = get_path_from_bytes(path_bytes)?;
-                        match get_data_from_path(&path) {
-                            Ok(bulk_msg) => {
-                                trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
-                                messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
-        
-                                let first_msg = messages[0].clone();
-                                num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
-                                num_bytes = bulk_msg.msg_body.len() as u64;
-                                trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
-        
-                                server.clear_buffer();
-                            }
-                            Err(e) => {
-                                warn!("Error reading data from path: {}", e);
-                            }
+                    }
+                } else if server.socket_path.contains("BulkMsgDispatcher") {
+                    let path_bytes: Vec<u8> = msg.msg_body.clone();
+                    let path = get_path_from_bytes(path_bytes)?;
+                    match get_data_from_path(&path) {
+                        Ok(bulk_msg) => {
+                            trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
+                            messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
+    
+                            let first_msg = messages[0].clone();
+                            num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
+                            num_bytes = bulk_msg.msg_body.len() as u64;
+                            trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
+    
+                            server.clear_buffer();
+                        }
+                        Err(e) => {
+                            warn!("Error reading data from path: {}", e);
                         }
                     }
                 }
-                if messages.len() > 1 {
-                    // doesn't work right now! Donwlink broken :(
-                    if let Some(data_fd) = &server.data_fd {
-                        // Want to write to gs_bulk, not BulkMsgDispatcher fd
-                        send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
-                    } else {
-                        warn!("No data file descriptor found in coms_interface.");
-                    }
-                    messages = Vec::new();
-                    server.clear_buffer();
+            }
+            if messages.len() > 1 {
+                // doesn't work right now! Donwlink broken :(
+                if let Some(data_fd) = &server.data_fd {
+                    // Want to write to gs_bulk, not BulkMsgDispatcher fd
+                    send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
+                } else {
+                    warn!("No data file descriptor found in coms_interface.");
                 }
+                messages = Vec::new();
+                server.clear_buffer();
             }
             
         }

@@ -180,7 +180,7 @@ fn main() {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
         let mut servers = vec![&mut ipc_coms_interface, &mut ipc_cmd_interface];
-        let _coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
+        poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if let Some(ref mut init_ipc_gs_interface) = ipc_gs_interface {
@@ -204,7 +204,7 @@ fn main() {
                             expected_msgs = u16::from_le_bytes(expected_msgs_bytes);
                             trace!("Expecting {} 4KB msgs", expected_msgs);
                             // Send msg containing num of 4KB msgs and num of bytes to expect
-                            send_initial_bulk_to_gs(deserialized_msg, &mut tcp_interface.as_mut().unwrap());
+                            send_initial_bulk_to_gs(deserialized_msg, tcp_interface.as_mut().unwrap());
                         } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
                             && received_bulk_ack
                         {   
@@ -216,7 +216,7 @@ fn main() {
                                         let cur_buf = init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
                                         println!("Bytes read: {}", cur_buf.len());
                                         let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                        write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), cur_msg);
+                                        write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), cur_msg);
                                         bulk_msgs_read += 1;
                                     }
                                 } else {
@@ -224,7 +224,7 @@ fn main() {
                                 }
                             }
                         } else {
-                            let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), deserialized_msg);
+                            write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), deserialized_msg);
                         }
                     }
                     Err(e) => {
@@ -285,7 +285,7 @@ fn main() {
                 Ok(decrypted_byte_vec) => {
                     if let Some(ref mut init_ipc_cmd_interface) = ipc_cmd_interface {
                         if let Some(fd) = init_ipc_cmd_interface.data_fd.as_ref() {
-                            let _ = ipc_write(&fd, &decrypted_byte_vec);
+                            let _ = ipc_write(fd, decrypted_byte_vec);
                         }
                     }
                     
@@ -304,7 +304,7 @@ fn main() {
             // OK -> if decryption and msg deserialization of bytes succeeds
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
             let ack_msg = Msg::new(0, ack_msg_id, GS, COMS, 200, ack_msg_body);
-            write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), ack_msg);
+            write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), ack_msg);
             uhf_buf.fill(0);
         }
 
@@ -316,7 +316,7 @@ fn main() {
             match deserialize_msg(&gs_interface_non_bulk.as_mut().unwrap().buffer) {
                 Ok(msg) => {
                     trace!("got {:?}", msg);
-                    write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), msg);
+                    write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), msg);
                     gs_interface_non_bulk.as_mut().unwrap().clear_buffer();
                 }
                 Err(err) => {

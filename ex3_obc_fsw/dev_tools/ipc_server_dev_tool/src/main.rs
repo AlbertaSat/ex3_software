@@ -27,14 +27,14 @@ fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
             //write first hardcoded msg to ipc client
             let msg = CmdMsg::new(1, ComponentIds::SHELL as u8, 3, 0, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(&ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
+            ipc_write(ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
         }
         '2' => {
             println!("Sending msg 2");
             //write first hardcoded msg to ipc client
             let msg = CmdMsg::new(2, ComponentIds::SHELL as u8, 3, 1, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(&ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
+            ipc_write(ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
         }
         _ => {
             println!("Invalid input");
@@ -86,7 +86,7 @@ fn main() {
         if let Some(bytes_read) = stdin_read_res {
             if bytes_read > 0 {
                 println!("Received user input: {:?}", stdin_buf);
-                handle_user_input(stdin_buf.as_slice(), &mut ipc_server.as_mut().unwrap());
+                handle_user_input(stdin_buf.as_slice(), ipc_server.as_mut().unwrap());
             }
         }
     }
