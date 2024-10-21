@@ -45,6 +45,7 @@ pub mod component_ids {
         BulkMsgDispatcher = 8,
         CMD = 9,
         SHELL = 10,
+        UHF = 13,
         LAST = 11,
     }
 
@@ -62,6 +63,7 @@ pub mod component_ids {
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
+                ComponentIds::UHF => write!(f, "UHF"),
                 ComponentIds::LAST => write!(f, "illegal"),
             }
         }
@@ -81,6 +83,8 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
                 "CMD" => Ok(ComponentIds::CMD),
+                "SHELL" => Ok(ComponentIds::SHELL),
+                "UHF" => Ok(ComponentIds::UHF),
                 "LAST" => Err(()),
                 _ => Err(()),
             }
@@ -102,13 +106,17 @@ pub mod component_ids {
                 x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
-                x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
+                x if x == ComponentIds::BulkMsgDispatcher as u8 => {
+                    Ok(ComponentIds::BulkMsgDispatcher)
+                }
+                x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
+                x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
                 x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
                 x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
         }
-    }    
+    }
 }
 
 /// For constants that are used across the entire project
@@ -144,6 +152,16 @@ pub mod opcodes {
         DelImage = 8,
         GetImageSize = 9,
         Error = 99,
+    }
+    pub enum UHF {
+        GetHK = 3,
+        SetBeacon = 4,
+        GetBeacon = 5,
+        SetBaudRate = 6,
+        Reset = 7,
+        GetBaudRate = 8,
+        //...
+        Error = 10,
     }
 
     impl From<u8> for COMS {
@@ -186,6 +204,20 @@ pub mod opcodes {
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for UHF {
+        fn from(value: u8) -> Self {
+            match value {
+                3 => UHF::GetHK,
+                4 => UHF::SetBeacon,
+                5 => UHF::GetBeacon,
+                6 => UHF::SetBaudRate,
+                7 => UHF::Reset,
+                8 => UHF::GetBaudRate,
+                _ => UHF::Error, // or choose a default value or handle the error in a different way
             }
         }
     }
@@ -269,6 +301,12 @@ mod tests {
         let coms = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
+        let shell = component_ids::ComponentIds::try_from(12).unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
+
+        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -296,6 +334,12 @@ mod tests {
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
+        let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
+
+        let uhf = component_ids::ComponentIds::from_str("UHF").unwrap();
+        assert_eq!(uhf, component_ids::ComponentIds::UHF);
+
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
     }
@@ -322,6 +366,15 @@ mod tests {
 
         let coms = component_ids::ComponentIds::COMS;
         assert_eq!(coms.to_string(), "COMS");
+
+        let obc = component_ids::ComponentIds::OBC;
+        assert_eq!(obc.to_string(), "OBC");
+
+        let shell = component_ids::ComponentIds::SHELL;
+        assert_eq!(shell.to_string(), "SHELL");
+
+        let uhf = component_ids::ComponentIds::UHF;
+        assert_eq!(uhf.to_string(), "UHF");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");
