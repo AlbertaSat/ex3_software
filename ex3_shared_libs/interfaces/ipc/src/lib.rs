@@ -87,13 +87,13 @@ impl IpcClient {
         tmp
     }
 }
-///
+
 pub fn poll_ipc_clients(clients: &mut Vec<&mut Option<IpcClient>>) -> Result<(usize, String), std::io::Error> {
     //Create poll fd instances for each client
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
     for client in &mut *clients {
         // Poll data_fd for incoming data
-        if let None = client {
+        if client.is_none() {
             return Ok((0,"".to_string()));
         }
         poll_fds.push(libc::pollfd {
@@ -226,13 +226,13 @@ impl IpcServer {
 
 /// Takes a vector of mutable referenced IpcServers and polls them for incoming data
 /// The IpcServers must be mutable because the connected state and data_fd are mutated in the polling loop
-pub fn poll_ipc_server_sockets(servers: &mut Vec<&mut Option<IpcServer>>) {
+pub fn poll_ipc_server_sockets(servers: &mut [&mut Option<IpcServer>]) {
     let mut poll_fds: Vec<libc::pollfd> = Vec::new();
 
     // Add poll descriptors based on the server's connection state
     for server in servers.iter_mut() {
         // Handle case where server is None
-        if let None = server {
+        if server.is_none() {
             return;
         } else if !server.as_ref().unwrap().connected {
             // Poll conn_fd for incoming connections
