@@ -11,7 +11,6 @@ TODO - mucho error handling
 use log::{debug, trace, warn};
 use logging::*;
 
-use common::component_ids::ComponentIds;
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
@@ -21,9 +20,9 @@ use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
-use uhf_handler::UHFHandler;
-use uhf_handler::{handle_uhf_cmd, handle_uhf_cmd_test};
 mod uhf_handler;
+use uhf_handler::UHFHandler;
+
 // Something up with the slicing makes this number be the size that each packet ends up 128B
 // const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
 
@@ -152,6 +151,19 @@ fn main() {
         }
     };
 
+    // Setup interface for comm between cmd-dispatcher and uhf-handler
+    let ipc_uhf_handler_interfac_res = IpcClient::new("uhf_handler".to_string());
+    let mut ipc_uhf_handler_interface = match ipc_uhf_handler_interfac_res {
+        Ok(i) => Some(i),
+        Err(e) => {
+            warn!("Cannot connect to UHF interface: {e}");
+            None
+        }
+    };
+
+    // Initalize the UHF handler
+    let mut uhf_handler = UHFHandler::new();
+
     std::thread::sleep(std::time::Duration::from_secs(3));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
@@ -162,16 +174,6 @@ fn main() {
                 None
             }
         };
-    // Set up IPC interface for UHF handler
-    let ipc_uhf_interface_res = IpcClient::new("uhf_handler".to_string());
-    if ipc_uhf_interface_res.is_err() {
-        warn!(
-            "Error creating IPC interface: {:?}",
-            ipc_uhf_interface_res.err()
-        );
-        return;
-    }
-    let mut ipc_uhf_interface = ipc_uhf_interface_res.unwrap();
 
     let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
@@ -267,17 +269,7 @@ fn main() {
                     Ok(deserialized_msg) => {
                         trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                         // Handles msg internally for COMS
-                        match ComponentIds::from(deserialized_msg.header.dest_id) {
-                            ComponentIds::COMS => {
-                                handle_msg_for_coms(&deserialized_msg);
-                            }
-                            ComponentIds::UHF => {
-                                handle_uhf_cmd_test(&mut tcp_interface, &deserialized_msg);
-                            }
-                            _ => {
-                                warn!("Invalid ComponentId");
-                            }
-                        }
+                        handle_msg_for_coms(&deserialized_msg);
                     }
                     Err(e) => {
                         warn!("Error deserializing COMS IPC msg: {:?}", e);
@@ -285,6 +277,28 @@ fn main() {
                     }
                 };
                 init_ipc_coms_interface.clear_buffer();
+            }
+        }
+
+        if let Some(ref mut init_uhf_handler_interface) = ipc_uhf_handler_interface {
+            if init_uhf_handler_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+                trace!("Received UHF Handler IPC Msg bytes");
+                let deserialized_msg_result = deserialize_msg(&init_uhf_handler_interface.buffer);
+                match deserialized_msg_result {
+                    Ok(deserialized_msg) => {
+                        trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
+                        // Handles msg internally for COMS
+                        uhf_handler.handle_msg_for_uhf(
+                            &mut tcp_interface.as_mut().unwrap(),
+                            &deserialized_msg,
+                        )
+                    }
+                    Err(e) => {
+                        warn!("Error deserializing COMS IPC msg: {:?}", e);
+                        //Handle deserialization of IPC msg failure
+                    }
+                };
+                init_uhf_handler_interface.clear_buffer();
             }
         }
 
