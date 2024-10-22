@@ -16,19 +16,19 @@ use std::process::{Command, Stdio};
 
 use common::component_ids::ComponentIds::{GS, SHELL};
 use common::constants::DONWLINK_MSG_BODY_SIZE;
-use ipc::{ipc_write, poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use ipc::{ipc_write, poll_ipc_server_sockets, IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use log::{debug, trace, warn};
 use logging::*;
 use message_structure::*;
 
 struct ShellHandler {
-    msg_dispatcher_interface: Option<IpcClient>, // For communcation with other FSW components [internal to OBC]
+    msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
 impl ShellHandler {
     pub fn new(
-        msg_dispatcher_interface: Result<IpcClient, std::io::Error>,
+        msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
         gs_interface: Result<IpcClient, std::io::Error>,
     ) -> ShellHandler {
         if msg_dispatcher_interface.is_err() {
@@ -61,11 +61,11 @@ impl ShellHandler {
             let mut msg_dispatcher_interface_option = Some(msg_dispatcher_interface);
 
             // Now you can borrow this mutable option and place it in the vector
-            let mut clients: Vec<&mut Option<IpcClient>> = vec![
+            let mut server: Vec<&mut Option<IpcServer>> = vec![
                 &mut msg_dispatcher_interface_option,
             ];
 
-            poll_ipc_clients(&mut clients)?;
+            poll_ipc_server_sockets(&mut server);
 
             // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;
@@ -105,7 +105,12 @@ impl ShellHandler {
 
         for chunk in out.stdout.chunks(DONWLINK_MSG_BODY_SIZE) {
             let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
-            let _ = ipc_write(&self.gs_interface.as_ref().unwrap().fd, &serialize_msg(&msg)?);
+            if let Some(gs_resp_interface) = &self.gs_interface {
+                let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
+            } else {
+                debug!("Response not sent to gs. IPC interface not created");
+            }
+            
         }
 
         Ok(())
@@ -119,7 +124,7 @@ fn main() {
     trace!("Starting Shell Handler...");
 
     // Create Unix domain socket interface for to talk to message dispatcher
-    let msg_dispatcher_interface = IpcClient::new("shell_handler".to_string());
+    let msg_dispatcher_interface = IpcServer::new("SHELL".to_string());
 
     let gs_interface = IpcClient::new("gs_non_bulk".to_string());
 

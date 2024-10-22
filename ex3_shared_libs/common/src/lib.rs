@@ -77,7 +77,6 @@ pub mod component_ids {
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
-                //...
                 "SHELL" => Ok(ComponentIds::SHELL),
                 "LAST" => Err(()),
                 _ => Err(()),

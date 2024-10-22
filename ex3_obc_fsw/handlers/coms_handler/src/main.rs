@@ -149,6 +149,15 @@ fn main() {
         }
     };
 
+    let mut gs_interface_non_bulk: Option<IpcServer> =
+        match IpcServer::new("gs_non_bulk".to_string()) {
+            Ok(server) => Some(server),
+            Err(e) => {
+                warn!("Error creating server to collect messages for ground station: {e}");
+                None
+            }
+        };
+
 
     std::thread::sleep(std::time::Duration::from_secs(3));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
@@ -166,15 +175,6 @@ fn main() {
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
     let mut expected_msgs = 0;
-
-    let mut gs_interface_non_bulk: Option<IpcServer> =
-        match IpcServer::new("gs_non_bulk".to_string()) {
-            Ok(server) => Some(server),
-            Err(e) => {
-                warn!("Error creating server to collect messages for ground station: {e}");
-                None
-            }
-        };
 
     loop {
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
