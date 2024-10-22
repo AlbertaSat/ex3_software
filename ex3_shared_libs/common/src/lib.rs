@@ -40,10 +40,9 @@ pub mod component_ids {
         DFGM = 3,
         IRIS = 4,
         GPS = 5,
-        GS = 6,
-        COMS = 7,
-        BulkMsgDispatcher = 8,
-        CMD = 9,
+        GS = 7,
+        COMS = 8,
+        BulkMsgDispatcher = 9,
         SHELL = 10,
         LAST = 11,
     }
@@ -60,7 +59,6 @@ pub mod component_ids {
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
-                ComponentIds::CMD => write!(f, "CMD"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::LAST => write!(f, "illegal"),
             }
@@ -80,7 +78,7 @@ pub mod component_ids {
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 //...
-                "CMD" => Ok(ComponentIds::CMD),
+                "SHELL" => Ok(ComponentIds::SHELL),
                 "LAST" => Err(()),
                 _ => Err(()),
             }
@@ -103,12 +101,12 @@ pub mod component_ids {
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
-                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
+                x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
         }
-    }    
+    }
 }
 
 /// For constants that are used across the entire project
@@ -266,11 +264,14 @@ mod tests {
         let gps = component_ids::ComponentIds::try_from(5).unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
-        let gs = component_ids::ComponentIds::try_from(6).unwrap();
+        let gs = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
-        let coms = component_ids::ComponentIds::try_from(7).unwrap();
+        let coms = component_ids::ComponentIds::try_from(8).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
+
+        let shell = component_ids::ComponentIds::try_from(10).unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
@@ -298,6 +299,9 @@ mod tests {
 
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
+
+        let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
