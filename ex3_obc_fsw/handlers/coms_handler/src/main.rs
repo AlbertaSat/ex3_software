@@ -8,20 +8,20 @@ TODO - Detect if connection to either msg dispatcher or UHF transceiver is lost,
 TODO - implement a 'gs' connection flag, which the handler uses to determine whether or not it can downlink messages to the ground station.
 TODO - mucho error handling
 */
-use logging::*;
 use log::{debug, trace, warn};
+use logging::*;
 
 use common::component_ids::{COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
 use ipc::*;
-use message_structure::{
-    deserialize_msg, serialize_msg, Msg, MsgType,
-};
+use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
 use tcp_interface::{Interface, TcpInterface};
+mod uhf_handler;
+use uhf_handler::UHFHandler;
 
 // Something up with the slicing makes this number be the size that each packet ends up 128B
 // const DONWLINK_MSG_BODY_SIZE: usize = 123; // 128B - 5 (header) - 2 (sequence number)
@@ -86,8 +86,8 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
 fn send_bulk_ack(fd: &OwnedFd) -> Result<(), std::io::Error> {
     let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
-    ipc_write(fd, &serialize_msg(&ack_msg)?)?; 
-    
+    ipc_write(fd, &serialize_msg(&ack_msg)?)?;
+
     Ok(())
 }
 
@@ -141,7 +141,6 @@ fn main() {
             None
         }
     };
-
     //Setup interface for comm with OBC FSW components (IPC), for the purpose of passing messages to and from the GS
     let ipc_gs_interfac_res = IpcClient::new("gs_bulk".to_string());
     let mut ipc_gs_interface = match ipc_gs_interfac_res {
@@ -152,12 +151,27 @@ fn main() {
         }
     };
 
+    // Setup interface for comm between cmd-dispatcher and uhf-handler
+    let ipc_uhf_handler_interfac_res = IpcServer::new("uhf_handler".to_string());
+    let mut ipc_uhf_handler_interface = match ipc_uhf_handler_interfac_res {
+        Ok(i) => Some(i),
+        Err(e) => {
+            warn!("Cannot connect to UHF interface: {e}");
+            None
+        }
+    };
+
+    // Initalize the UHF handler
+    let mut uhf_handler = UHFHandler::new();
 
     std::thread::sleep(std::time::Duration::from_secs(3));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
-            Ok(tcp) => Some(tcp),
+        match TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
+            Ok(tcp) => {
+                println!("Connected to UHF");
+                Some(tcp)
+            }
             Err(e) => {
                 warn!("Error creating UHF interface: {e}");
                 None
@@ -171,9 +185,15 @@ fn main() {
     let mut expected_msgs = 0;
 
     loop {
+        // Clear UHF buffer after each iteration
+        uhf_buf.fill(0);
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
-        let mut servers = vec![&mut ipc_coms_interface, &mut ipc_cmd_interface];
+        let mut servers = vec![
+            &mut ipc_coms_interface,
+            &mut ipc_cmd_interface,
+            &mut ipc_uhf_handler_interface,
+        ];
         let _coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
@@ -184,33 +204,39 @@ fn main() {
                 match deserialized_msg_result {
                     Ok(deserialized_msg) => {
                         // writes directly to GS, handling case if it's a bulk message
-                        if deserialized_msg.header.msg_type == MsgType::Bulk as u8 && !received_bulk_ack
+                        if deserialized_msg.header.msg_type == MsgType::Bulk as u8
+                            && !received_bulk_ack
                         {
                             // If we haven't received Bulk ACK, we need to send ack
                             if let Some(e) = send_bulk_ack(&init_ipc_gs_interface.fd).err() {
                                 println!("failed to send bulk ack: {e}");
                             }
                             received_bulk_ack = true;
-                            let expected_msgs_bytes = [
-                                deserialized_msg.msg_body[0],
-                                deserialized_msg.msg_body[1],
-                            ];
+                            let expected_msgs_bytes =
+                                [deserialized_msg.msg_body[0], deserialized_msg.msg_body[1]];
                             expected_msgs = u16::from_le_bytes(expected_msgs_bytes);
                             trace!("Expecting {} 4KB msgs", expected_msgs);
                             // Send msg containing num of 4KB msgs and num of bytes to expect
-                            send_initial_bulk_to_gs(deserialized_msg, &mut tcp_interface.as_mut().unwrap());
+                            send_initial_bulk_to_gs(
+                                deserialized_msg,
+                                &mut tcp_interface.as_mut().unwrap(),
+                            );
                         } else if deserialized_msg.header.msg_type == MsgType::Bulk as u8
                             && received_bulk_ack
-                        {   
+                        {
                             // await_ack_for_bulk(&mut tcp_interface);
                             // Here where we read incoming bulk msgs from bulk_msg_disp
                             if bulk_msgs_read < expected_msgs {
                                 if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
                                     if ipc_name.contains("gs") {
-                                        let cur_buf = init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
+                                        let cur_buf =
+                                            init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
                                         println!("Bytes read: {}", cur_buf.len());
                                         let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                        write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), cur_msg);
+                                        write_msg_to_uhf_for_downlink(
+                                            &mut tcp_interface.as_mut().unwrap(),
+                                            cur_msg,
+                                        );
                                         bulk_msgs_read += 1;
                                     }
                                 } else {
@@ -218,7 +244,10 @@ fn main() {
                                 }
                             }
                         } else {
-                            let _ = write_msg_to_uhf_for_downlink(&mut tcp_interface.as_mut().unwrap(), deserialized_msg);
+                            let _ = write_msg_to_uhf_for_downlink(
+                                &mut tcp_interface.as_mut().unwrap(),
+                                deserialized_msg,
+                            );
                         }
                     }
                     Err(e) => {
@@ -258,6 +287,28 @@ fn main() {
             }
         }
 
+        if let Some(ref mut init_uhf_handler_interface) = ipc_uhf_handler_interface {
+            if init_uhf_handler_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+                trace!("Received UHF Handler IPC Msg bytes");
+                let deserialized_msg_result = deserialize_msg(&init_uhf_handler_interface.buffer);
+                match deserialized_msg_result {
+                    Ok(deserialized_msg) => {
+                        trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
+                        // Handles msg internally for COMS
+                        uhf_handler.handle_msg_for_uhf(
+                            &mut tcp_interface.as_mut().unwrap(),
+                            &deserialized_msg,
+                        )
+                    }
+                    Err(e) => {
+                        warn!("Error deserializing COMS IPC msg: {:?}", e);
+                        //Handle deserialization of IPC msg failure
+                    }
+                };
+                init_uhf_handler_interface.clear_buffer();
+            }
+        }
+
         let uhf_bytes_read_result = tcp_interface.as_mut().unwrap().read(&mut uhf_buf);
         match uhf_bytes_read_result {
             Ok(num_bytes_read) => {
@@ -282,7 +333,6 @@ fn main() {
                             let _ = ipc_write(&fd, &decrypted_byte_vec);
                         }
                     }
-                    
                 }
                 Err(e) => {
                     warn!("Error decrypting bytes from UHF: {:?}", e);
