@@ -152,7 +152,7 @@ fn main() {
     };
 
     // Setup interface for comm between cmd-dispatcher and uhf-handler
-    let ipc_uhf_handler_interfac_res = IpcClient::new("uhf_handler".to_string());
+    let ipc_uhf_handler_interfac_res = IpcServer::new("uhf_handler".to_string());
     let mut ipc_uhf_handler_interface = match ipc_uhf_handler_interfac_res {
         Ok(i) => Some(i),
         Err(e) => {
@@ -167,8 +167,11 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(3));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
-            Ok(tcp) => Some(tcp),
+        match TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
+            Ok(tcp) => {
+                println!("Connected to UHF");
+                Some(tcp)
+            }
             Err(e) => {
                 warn!("Error creating UHF interface: {e}");
                 None
@@ -186,7 +189,11 @@ fn main() {
         uhf_buf.fill(0);
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
-        let mut servers = vec![&mut ipc_coms_interface, &mut ipc_cmd_interface];
+        let mut servers = vec![
+            &mut ipc_coms_interface,
+            &mut ipc_cmd_interface,
+            &mut ipc_uhf_handler_interface,
+        ];
         let _coms_bytes_read_res = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
