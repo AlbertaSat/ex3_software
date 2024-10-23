@@ -2,9 +2,6 @@
 # Written by Kaaden RumanCam
 # Summer 2024
 
-# User must provide the path to the simulated subsystem directory on their machine as the first arg
-PATH_TO_SIM_SUBS=$1
-
 # Create a detached session using our config file to hold our windows
 tmux -f .tmux.conf new-session -d -s "test_shell_handler"
 
