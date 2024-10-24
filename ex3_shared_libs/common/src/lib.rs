@@ -5,7 +5,6 @@ pub mod ports {
     pub const SIM_EPS_PORT: u16 = 1804;
     pub const SIM_COMMS_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
-    pub const SIM_DUMMY_PORT: u16 = 1807;
     pub const SIM_UHF_GS_PORT: u16 = 1808;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
@@ -17,8 +16,9 @@ pub mod ports {
 /// Each thing that can emit or receive a message has an associated ID. Each message header includes this id for source and destination.
 /// Referencing this page:
 pub mod component_ids {
-    use std::fmt;
+    use std::fmt::{self};
     use std::str::FromStr;
+    use strum::EnumIter;
 
     // ---------- Depricated but left to not break things -------- //
     pub const OBC: u8 = 0;
@@ -32,7 +32,7 @@ pub mod component_ids {
     pub const COMS: u8 = 8;
     // ----------------------------------------------------------- //
 
-    #[derive(PartialEq, Debug)]
+    #[derive(EnumIter, PartialEq, Debug)]
     pub enum ComponentIds {
         OBC = 0,
         EPS = 1,
@@ -40,14 +40,12 @@ pub mod component_ids {
         DFGM = 3,
         IRIS = 4,
         GPS = 5,
-        //...
+        DEPLOYABLES = 6,
         GS = 7,
         COMS = 8,
         BulkMsgDispatcher = 9,
-        //..
-        CMD = 10,
-        //..
-        DUMMY = 99,
+        SHELL = 10,
+        LAST = 11,
     }
 
     impl fmt::Display for ComponentIds {
@@ -59,11 +57,12 @@ pub mod component_ids {
                 ComponentIds::DFGM => write!(f, "DFGM"),
                 ComponentIds::IRIS => write!(f, "IRIS"),
                 ComponentIds::GPS => write!(f, "GPS"),
+                ComponentIds::DEPLOYABLES => write!(f, "DEPLOYABLES"),
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
-                ComponentIds::CMD => write!(f, "CMD"),
-                ComponentIds::DUMMY => write!(f, "DUMMY"),
+                ComponentIds::SHELL => write!(f, "SHELL"),
+                ComponentIds::LAST => write!(f, "illegal"),
             }
         }
     }
@@ -77,12 +76,12 @@ pub mod component_ids {
                 "DFGM" => Ok(ComponentIds::DFGM),
                 "IRIS" => Ok(ComponentIds::IRIS),
                 "GPS" => Ok(ComponentIds::GPS),
+                "DEPLOYABLES" => Ok(ComponentIds::DEPLOYABLES),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
-                //...
-                "CMD" => Ok(ComponentIds::CMD),
-                "DUMMY" => Ok(ComponentIds::DUMMY),
+                "SHELL" => Ok(ComponentIds::SHELL),
+                "LAST" => Err(()),
                 _ => Err(()),
             }
         }
@@ -101,20 +100,24 @@ pub mod component_ids {
                 x if x == ComponentIds::DFGM as u8 => Ok(ComponentIds::DFGM),
                 x if x == ComponentIds::IRIS as u8 => Ok(ComponentIds::IRIS),
                 x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
+                x if x == ComponentIds::DEPLOYABLES as u8 => Ok(ComponentIds::DEPLOYABLES),
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
-                x if x == ComponentIds::CMD as u8 => Ok(ComponentIds::CMD),
-                x if x == ComponentIds::DUMMY as u8 => Ok(ComponentIds::DUMMY),
+                x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
+                x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
         }
-    }    
+    }
 }
 
 /// For constants that are used across the entire project
 pub mod constants {
     pub const UHF_MAX_MESSAGE_SIZE_BYTES: u8 = 128;
+
+    // Something up with the slicing makes this number be the size that each packet ends up 128B
+    pub const DONWLINK_MSG_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number)
 }
 
 /// Here opcodes and their associated meaning are defined for each component
@@ -186,25 +189,6 @@ pub mod opcodes {
                 9 => IRIS::GetImageSize,
                 _ => {
                     IRIS::Error // or choose a default value or handle the error in a different way
-                }
-            }
-        }
-    }
-
-    // For dummy subsystem - used in testing and development
-    pub enum DUMMY {
-        SetDummyVariable = 0,
-        GetDummyVariable = 1,
-    }
-
-    impl From<u8> for DUMMY {
-        fn from(value: u8) -> Self {
-            match value {
-                0 => DUMMY::SetDummyVariable,
-                1 => DUMMY::GetDummyVariable,
-                _ => {
-                    eprintln!("Invalid opcode: {}", value);
-                    DUMMY::GetDummyVariable // or choose a default value or handle the error in a different way
                 }
             }
         }
@@ -283,14 +267,17 @@ mod tests {
         let gps = component_ids::ComponentIds::try_from(5).unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
+        let deployables = component_ids::ComponentIds::try_from(6).unwrap();
+        assert_eq!(deployables, component_ids::ComponentIds::DEPLOYABLES);
+
         let gs = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
         let coms = component_ids::ComponentIds::try_from(8).unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let test = component_ids::ComponentIds::try_from(99).unwrap();
-        assert_eq!(test, component_ids::ComponentIds::DUMMY);
+        let shell = component_ids::ComponentIds::try_from(10).unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
@@ -313,14 +300,17 @@ mod tests {
         let gps = component_ids::ComponentIds::from_str("GPS").unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
+        let deployables = component_ids::ComponentIds::from_str("DEPLOYABLES").unwrap();
+        assert_eq!(deployables, component_ids::ComponentIds::DEPLOYABLES);
+
         let gs = component_ids::ComponentIds::from_str("GS").unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
         let coms = component_ids::ComponentIds::from_str("COMS").unwrap();
         assert_eq!(coms, component_ids::ComponentIds::COMS);
 
-        let test = component_ids::ComponentIds::from_str("DUMMY").unwrap();
-        assert_eq!(test, component_ids::ComponentIds::DUMMY);
+        let shell = component_ids::ComponentIds::from_str("SHELL").unwrap();
+        assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
         let obc = component_ids::ComponentIds::from_str("OBC").unwrap();
         assert_eq!(obc, component_ids::ComponentIds::OBC);
@@ -343,14 +333,14 @@ mod tests {
         let gps = component_ids::ComponentIds::GPS;
         assert_eq!(gps.to_string(), "GPS");
 
+        let deployables = component_ids::ComponentIds::DEPLOYABLES;
+        assert_eq!(deployables.to_string(), "DEPLOYABLES");
+
         let gs = component_ids::ComponentIds::GS;
         assert_eq!(gs.to_string(), "GS");
 
         let coms = component_ids::ComponentIds::COMS;
         assert_eq!(coms.to_string(), "COMS");
-
-        let test = component_ids::ComponentIds::DUMMY;
-        assert_eq!(test.to_string(), "DUMMY");
 
         let obc = component_ids::ComponentIds::OBC;
         assert_eq!(obc.to_string(), "OBC");

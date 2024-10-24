@@ -61,6 +61,8 @@ pub struct MsgHeaderNew {
     pub source_id: u8,
 }
 impl MsgHeaderNew {
+    pub const DEST_INDEX: usize = 3;
+
     pub fn new(msg_id: u16, msg_type: MsgType, dest_id: u8, source_id: u8) -> Self {
         MsgHeaderNew {
             msg_id,
@@ -79,8 +81,8 @@ impl fmt::Display for MsgHeaderNew {
             "MsgId: {},\n\tMsgType: {},\n\tDestId: {},\n\tSourceId: {}",
             self.msg_id,
             self.msg_type,
-            ComponentIds::try_from(self.dest_id).unwrap_or(ComponentIds::DUMMY),
-            ComponentIds::try_from(self.source_id).unwrap_or(ComponentIds::DUMMY),
+            ComponentIds::try_from(self.dest_id).unwrap(),
+            ComponentIds::try_from(self.source_id).unwrap(),
         )
     }
 }
@@ -98,7 +100,7 @@ impl SerializeAndDeserialize for MsgHeaderNew {
         let result_msg_header = MsgHeaderNew {
             msg_id: u16::from_be_bytes([serialized_bytes_slice[0], serialized_bytes_slice[1]]),
             msg_type: MsgType::from(serialized_bytes_slice[2]),
-            dest_id: serialized_bytes_slice[3],
+            dest_id: serialized_bytes_slice[MsgHeaderNew::DEST_INDEX],
             source_id: serialized_bytes_slice[4],
         };
         Ok(result_msg_header)
@@ -158,6 +160,7 @@ impl SerializeAndDeserialize for CmdMsg {
 
 /// Inform a sender of a message that the message was received and processed successfully
 /// - This DOES NOT indicate the command was successful, just that the message was received and processed
+///
 /// The ACK will have the same ID as the CmdMsg it's responding to
 pub struct AckMsg {
     header: MsgHeaderNew,
@@ -253,6 +256,8 @@ pub struct MsgHeader {
 }
 
 impl MsgHeader {
+    pub const DEST_INDEX: usize = 2;
+
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes = vec![self.msg_type, self.msg_id, self.dest_id, self.source_id, self.op_code];
         bytes.extend(self.msg_len.to_le_bytes());
@@ -309,9 +314,8 @@ impl Msg {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        let header_bytes = &bytes[0..HEADER_SIZE];
-        let msg_body = bytes[HEADER_SIZE..].to_vec();
-        let header = MsgHeader::from_bytes(header_bytes)?;
+        let header = MsgHeader::from_bytes(&bytes[0..HEADER_SIZE])?;
+        let msg_body = bytes[HEADER_SIZE..header.msg_len as usize].to_vec(); // don't include trailing nulls in body
         Ok(Msg { header, msg_body })
     }
 }

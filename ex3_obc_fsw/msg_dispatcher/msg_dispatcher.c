@@ -34,12 +34,12 @@ int main(int argc, char *argv[])
     ComponentStruct *dfgm_handler = component_factory("dfgm_handler", DFGM);
     ComponentStruct *adcs_handler = component_factory("adcs_handler", ADCS);
     ComponentStruct *coms_handler = component_factory("coms_handler", COMS);
-    ComponentStruct *cmd_handler = component_factory("cmd_handler", CMD);
+    ComponentStruct *shell_handler = component_factory("shell_handler", SHELL);
     ComponentStruct *test_handler = component_factory("test_handler", TEST);
     ComponentStruct *bulk_dispatcher = component_factory("bulk_disp", BULK_MSG_DISPATCHER);
 
     // Array of pointers to components the message dispatcher interacts with
-    ComponentStruct *components[7] = {adcs_handler, dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, cmd_handler, test_handler};
+    ComponentStruct *components[7] = {adcs_handler, dfgm_handler, coms_handler, iris_handler, bulk_dispatcher, shell_handler, test_handler};
 
     nfds_t nfds = (unsigned long int)num_components; // num of fds we are polling
     struct pollfd *pfds;                             // fd we are polling

@@ -1,0 +1,14 @@
+[package]
+name = "cmd_dispatcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+strum = { version = "0.26", features = ["derive"] }
+strum_macros = "0.26"
+nix = { version = "0.29.0", features = ["socket"] }
+ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
+common = {path = "../../ex3_shared_libs/common"}
+message_structure = { path = "../../ex3_shared_libs/message_structure" }
+logging = { path = "../../ex3_shared_libs/logging" }
+log = "0.4.22"

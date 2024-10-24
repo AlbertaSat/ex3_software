@@ -20,6 +20,7 @@ Contained here is the shared functionality mentioned above between the ground st
 
 Scripts to run various sections of the software together can be found in the [scripts](./scripts) directory.
 
+
 (For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems. *Additionally*, these scripts also use the ex3_simulated_subsystem repo which is on the main AlbertaSat Github page. One must clone this, then provide the relative path to it when running the script as the first command line argument.
 
 ### Testing Uplink
