@@ -20,8 +20,19 @@ Contained here is the shared functionality mentioned above between the ground st
 
 Scripts to run various sections of the software together can be found in the [scripts](./scripts) directory.
 
+These scripts use bash and **tmux**. To install tmux on Linux, one must run:
 
-(For now) These scripts use bash and gnome-terminal which is are the standard shell and terminal shipped with Ubuntu systems. *Additionally*, these scripts also use the ex3_simulated_subsystem repo which is on the main AlbertaSat Github page. One must clone this, then provide the relative path to it when running the script as the first command line argument.
+```bash
+apt install tmux
+```
+
+Or for macOS:
+
+```bash
+brew install tmux
+```
+
+*Additionally*, these scripts also use the ex3_simulated_subsystem repo which is on the main AlbertaSat Github page. One must clone this, then provide the relative path to it when running the script as the first command line argument.
 
 ### Testing Uplink
 
