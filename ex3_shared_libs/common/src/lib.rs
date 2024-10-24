@@ -40,6 +40,7 @@ pub mod component_ids {
         DFGM = 3,
         IRIS = 4,
         GPS = 5,
+        DEPLOYABLES = 6,
         GS = 7,
         COMS = 8,
         BulkMsgDispatcher = 9,
@@ -56,6 +57,7 @@ pub mod component_ids {
                 ComponentIds::DFGM => write!(f, "DFGM"),
                 ComponentIds::IRIS => write!(f, "IRIS"),
                 ComponentIds::GPS => write!(f, "GPS"),
+                ComponentIds::DEPLOYABLES => write!(f, "DEPLOYABLES"),
                 ComponentIds::GS => write!(f, "GS"),
                 ComponentIds::COMS => write!(f, "COMS"),
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
@@ -74,6 +76,7 @@ pub mod component_ids {
                 "DFGM" => Ok(ComponentIds::DFGM),
                 "IRIS" => Ok(ComponentIds::IRIS),
                 "GPS" => Ok(ComponentIds::GPS),
+                "DEPLOYABLES" => Ok(ComponentIds::DEPLOYABLES),
                 "GS" => Ok(ComponentIds::GS),
                 "COMS" => Ok(ComponentIds::COMS),
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
@@ -97,6 +100,7 @@ pub mod component_ids {
                 x if x == ComponentIds::DFGM as u8 => Ok(ComponentIds::DFGM),
                 x if x == ComponentIds::IRIS as u8 => Ok(ComponentIds::IRIS),
                 x if x == ComponentIds::GPS as u8 => Ok(ComponentIds::GPS),
+                x if x == ComponentIds::DEPLOYABLES as u8 => Ok(ComponentIds::DEPLOYABLES),
                 x if x == ComponentIds::GS as u8 => Ok(ComponentIds::GS),
                 x if x == ComponentIds::COMS as u8 => Ok(ComponentIds::COMS),
                 x if x == ComponentIds::BulkMsgDispatcher as u8 => Ok(ComponentIds::BulkMsgDispatcher),
@@ -263,6 +267,9 @@ mod tests {
         let gps = component_ids::ComponentIds::try_from(5).unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
+        let deployables = component_ids::ComponentIds::try_from(6).unwrap();
+        assert_eq!(deployables, component_ids::ComponentIds::DEPLOYABLES);
+
         let gs = component_ids::ComponentIds::try_from(7).unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
@@ -293,6 +300,9 @@ mod tests {
         let gps = component_ids::ComponentIds::from_str("GPS").unwrap();
         assert_eq!(gps, component_ids::ComponentIds::GPS);
 
+        let deployables = component_ids::ComponentIds::from_str("DEPLOYABLES").unwrap();
+        assert_eq!(deployables, component_ids::ComponentIds::DEPLOYABLES);
+
         let gs = component_ids::ComponentIds::from_str("GS").unwrap();
         assert_eq!(gs, component_ids::ComponentIds::GS);
 
@@ -322,6 +332,9 @@ mod tests {
 
         let gps = component_ids::ComponentIds::GPS;
         assert_eq!(gps.to_string(), "GPS");
+
+        let deployables = component_ids::ComponentIds::DEPLOYABLES;
+        assert_eq!(deployables.to_string(), "DEPLOYABLES");
 
         let gs = component_ids::ComponentIds::GS;
         assert_eq!(gs.to_string(), "GS");
