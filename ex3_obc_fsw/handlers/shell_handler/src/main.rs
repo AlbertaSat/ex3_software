@@ -12,7 +12,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 */
 
 use std::io::Error;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use common::component_ids::ComponentIds::{GS, SHELL};
 use common::constants::DONWLINK_MSG_BODY_SIZE;
@@ -84,34 +84,27 @@ impl ShellHandler {
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
 
-        trace!("SHELL msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+        trace!("SHELL msg opcode: {} {:?} = {}", msg.header.op_code, msg.msg_body, String::from_utf8(msg.msg_body.clone()).unwrap());
 
         let body = String::from_utf8(msg.msg_body).unwrap();
-        let body_split = body.split(" ").collect::<Vec<_>>();
 
-        let mut command = Command::new(body_split[0]);
-        for arg in &body_split[1..] {
-            command.arg(arg);
-        }
+        match Command::new("bash").arg("-c").arg(body).output() {
+            Ok(out) => {
+                trace!("command outputted: {}", String::from_utf8(out.stdout.clone()).unwrap());
 
-        // TODO K: commands should gracefully fail
-        let out = command.stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to start process")
-            .wait_with_output()
-            .expect("Failed to wait on child");
-
-        trace!("command outputted: {}", String::from_utf8(out.stdout.clone()).unwrap());
-
-        for chunk in out.stdout.chunks(DONWLINK_MSG_BODY_SIZE) {
-            let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
-            if let Some(gs_resp_interface) = &self.gs_interface {
-                let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
-            } else {
-                debug!("Response not sent to gs. IPC interface not created");
-            }
-            
-        }
+                for chunk in out.stdout.chunks(DONWLINK_MSG_BODY_SIZE) {
+                    let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
+                    if let Some(gs_resp_interface) = &self.gs_interface {
+                        let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
+                    } else {
+                        debug!("Response not sent to gs. IPC interface not created");
+                    }
+                }
+            },
+            Err(e) => {
+                trace!("command failed: {e}");
+            },
+        };
 
         Ok(())
     }
