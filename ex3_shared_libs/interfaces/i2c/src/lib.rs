@@ -1,15 +1,14 @@
 use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
+use message_structure::{deserialize_msg, serialize_msg, Msg};
 
 // Interface to be implemented by all external interfaces
 pub trait Interface {
     // send data as bytes to the interface as a shared byte type slice.
-    // Returns the number of bytes sent
-    fn send(&mut self, data: &[u8]) -> Result<(), LinuxI2CError>;
+    fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError>;
 
-    // Read byte data from the interfaace into a byte slice buffer.
-    // Returns number of bytes read
-    fn read(&mut self, buffer: &mut [u8]) -> Result<(), LinuxI2CError>;
+    // Read byte data from the interface into a byte slice buffer.
+    fn read(&mut self) -> Result<Msg, LinuxI2CError>;
 }
 
 // Structure for I2C Interface, i2c is the actual interface while the slave address is where data
@@ -21,22 +20,22 @@ pub struct I2cDeviceInterface {
 }
 
 impl Interface for I2cDeviceInterface {
-    // generic method for sending data over i2c bus to i2c device
-    fn send(&mut self, data: &[u8]) -> Result<(), LinuxI2CError> {
-        // hacky  way to return the number of bytes written, this is because the i2cdev crate
-        // doesn't return any info on how many bytes are sent
-        self.device.write(data)
+    // sends a Msg struct to i2c device, returns the number of bytes sent
+    fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError> {
+        let bytes = serialize_msg(msg)?;
+        self.send_raw_bytes(&bytes)
     }
 
-    // generic method for reading data over i2c bus to i2c device
-    fn read(&mut self, buffer: &mut [u8]) -> Result<(), LinuxI2CError> {
-        self.device.read(buffer)
-        // hacky  way to return the number of bytes written, this is because the i2cdev crate
-        // doesn't return any info on how many bytes are sent
+    // reads a Msg struct from i2c device, returns a Msg struct
+    fn read(&mut self) -> Result<Msg, LinuxI2CError> {
+        let mut bytes = Vec::new();
+        self.read_raw_bytes(&mut bytes)?;
+        Ok(deserialize_msg(&bytes)?)
     }
 }
 
 impl I2cDeviceInterface {
+    // Constructor for I2cDeviceInterface struct
     pub fn new(path: &str, client_address: u16) -> Result<I2cDeviceInterface, LinuxI2CError> {
         let device = LinuxI2CDevice::new(path, client_address)?;
         Ok(I2cDeviceInterface {
@@ -46,13 +45,34 @@ impl I2cDeviceInterface {
         })
     }
 
-    // This function writes a single byte to a specific register of a SMbus device
-    fn send_byte(&mut self, register: u8, byte: u8) -> Result<(), LinuxI2CError> {
+    // sends raw bytes to i2c device, returns the amount of bytes sent
+    pub fn send_raw_bytes(&mut self, data: &[u8]) -> Result<usize, LinuxI2CError> {
+        self.device.write(data)?;
+        Ok(data.len())
+    }
+
+    // reads raw bytes from device into buffer
+    pub fn read_raw_bytes(&mut self, buffer: &mut [u8]) -> Result<(), LinuxI2CError> {
+        self.device.read(buffer)
+    }
+
+    // writes a single byte to a specific register of a SMbus device
+    pub fn send_byte_smbus(&mut self, register: u8, byte: u8) -> Result<(), LinuxI2CError> {
         self.device.smbus_write_byte_data(register, byte)
     }
 
-    // This function reads a single byte from a specific register of a SMbus device
-    fn read_byte(&mut self, address: u8) -> Result<u8, LinuxI2CError> {
+    // reads a single byte from a specific register of a SMbus device
+    pub fn read_byte_smbus(&mut self, address: u8) -> Result<u8, LinuxI2CError> {
         self.device.smbus_read_byte_data(address)
+    }
+
+    // Getter for device's bus path
+    pub fn get_bus_path_name(&self) -> String {
+        self.bus_path.clone()
+    }
+
+    // Getter for clients i2c address number
+    pub fn get_client_address(&self) -> u16 {
+        self.client_address
     }
 }
