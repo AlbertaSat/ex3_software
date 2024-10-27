@@ -2,17 +2,12 @@ use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 use message_structure::{deserialize_msg, serialize_msg, Msg};
 
-// Interface to be implemented by all external interfaces
 pub trait Interface {
-    // send data as bytes to the interface as a shared byte type slice.
     fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError>;
-
-    // Read byte data from the interface into a byte slice buffer.
     fn read(&mut self) -> Result<Msg, LinuxI2CError>;
 }
 
-// Structure for I2C Interface, i2c is the actual interface while the slave address is where data
-// is going to be written and/or read from
+// I2c Device structure.
 pub struct I2cDeviceInterface {
     device: LinuxI2CDevice,
     bus_path: String,
