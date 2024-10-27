@@ -9,7 +9,7 @@ members = [
     "ex3_obc_fsw/dev_tools/ipc_dummy_client",
     "ex3_obc_fsw/dev_tools/ipc_server_dev_tool",
     "ex3_obc_fsw/dev_tools/i2c_test",
-    "ex3_obc_fsw/dev_tools/uart_test",
+    "ex3_obc_fsw/dev_tools/arduino_uart_test",
     "ex3_obc_fsw/handlers/adcs_handler",
     "ex3_obc_fsw/handlers/coms_handler",
     "ex3_obc_fsw/handlers/dfgm_handler",
