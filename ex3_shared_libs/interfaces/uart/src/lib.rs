@@ -31,7 +31,7 @@ impl Interface for UARTInterface {
 }
 
 impl UARTInterface {
-    pub fn new(&mut self, device_name: &str, baud_rate: u32) -> Result<UARTInterface, IoError> {
+    pub fn new(device_name: &str, baud_rate: u32) -> Result<UARTInterface, IoError> {
         let interface = TTYPort::open(&serialport::new(device_name, baud_rate))?;
         Ok(UARTInterface {
             interface,
