@@ -3,19 +3,20 @@ use uart::UARTInterface;
 fn main() {
     let mut arduino_serial = UARTInterface::new("/dev/ttyACM0", 9600).unwrap();
 
-    let msg = [0x01, 0x02, 0x03, 0x04];
+    let mut buffer = [0; 50].to_vec();
 
     loop {
-        match arduino_serial.write_raw_bytes(&msg) {
-            Ok(len) => {
-                println!("wrote {} bytes to arduino", len);
+        match arduino_serial.read_raw_bytes(&mut buffer) {
+            Ok(_) => {
+                println!("Got message: {:?}", &buffer);
             }
             Err(e) => {
-                println!("Error writing to arduino!!!");
+                println!("Error reading from arduino!!!");
                 println!("{}", e);
                 break;
             }
         };
+        buffer.fill(0);
         thread::sleep(time::Duration::from_millis(500));
     }
 }
