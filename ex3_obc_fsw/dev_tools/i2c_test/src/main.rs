@@ -26,7 +26,7 @@ fn main() {
     // Continually read from the device
     let mut buffer: [u8; 2] = [0; 2];
     loop {
-        match lux_meter.read(&mut buffer) {
+        match lux_meter.read_raw_bytes(&mut buffer) {
             Ok(_) => {
                 let result: i16 = (buffer[0] as i16) << 8 | buffer[1] as i16;
                 println!("{}", result);
