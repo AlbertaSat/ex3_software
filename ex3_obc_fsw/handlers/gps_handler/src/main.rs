@@ -2,7 +2,12 @@
 Written by _
 Fall 2024
 
-...
+Three things to do:
+    1. handle opcodes using enums and match
+    2. three interfaces: msg_dispatcher (alr exists, where it gets op codes/msgs form fground station), 
+    one in the example, talks to the sim gps rn, and get time lat long etc 
+    and the one to send thingfs backt o the ground station (example of that in the shell handler file rn ie when send things back to client, 
+
 
 */
 
@@ -64,7 +69,7 @@ impl GPSHandler {
             }
         }
     }
-
+// HANDLE MATCH STATEMENTS
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
