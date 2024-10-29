@@ -92,7 +92,7 @@ fn main() -> Result<(), IoError> {
                     }
                 }
             }
-            if messages.len() > 1 {
+            if messages.len() > 1 && server.socket_path.contains("gs_bulk") {
                 // doesn't work right now! Donwlink broken :(
                 if let Some(data_fd) = &server.data_fd {
                     // Want to write to gs_bulk, not BulkMsgDispatcher fd
