@@ -10,8 +10,10 @@ use log::{debug, trace, warn};
 use logging::*;
 use std::io::Error;
 
-use ipc::{IpcServer, IPC_BUFFER_SIZE, poll_ipc_server_sockets};
+use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
 use message_structure::*;
+
+use std::{thread, time};
 
 struct GPSHandler {
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
@@ -81,6 +83,13 @@ fn main() {
     let msg_dispatcher_interface = IpcServer::new("GPS".to_string());
 
     let mut gps_handler = GPSHandler::new(msg_dispatcher_interface);
+
+    // example (TODO add gps_interface to GPSHandler object and poll in run loop)
+    let mut gps_interface = IpcClient::new("gps_device".to_string()).ok();      // connect("/tmp/fifo_socket_gps_device")
+    let _ = ipc_write(&gps_interface.as_ref().unwrap().fd, "time".as_bytes());  // send("time")
+    thread::sleep(time::Duration::from_millis(100));                            // wait (only for example)
+    let _ = poll_ipc_clients(&mut vec![&mut gps_interface]);                    // recv()
+    println!("Got \"{}\"", String::from_utf8(gps_interface.as_mut().unwrap().read_buffer()).unwrap());
 
     let _ = gps_handler.run();
 }
