@@ -16,7 +16,7 @@ use std::process::Command;
 
 use common::component_ids::ComponentIds::{GS, SHELL};
 use common::constants::DONWLINK_MSG_BODY_SIZE;
-use ipc::{ipc_write, poll_ipc_server_sockets, IpcClient, IpcServer, IPC_BUFFER_SIZE};
+use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
 use logging::*;
 use message_structure::*;
@@ -79,7 +79,6 @@ impl ShellHandler {
             }
         }
     }
-    //TODO - After receiving the message, send a response back to the dispatcher ??
 
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
