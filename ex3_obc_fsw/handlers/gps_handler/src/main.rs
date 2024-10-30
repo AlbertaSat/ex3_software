@@ -21,6 +21,7 @@ use message_structure::*;
 use std::{thread, time};
 
 struct GPSHandler {
+    // Olivia and ben write the interface from the example here!!!!
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
 }
 
