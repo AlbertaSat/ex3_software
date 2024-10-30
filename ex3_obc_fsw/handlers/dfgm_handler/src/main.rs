@@ -69,17 +69,17 @@ impl DFGMHandler {
     }
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
-        // msg body being encoded as ASCII now. Change handling to get a number from ascii 48 for 0
+        // msg body being encoded as ASCII now. Changed handling to so ASCII 48 is 0 and ASCII 49 is 1
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
         trace!("Matching opcode.");
         let opcode_enum = opcodes::DFGM::from(msg.header.op_code);
         match opcode_enum {
             opcodes::DFGM::ToggleDataCollection => {
-                if msg.msg_body[0] == 0 {
+                if msg.msg_body[0] == 48 { // ASCII 0
                     self.toggle_data_collection = false;
                     trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
-                } else if msg.msg_body[0] == 1 {
+                } else if msg.msg_body[0] == 49 { // ASCII 1
                     self.toggle_data_collection = true;
                     trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
