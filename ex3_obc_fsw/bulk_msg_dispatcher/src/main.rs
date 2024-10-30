@@ -46,14 +46,14 @@ fn main() -> Result<(), IoError> {
 
     loop {
         let mut servers = vec![&mut coms_interface, &mut cmd_disp_interface];
-    
+        thread::sleep(Duration::from_secs(1));
         poll_ipc_server_sockets(&mut servers);
     
         for server in servers.into_iter().flatten() {
             if let Some(msg) = handle_client(server)? {
                 if server.socket_path.contains("gs_bulk") {
                     if msg.header.msg_type == MsgType::Ack as u8 {
-                        // Handle ACK message
+                        // TODO: Do we need the msg body to be 0? Will this disp see any other types of ACKs?
                         if msg.msg_body[0] == 0 {
                             for (i, message) in messages.iter().enumerate() {
                                 let serialized_msgs = serialize_msg(message)?;
@@ -67,6 +67,8 @@ fn main() -> Result<(), IoError> {
                                 trace!("Sent msg #{}", i + 1);
                                 thread::sleep(Duration::from_millis(100));
                             }
+                            messages.clear();
+                            server.clear_buffer();
                         } else {
                             todo!();
                         }
@@ -92,19 +94,18 @@ fn main() -> Result<(), IoError> {
                     }
                 }
             }
-            if messages.len() > 1 && server.socket_path.contains("gs_bulk") {
-                // doesn't work right now! Donwlink broken :(
-                if let Some(data_fd) = &server.data_fd {
-                    // Want to write to gs_bulk, not BulkMsgDispatcher fd
-                    send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
-                } else {
-                    warn!("No data file descriptor found in coms_interface.");
-                }
-                messages = Vec::new();
-                server.clear_buffer();
-            }
-            
         }
+    // Separate block for sending data if messages are available
+    if !messages.is_empty() {
+        if let Some(ref mut gs_bulk_server) = coms_interface {
+            if let Some(data_fd) = &gs_bulk_server.data_fd {
+                send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
+            } else {
+                warn!("No data file descriptor found in coms_interface.");
+            }
+            gs_bulk_server.clear_buffer();
+        }
+    }
     }
     
 }

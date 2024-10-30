@@ -11,7 +11,7 @@ TODO - mucho error handling
 use logging::*;
 use log::{debug, trace, warn};
 
-use common::component_ids::{COMS, GS};
+use common::component_ids::{ComponentIds, COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
@@ -82,9 +82,8 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
 fn send_bulk_ack(fd: &OwnedFd) -> Result<(), std::io::Error> {
-    let ack_msg = Msg::new(MsgType::Ack as u8, 20, 7, 3, 0, vec![0]);
-    ipc_write(fd, &serialize_msg(&ack_msg)?)?; 
-    
+    let ack_msg = Msg::new(MsgType::Ack as u8, 20, ComponentIds::BulkMsgDispatcher as u8, ComponentIds::COMS as u8, 0, vec![0]);
+    ipc_write(fd, &serialize_msg(&ack_msg)?)?;
     Ok(())
 }
 

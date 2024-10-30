@@ -55,7 +55,7 @@ DFGM 0 1
 followed by:
 
 ```@sh
-DFGM 0 1
+DFGM 0 0
 ```
 
 to toggle off the data collection. **NOTE**: this method of data collection is unique to the DFGM subsystem. Other subsystems will be able to collect data without having to toggle a flag.
