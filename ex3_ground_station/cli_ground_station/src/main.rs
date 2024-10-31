@@ -316,7 +316,14 @@ async fn main() {
                     );
                     
                 }
-                println!("Received Message: {:?}, body {:?} = {}", recvd_msg.header, recvd_msg.msg_body,String::from_utf8(recvd_msg.msg_body.clone()).unwrap());
+                let recvd_msg_chars = match String::from_utf8(recvd_msg.msg_body.clone()) {
+                    Ok(chars) => Ok(chars),
+                    Err(e) => {
+                        eprintln!("Error when converting recieved message body to UTF8 string: {e}");
+                        Err("")
+                    }
+                };
+                println!("Received Message: {:?}, body {:?} = {:?}", recvd_msg.header, recvd_msg.msg_body,recvd_msg_chars);
             } else {
                 // Deallocate memory of these messages. Reconstructed version 
                 // has been written to a file. This is slightly slower than .clear() though
