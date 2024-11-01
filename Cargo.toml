@@ -17,6 +17,7 @@ members = [
     "ex3_obc_fsw/scheduler",
     "ex3_shared_libs/bulk_msg_slicing",
     "ex3_shared_libs/common",
+    "ex3_shared_libs/interfaces/can",
     "ex3_shared_libs/interfaces/ipc",
     "ex3_shared_libs/logging",
     "ex3_shared_libs/message_structure",
