@@ -1,10 +1,11 @@
 use std::io::{self, Read};
 use std::panic::panic_any;
 use std::sync::mpsc;
-use std::{thread, time};
+use std::thread;
 use uart::UARTInterface;
+
 fn main() {
-    let mut arduino_serial = UARTInterface::new("/dev/ttyACM0", 9600).unwrap();
+    let mut arduino_serial = UARTInterface::new("/dev/ttyACM2", 9600).unwrap();
 
     let mut buffer = [0; 36].to_vec();
     let mut data_collection = false;
@@ -13,7 +14,7 @@ fn main() {
 
     loop {
         if arduino_serial.available_to_read().unwrap() == 36 {
-            match arduino_serial.recv(&mut buffer) {
+            match arduino_serial.read(&mut buffer) {
                 Ok(0) => println!("No bytes to read"), // No bytes to read
                 Ok(_n) => {
                     println!("{:?}", buffer);
