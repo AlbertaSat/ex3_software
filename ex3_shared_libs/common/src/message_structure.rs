@@ -257,7 +257,7 @@ pub struct MsgHeader {
 }
 
 impl MsgHeader {
-    pub const DEST_INDEX: usize = 2;
+    pub const DEST_INDEX: usize = 3;
 
     fn to_bytes(&self) -> Result<Vec<u8>, IoError> {
         let mut bytes: Vec<u8> = self.msg_id.to_le_bytes().to_vec();
