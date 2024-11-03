@@ -123,7 +123,7 @@ fn main() {
     let log_path = "ex3_obc_fsw/handlers/coms_handler/logs";
     init_logger(log_path);
     trace!("Logger initialized");
-    trace!("Beginning Coms Handler on {ipaddr}:{}", ports::SIM_COMMS_PORT);
+    trace!("Beginning Coms Handler on {ipaddr}:{}", ports::SIM_ESAT_UART_PORT);
 
     // Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
