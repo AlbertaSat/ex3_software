@@ -119,10 +119,11 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
 }
 
 fn main() {
+    let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
     let log_path = "ex3_obc_fsw/handlers/coms_handler/logs";
     init_logger(log_path);
     trace!("Logger initialized");
-    trace!("Beginning Coms Handler...");
+    trace!("Beginning Coms Handler on {ipaddr}:{}", ports::SIM_COMMS_PORT);
 
     // Setup interface for comm with OBC FSW components (IPC), for passing messages to and from the UHF specifically
     let ipc_coms_interface_res = IpcServer::new("COMS".to_string());
@@ -179,7 +180,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(1));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        match TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_ESAT_UART_PORT) {
+        match TcpInterface::new_server(ipaddr, ports::SIM_ESAT_UART_PORT) {
             Ok(tcp) => Some(tcp),
             Err(e) => {
                 warn!("Error creating UHF interface: {e}");
@@ -328,55 +329,62 @@ fn main() {
 
         if uhf_num_bytes_read > 0 {
             trace!("Received bytes from UHF");
-            let ack_msg_id = 0;
-            let mut ack_msg_body = vec![0x4F, 0x4B]; // 0x4F = O , 0x4B = K  [OK
-                                                     //TODO - Decrypt incomming encrypted bytes
+            //TODO - Decrypt incomming encrypted bytes
             let decrypted_byte_result = decrypt_bytes_from_gs(&uhf_buf);
-            match decrypted_byte_result {
+            let mut status = AckCode::Success;
+            let mut ackbody = "Error: ".to_string();
+            let cmd: CmdMsg = match decrypted_byte_result {
                 // After decrypting, send directly to the msg_dispatcher
-                Ok(decrypted_byte_vec) => {
+                Ok(msg) => {
                     if let Some(ref mut init_ipc_cmd_interface) = ipc_cmd_interface {
                         if let Some(fd) = init_ipc_cmd_interface.data_fd.as_ref() {
-                            let _ = ipc_write(fd, decrypted_byte_vec);
+                            match ipc_write(fd, msg) {
+                                Ok(len) => debug!("coms: forwarded {} bytes", len),
+                                Err(e) => {
+                                    status = AckCode::Failed;
+                                    ackbody.push_str(&format!("write to cmd dispatcher failed - {}", e));
+                                }
+                            };
                         }
                     }
+                    else {
+                        status = AckCode::Failed;
+                        ackbody.push_str("no connection to cmd dispatcher");
+                    }
+                    CmdMsg::deserialize_from_bytes(&msg)
                 }
                 Err(e) => {
-                    warn!("Error decrypting bytes from UHF: {:?}", e);
-                    ack_msg_body = vec![
-                        0x45, 0x52, 0x52, 0x2D, 0x6D, 0x73, 0x67, 0x20, 0x64, 0x65, 0x63, 0x72,
-                        0x79, 0x70, 0x74, 0x69, 0x6F, 0x6E, 0x20, 0x66, 0x61, 0x69, 0x6C, 0x65,
-                        0x64,
-                    ]; // [ERR-msg decryption failed]
+                    status = AckCode::Failed;
+                    ackbody.push_str(&format!("decryption failed - {}", e));
+                    CmdMsg::deserialize_from_bytes(&uhf_buf)
                 }
             };
 
-            //EMIT AN ACK TO TELL SENDER WE RECEIVED THE MSG
-            // OK -> if decryption and msg deserialization of bytes succeeds
-            // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
-            let ack_msg = Msg::new(0, ack_msg_id,
-                                   ComponentIds::GS as u8, ComponentIds::COMS as u8,
-                                   200, ack_msg_body);
-            write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), ack_msg);
-            uhf_buf.fill(0);
+            if status == AckCode::Failed {
+                warn!("{}", ackbody);
+                /* Nack failed messages back to the sender */
+                let nack = Msg::new(MsgType::Ack as u8, cmd.header.msg_id, GS, COMS, status as u8, ackbody.as_bytes().to_vec());
+                write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), nack);
+                uhf_buf.fill(0);
+            }
         }
 
         // Handle regular messages for GS
         let mut servers: Vec<&mut Option<IpcServer>> = vec![&mut gs_interface_non_bulk];
         poll_ipc_server_sockets(&mut servers);
-        if gs_interface_non_bulk.as_mut().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
-            trace!(
-                "GS msg server \"{}\" received data",
-                gs_interface_non_bulk.as_mut().unwrap().socket_path
-            );
-            match deserialize_msg(&gs_interface_non_bulk.as_mut().unwrap().buffer) {
-                Ok(msg) => {
-                    trace!("got {:?}", msg);
-                    write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), msg);
-                    gs_interface_non_bulk.as_mut().unwrap().clear_buffer();
-                }
-                Err(err) => {
-                    warn!("Error deserialising message for gs ({:?})", err);
+
+        if let Some(ref mut gs_if) = gs_interface_non_bulk {
+            if gs_if.buffer != [0u8; IPC_BUFFER_SIZE] {
+                trace!("GS msg server \"{}\" received data", gs_if.socket_path);
+                match deserialize_msg(&gs_if.buffer) {
+                    Ok(msg) => {
+                        trace!("got {:?}", msg);
+                        write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), msg);
+                        gs_if.clear_buffer();
+                    }
+                    Err(err) => {
+                        warn!("Error deserialising message for gs ({:?})", err);
+                    }
                 }
             }
         }
