@@ -57,7 +57,7 @@ impl From<u8> for MsgType {
 #[derive(Debug, Clone, Copy)]
 pub struct MsgHeaderNew {
     pub msg_id: u16, // hold up to ~64 thousand unique ids before rollover
-    pub msg_type: u8,
+    pub msg_type: MsgType,
     pub dest_id: u8,
     pub source_id: u8,
 }
@@ -67,7 +67,7 @@ impl MsgHeaderNew {
     pub fn new(msg_id: u16, msg_type: MsgType, dest_id: u8, source_id: u8) -> Self {
         MsgHeaderNew {
             msg_id,
-            msg_type: msg_type as u8,
+            msg_type,
             dest_id,
             source_id,
         }
@@ -100,7 +100,7 @@ impl SerializeAndDeserialize for MsgHeaderNew {
     fn deserialize_from_bytes(serialized_bytes_slice: &[u8]) -> Self {
         MsgHeaderNew {
             msg_id: u16::from_be_bytes([serialized_bytes_slice[0], serialized_bytes_slice[1]]),
-            msg_type: serialized_bytes_slice[2],
+            msg_type: serialized_bytes_slice[2].into(),
             dest_id: serialized_bytes_slice[MsgHeaderNew::DEST_INDEX],
             source_id: serialized_bytes_slice[4],
         }
@@ -354,8 +354,8 @@ mod tests {
     fn test_new_msg_ser_and_des() {
         //Create Cmd Msg
         let cmd_msg = CmdMsg::new(0, 5, 1, 0, vec![0, 1, 2, 3, 4, 5, 6]);
-        let serialize_cmd_msg = cmd_msg.serialize_to_bytes().unwrap();
-        let deserialized_cmd_msg = CmdMsg::deserialize_from_bytes(serialize_cmd_msg);
+        let serialize_cmd_msg = cmd_msg.serialize_to_bytes();
+        let deserialized_cmd_msg = CmdMsg::deserialize_from_bytes(&serialize_cmd_msg);
         assert_eq!(deserialized_cmd_msg.header.msg_id, 0);
         assert_eq!(deserialized_cmd_msg.header.dest_id, 5);
         assert_eq!(deserialized_cmd_msg.header.source_id, 1);
@@ -364,8 +364,8 @@ mod tests {
         assert_eq!(deserialized_cmd_msg.data, vec![0, 1, 2, 3, 4, 5, 6]);
 
         let ack_msg = AckMsg::new(0, 5, 1, AckCode::Success, vec![0, 1, 2, 3, 4, 5, 6]);
-        let serialize_ack_msg = ack_msg.serialize_to_bytes().unwrap();
-        let deserialized_ack_msg = AckMsg::deserialize_from_bytes(serialize_ack_msg);
+        let serialize_ack_msg = ack_msg.serialize_to_bytes();
+        let deserialized_ack_msg = AckMsg::deserialize_from_bytes(&serialize_ack_msg);
         assert_eq!(deserialized_ack_msg.header.msg_id, 0);
         assert_eq!(deserialized_ack_msg.header.dest_id, 5);
         assert_eq!(deserialized_ack_msg.header.source_id, 1);
@@ -381,7 +381,7 @@ mod tests {
         let serialized_msg = serialize_msg(&msg).unwrap();
 
         // Deserialize
-        let deserialized_msg = deserialize_msg(&serialized_msg);
+        let deserialized_msg = deserialize_msg(&serialized_msg).unwrap();
 
         // Assert equality
         assert_eq!(deserialized_msg.header.msg_type, 0);
@@ -395,10 +395,10 @@ mod tests {
         // Serialize
         let serialized_msg_result = msg.to_bytes();
         assert!(serialized_msg_result.is_ok(), "Serialization failed");
-        let serialized_msg = serialized_msg_result;
+        let serialized_msg = serialized_msg_result.unwrap();
 
         // Deserialize
-        let deserialized_msg = Msg::from_bytes(&serialized_msg);
+        let deserialized_msg = Msg::from_bytes(&serialized_msg).unwrap();
 
         // Assert equality
         assert_eq!(deserialized_msg.header.msg_type, 0);
@@ -412,10 +412,10 @@ mod tests {
         let msg = Msg::new(0,1, 2, 3, 4, vec![0; max_body_size]);
 
         // Serialize
-        let serialized_msg = msg.to_bytes();
+        let serialized_msg = msg.to_bytes().unwrap();
 
         // Deserialize
-        let deserialized_msg = Msg::from_bytes(&serialized_msg);
+        let deserialized_msg = Msg::from_bytes(&serialized_msg).unwrap();
 
         // Assert equality
         assert_eq!(deserialized_msg.header.msg_type, 0);
