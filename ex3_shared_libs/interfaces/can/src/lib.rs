@@ -1,5 +1,17 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+/// Written by: Amar
+///
+/// The CAN module uses the socketCAN utility
+/// from Linux.
+///
+use socketcan::{CanFrame, CanSocket, Frame, Socket};
+
+pub trait Interface {
+    pub fn recv();
+    pub fn send();
+}
+
+pub struct CanInterface {
+    socket: CanSocket,
 }
 
 #[cfg(test)]
@@ -7,8 +19,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+    fn it_works() {}
 }
