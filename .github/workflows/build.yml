@@ -8,6 +8,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - name: install libudev
+        run: sudo apt-get install libudev-dev
       - name: build
         uses: actions-rs/cargo@v1
         with:
