@@ -65,7 +65,7 @@ fn main() -> Result<(), IoError> {
                                     break;
                                 }
                                 trace!("Sent msg #{}", i + 1);
-                                thread::sleep(Duration::from_millis(100));
+                                thread::sleep(Duration::from_millis(1));
                             }
                             messages.clear();
                             server.clear_buffer();
