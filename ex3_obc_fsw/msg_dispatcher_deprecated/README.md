@@ -1,4 +1,4 @@
-# Message Dispatcher in C
+# Message Dispatcher in C (deprecated)
 
 This is a rudimentary implementation of the message dispatcher architectural component with the Ex-Alta3 Flight Software (FSW), in C.
 
@@ -30,7 +30,7 @@ Then run the resulting executable as
 ./message_dispatcher
 ```
 
-(For now ) The server sets up a socket and listens for an incomming connection based on a hard coded array of pointers to ComponentStruct structs. The name of component (i.e. dfgm_handler) are provided as strings, along with the assocaited ID of that component found [here](https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0). 
+(For now ) The server sets up a socket and listens for an incomming connection based on a hard coded array of pointers to ComponentStruct structs. The name of component (i.e. dfgm_handler) are provided as strings, along with the assocaited ID of that component found [here](https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0).
 
 The name of the component is in the path of the file created by the server (i.e. /tmp/fifo_dfgm_handler), and is used by the client upon sending a connection request so it knows what socket to connect to.
 
