@@ -144,7 +144,7 @@ fn read_bulk_msgs(
                 println!("Received msg #{}", seq_id);
                 // println!("{:?}", cur_msg);
                 bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(1));
                 num_msgs_recvd += 1;
             }
         }
@@ -294,7 +294,7 @@ async fn main() {
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                     match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
-                            println!("Successfully reconstructed 4K messages");
+                            println!("Successfully reconstructed 4KB messages");
                             match save_data_to_file(
                                 large_msg.msg_body,
                                 large_msg.header.source_id,
@@ -319,7 +319,7 @@ async fn main() {
                 let recvd_msg_chars = match String::from_utf8(recvd_msg.msg_body.clone()) {
                     Ok(chars) => Ok(chars),
                     Err(e) => {
-                        eprintln!("Error when converting recieved message body to UTF8 string: {e}");
+                        eprintln!("Couldn't convert recieved message body to UTF8 string: {e}");
                         Err("")
                     }
                 };

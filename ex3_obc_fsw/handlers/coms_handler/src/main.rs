@@ -158,7 +158,7 @@ fn main() {
         };
 
 
-    std::thread::sleep(std::time::Duration::from_secs(3));
+    std::thread::sleep(std::time::Duration::from_secs(1));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
         match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
