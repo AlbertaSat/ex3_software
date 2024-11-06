@@ -24,6 +24,7 @@ impl CanInterface {
         self.socket.write_frame(frame)
     }
 
+    /// Recv CanFrame with timeout
     pub fn recv(&mut self, timeout: std::time::Duration) -> Result<CanFrame, Error> {
         self.socket.read_frame_timeout(timeout)
     }
@@ -48,6 +49,8 @@ mod tests {
 
     use super::*;
 
+    /// To correctly run the test read the "Testing with a Virtual CAN Interface" section
+    /// of the README
     #[test]
     fn test_vcan0() {
         let mut socket1 = CanInterface::new("vcan0").unwrap();
@@ -59,6 +62,9 @@ mod tests {
 
         let _ = socket1.send(&msg).unwrap();
         let recieved = socket2.recv(Duration::from_secs(1)).unwrap();
+
+        println!("Expected:\t{:?}", msg);
+        println!("Actual:  \t{:?}", recieved);
 
         assert_eq!(recieved.data(), msg.data());
         assert_eq!(recieved.id(), msg.id());
