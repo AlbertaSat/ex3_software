@@ -45,8 +45,8 @@ pub mod component_ids {
         COMS = 8,
         BulkMsgDispatcher = 9,
         SHELL = 10,
-        LAST = 11,
-        UHF = 13,
+        UHF = 11,
+        LAST = 12,
     }
 
     impl fmt::Display for ComponentIds {
@@ -311,7 +311,7 @@ mod tests {
         let shell = component_ids::ComponentIds::try_from(10).unwrap();
         assert_eq!(shell, component_ids::ComponentIds::SHELL);
 
-        let uhf = component_ids::ComponentIds::try_from(13).unwrap();
+        let uhf = component_ids::ComponentIds::try_from(11).unwrap();
         assert_eq!(uhf, component_ids::ComponentIds::UHF);
 
         let obc = component_ids::ComponentIds::try_from(0).unwrap();
