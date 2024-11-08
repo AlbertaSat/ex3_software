@@ -33,24 +33,32 @@ impl UHFHandler {
         let opcode = opcodes::UHF::from(msg.header.op_code);
         let data = msg.msg_body.clone();
         match opcode {
-            opcodes::UHF::GetHK => self.get_hk_data(),
+            opcodes::UHF::GetHK => {
+                trace!("Opcode 3 for UHF: Getting Housekeeping data");
+                self.get_hk_data();
+            }
             opcodes::UHF::SetBeacon => {
+                trace!("Opcode 4 for UHF: Setting beacon value.");
                 self.set_beacon_value(uhf_interface, data);
             }
             opcodes::UHF::GetBeacon => {
+                trace!("Opcode 5 for UHF: Getting beacon value.");
                 self.get_beacon_value(uhf_interface);
             }
             opcodes::UHF::SetMode => {
+                trace!("Opcode 6 for UHF: Setting UHF mode value.");
                 self.set_mode(uhf_interface, data);
             }
-            opcodes::UHF::GetMode => {
-                self.get_mode(uhf_interface);
-            }
             opcodes::UHF::Reset => {
+                trace!("Opcode 7 for UHF: Resetting UHF.");
                 self.reset_uhf();
             }
+            opcodes::UHF::GetMode => {
+                trace!("Opcode 8 for UHF: Getting UHF mode value.");
+                self.get_mode(uhf_interface);
+            }
             _ => {
-                warn!("Invalid opcode");
+                warn!("Invalid opcode for UHF handler");
             }
         }
         // clear uhf buffer after command is handled
