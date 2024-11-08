@@ -180,7 +180,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(1));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        match TcpInterface::new_server("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
+        match TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_COMMS_PORT) {
             Ok(tcp) => Some(tcp),
             Err(e) => {
                 warn!("Error creating UHF interface: {e}");
@@ -195,6 +195,7 @@ fn main() {
     let mut expected_msgs = 0;
 
     loop {
+        uhf_buf.fill(0);
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
         let mut clients = vec![&mut ipc_gs_interface];
         let mut servers = vec![
@@ -298,16 +299,17 @@ fn main() {
         // Poll the IPC unix domain socket for the UHF handler channel
         if let Some(ref mut init_ipc_uhf_interface) = ipc_uhf_interface {
             if init_ipc_uhf_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
-                trace!("Received COMS IPC Msg bytes");
+                trace!("Received UHF Handler IPC Msg bytes");
                 let deserialized_msg_result = deserialize_msg(&init_ipc_uhf_interface.buffer);
                 match deserialized_msg_result {
                     Ok(deserialized_msg) => {
                         trace!("Dserd msg body len {}", deserialized_msg.msg_body.len());
                         // Handles msg internally for UHF
-                        uhf_handler.handle_msg_for_uhf(&mut tcp_interface, &deserialized_msg);
+                        uhf_handler
+                            .handle_msg_for_uhf(tcp_interface.as_mut().unwrap(), &deserialized_msg);
                     }
                     Err(e) => {
-                        warn!("Error deserializing COMS IPC msg: {:?}", e);
+                        warn!("Error deserializing UHF Handler IPC msg: {:?}", e);
                         //Handle deserialization of IPC msg failure
                     }
                 };
