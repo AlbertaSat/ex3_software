@@ -27,8 +27,8 @@ use std::io::Write;
 use std::os::unix::io::AsRawFd;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{process, thread};
 use std::time::Duration;
+use std::{process, thread};
 use tokio::sync::Mutex;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
@@ -88,8 +88,15 @@ fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::E
 
         msg_body.extend(operator_str_split[2..].join(" ").bytes());
     }
-    
-    let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
+
+    let msg = Msg::new(
+        msg_type,
+        0,
+        dest_id,
+        component_ids::ComponentIds::GS as u8,
+        opcode,
+        msg_body,
+    );
     println!("Built msg: {:?}", msg);
     Ok(msg)
 }
@@ -153,7 +160,6 @@ fn read_bulk_msgs(
     Ok(())
 }
 
-
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     let mut dir_name = match component_ids::ComponentIds::try_from(src) {
@@ -179,14 +185,10 @@ fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
     Ok(())
 }
 
-
 /// Function for rebuilding msgs that have been downlinked from the SC
 /// First, it takes a chunk of 128B msgs and makes a 4KB packet out of that
 /// Then, takes the vector of 4KB packets and makes one large msg using it
-fn process_bulk_messages(
-    bulk_messages: Vec<Msg>,
-    num_bytes: usize,
-) -> Result<Msg, &'static str> {
+fn process_bulk_messages(bulk_messages: Vec<Msg>, num_bytes: usize) -> Result<Msg, &'static str> {
     let mut reconstructed_large_msg = reconstruct_msg(bulk_messages)?;
     reconstructed_large_msg.msg_body = reconstructed_large_msg.msg_body[0..num_bytes].to_vec();
     Ok(reconstructed_large_msg)
@@ -198,13 +200,14 @@ async fn main() {
 
     eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
 
-    let mut tcp_interface = match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_COMMS_PORT) {
-	Ok(ti) => ti,
-	Err(e) => {
-	   eprintln!("Can't connect to satellite: {e}");
-	   process::exit(1);
-	}
-    };
+    let mut tcp_interface =
+        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_UHF_GS_PORT) {
+            Ok(ti) => ti,
+            Err(e) => {
+                eprintln!("Can't connect to satellite: {e}");
+                process::exit(1);
+            }
+        };
     eprintln!("Connected to Coms handler via TCP ");
 
     let mut bulk_messages: Vec<Msg> = Vec::new();
@@ -269,14 +272,16 @@ async fn main() {
                 if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
                     let num_msgs_to_recv =
                         u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
-                    let bytes = [recvd_msg.msg_body[2],
+                    let bytes = [
+                        recvd_msg.msg_body[2],
                         recvd_msg.msg_body[3],
                         recvd_msg.msg_body[4],
                         recvd_msg.msg_body[5],
                         recvd_msg.msg_body[6],
                         recvd_msg.msg_body[7],
                         recvd_msg.msg_body[8],
-                        recvd_msg.msg_body[9]];
+                        recvd_msg.msg_body[9],
+                    ];
                     let num_bytes_to_recv = u64::from_le_bytes(bytes);
                     // build_and_send_ack(
                     //     &mut tcp_interface,
@@ -285,20 +290,14 @@ async fn main() {
                     //     recvd_msg.header.dest_id.clone(),
                     // );
                     // Listening mode for bulk msgs
-                    read_bulk_msgs(
-                        &mut tcp_interface,
-                        &mut bulk_messages,
-                        num_msgs_to_recv,
-                    )
-                    .unwrap();
+                    read_bulk_msgs(&mut tcp_interface, &mut bulk_messages, num_msgs_to_recv)
+                        .unwrap();
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                     match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
                             println!("Successfully reconstructed 4KB messages");
-                            match save_data_to_file(
-                                large_msg.msg_body,
-                                large_msg.header.source_id,
-                            ) {
+                            match save_data_to_file(large_msg.msg_body, large_msg.header.source_id)
+                            {
                                 Ok(_) => {
                                     println!("Data saved to file");
                                 }
@@ -314,7 +313,6 @@ async fn main() {
                         "We have {} bulk msgs including initial header msg",
                         bulk_messages.len()
                     );
-                    
                 }
                 let recvd_msg_chars = match String::from_utf8(recvd_msg.msg_body.clone()) {
                     Ok(chars) => Ok(chars),
@@ -323,9 +321,12 @@ async fn main() {
                         Err("")
                     }
                 };
-                println!("Received Message: {:?}, body {:?} = {:?}", recvd_msg.header, recvd_msg.msg_body,recvd_msg_chars);
+                println!(
+                    "Received Message: {:?}, body {:?} = {:?}",
+                    recvd_msg.header, recvd_msg.msg_body, recvd_msg_chars
+                );
             } else {
-                // Deallocate memory of these messages. Reconstructed version 
+                // Deallocate memory of these messages. Reconstructed version
                 // has been written to a file. This is slightly slower than .clear() though
                 bulk_messages = Vec::new();
             }
