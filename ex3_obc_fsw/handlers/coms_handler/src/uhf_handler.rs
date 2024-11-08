@@ -263,16 +263,10 @@ pub fn extract_non_null_bytes(buffer: Vec<u8>) -> Vec<u8> {
 
 fn is_valid_ascii_digit_or_letter(byte: u8) -> bool {
     // checks if byte is a valid base 10 ascii encoded letter or digit
-    match byte {
-        48..=57 | 65..=90 | 97..=122 => true,
-        _ => false,
-    }
+    matches!(byte, 48..=57 | 65..=90 | 97..=122)
 }
 
 fn is_valid_ascii_digit(byte: u8) -> bool {
     // checks if byte is a valid base 10 ascii encoded digit
-    match byte {
-        48..=57 => true,
-        _ => false,
-    }
+    matches!(byte, 48..=57)
 }
