@@ -17,6 +17,7 @@ tmux -f .tmux.conf new-session -d -s "uplink_command_msg"
 
 # Create the simulated subystem components (dfgm and uhf transciever) - because they are tcp servers  
 tmux new-window -n "SIM_DFGM_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/DFGM && python3 ./dfgm_subsystem.py; exec bash"
+tmux new-window -n "SIM_UHF_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py; exec bash"
 # tmux new-window -n "SIM_IRIS_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/IRIS && python3 ./iris_simulated_server.py; exec bash"
 # For now the UHF transceiver is bypassed and the GS sends msgs directly to the coms handler 
 sleep 0.25
