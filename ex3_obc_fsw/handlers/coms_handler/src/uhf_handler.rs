@@ -226,7 +226,7 @@ impl UHFHandler {
             TcpInterface::read(uhf_interface, &mut self.buffer);
         match read_result {
             Ok(n) => {
-                trace!("Command response: {} bytes ", n)
+                trace!("Command response length: {} bytes ", n)
             }
             Err(_) => {
                 debug!("Error reading bytes from UHF")
