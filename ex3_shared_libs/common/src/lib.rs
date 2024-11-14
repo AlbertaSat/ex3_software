@@ -135,6 +135,26 @@ pub mod opcodes {
         Error = 99,
     }
 
+    pub enum GPS {
+        GetLatLong = 0,
+        GetUTCTime = 1,
+        GetHK = 3,
+        Reset = 7,
+    }
+
+    impl From<u8> for GPS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => GPS::GetLatLong,
+                1 => GPS::GetLatLong
+                3 => GPS::GetHK
+                7 => GPS::Reset,
+                _ => {
+                    GPS::Error
+                }
+            }
+        }
+
     // For IRIS subsystem
     pub enum IRIS {
         CaptureImage = 0,

@@ -4,8 +4,8 @@ Fall 2024
 
 Three things to do:
     1. handle opcodes using enums and match
-    2. three interfaces: msg_dispatcher (alr exists, where it gets op codes/msgs form fground station), 
-    one in the example, talks to the sim gps rn, and get time lat long etc 
+    2. three interfaces: msg_dispatcher (alr exists, where it gets op codes/msgs from ground station), 
+    one in the example, talks to the sim gps, gets time lat long etc 
     and the one to send thingfs backt o the ground station (example of that in the shell handler file rn ie when send things back to client, 
 
 
@@ -23,20 +23,33 @@ use std::{thread, time};
 struct GPSHandler {
     // Olivia and ben write the interface from the example here!!!!
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
+    gs_interface: Option<IpcClient> // For sending messages to the GS through the coms_handler
+    gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
 impl GPSHandler {
-    pub fn new(
-        msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
-    ) -> GPSHandler {
+    // this is an implementation block for the struct GPSHandler (see above). 
+    pub fn new(msg_dispatcher_interface: Result<IpcServer, std::io::Error>,) -> Self {
+    //  creates a new GPSHandler object, setting up its internal message dispatcher interface for communication with the dispatcher.
+    //  We should ideally have only one active GPSHandler instance at a time.
+    //  Does not create/dispatch new messages--simply initializes listening
+    // "new" is an associated function that returns a new instance of GPSHandler. "Self" is an alias for "GPSHandler".
+    // use the enum Result<T,E> for error handling (see below the err and the ok)
         if msg_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
                 msg_dispatcher_interface.as_ref().err().unwrap()
             );
         }
+        if gs_interface.is_err(){
+            warn!(
+                "Error creating gs interface: {:?}",
+                gs_interface.as_ref().err().unwrap()
+            );
+        }
         GPSHandler {
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
+            gs_interface: gs_interface.ok(),
         }
     }
 
@@ -70,12 +83,12 @@ impl GPSHandler {
             }
         }
     }
-// HANDLE MATCH STATEMENTS
+    // HANDLE MATCH STATEMENTS
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
         // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
-        Ok(())
+        match opcodes::GPS::
     }
 }
 
