@@ -78,7 +78,7 @@ impl GPSHandler {
 
             poll_ipc_server_sockets(&mut server);
 
-            // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
+            // restore the value back into `self.msg_dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;
 
             // Handling the bulk message dispatcher interface
@@ -102,13 +102,14 @@ impl GPSHandler {
 fn main() {
     let log_path = "ex3_obc_fsw/handlers/gps_handler/logs";
     init_logger(log_path);
-
+    trace!("Logger initialized")
     trace!("Starting GPS Handler...");
 
-    // Create Unix domain socket interface for to talk to message dispatcher
+    // Create Unix domain socket interface to talk to message dispatcher
     let msg_dispatcher_interface = IpcServer::new("GPS".to_string());
 
-    let mut gps_handler = GPSHandler::new(msg_dispatcher_interface);
+    // Create IPC interface for GPS handler to talk to Comms (Messages for Ground Station)
+    let gs_interface = IpcClient::new("gs_non_bulk".to_string());
 
     // example (TODO add gps_interface to GPSHandler object and poll in run loop)
     let mut gps_interface = IpcClient::new("gps_device".to_string()).ok();      // connect("/tmp/fifo_socket_gps_device")
@@ -116,6 +117,8 @@ fn main() {
     thread::sleep(time::Duration::from_millis(100));                            // wait (only for example)
     let _ = poll_ipc_clients(&mut vec![&mut gps_interface]);                    // recv()
     println!("Got \"{}\"", String::from_utf8(gps_interface.as_mut().unwrap().read_buffer()).unwrap());
-
+    
+    let mut gps_handler = GPSHandler::new(msg_dispatcher_interface, gs_interface, gps_interface);
+    
     let _ = gps_handler.run();
 }
