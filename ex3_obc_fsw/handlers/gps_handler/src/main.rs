@@ -47,9 +47,16 @@ impl GPSHandler {
                 gs_interface.as_ref().err().unwrap()
             );
         }
+        if gps_interface.is_err(){
+            warn!(
+                "Error creating gs interface: {:?}",
+                gps_interface.as_ref().err().unwrap()
+            );
+        }
         GPSHandler {
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
             gs_interface: gs_interface.ok(),
+            gps_interface: gps_interface.ok(),
         }
     }
 
