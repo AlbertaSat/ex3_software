@@ -195,6 +195,9 @@ fn process_bulk_messages(bulk_messages: Vec<Msg>, num_bytes: usize) -> Result<Ms
 }
 
 fn beacon_listen(esat_beacon_interface: &mut TcpInterface) {
+    // This function takes a tcp client connected to the simulated uhf's beacon server
+    // it reads the buffer and if it is not empty the contents are deserialized into a message
+    // right now it is just printing the contents of message to stdout.
     let mut buff = [0; 128];
     let bytes_read = match esat_beacon_interface.read(&mut buff) {
         // If we read no bytes just return early
@@ -288,6 +291,7 @@ async fn main() {
                 }
             }
         } else {
+            // Listens on beacon channel for any beacons we get and prints beacon msg to stdout
             beacon_listen(&mut esat_beacon_interface);
 
             let mut read_buf = [0; 128];
