@@ -201,7 +201,7 @@ async fn main() {
     eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
 
     let mut tcp_interface =
-        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_UHF_GS_PORT) {
+        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_UHF_PORT) {
             Ok(ti) => ti,
             Err(e) => {
                 eprintln!("Can't connect to satellite: {e}");
