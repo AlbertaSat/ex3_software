@@ -194,13 +194,34 @@ fn process_bulk_messages(bulk_messages: Vec<Msg>, num_bytes: usize) -> Result<Ms
     Ok(reconstructed_large_msg)
 }
 
+fn beacon_listen(esat_beacon_interface: &mut TcpInterface) {
+    let mut buff = [0; 128];
+    let bytes_read = match esat_beacon_interface.read(&mut buff) {
+        // If we read no bytes just return early
+        Ok(0) => return,
+        Ok(bytes) => {
+            println!("Received Beacon: {} bytes", &bytes);
+            bytes
+        }
+        Err(e) => {
+            eprintln!("Error reading bytes from UHF beacon port");
+            eprintln!("{}", e);
+            return;
+        }
+    };
+    if bytes_read > 0 {
+        let beacon_msg = deserialize_msg(&buff).unwrap();
+        println!("{:?}", beacon_msg);
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
 
-    eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
+    eprintln!("Connecting to UHF channel via TCP at {ipaddr}...");
 
-    let mut tcp_interface =
+    let mut esat_uhf_interface =
         match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_UHF_PORT) {
             Ok(ti) => ti,
             Err(e) => {
@@ -208,7 +229,17 @@ async fn main() {
                 process::exit(1);
             }
         };
-    eprintln!("Connected to Coms handler via TCP ");
+
+    eprintln!("Connecting to beacon broadcast channel via TCP at {ipaddr}...");
+
+    let mut esat_beacon_interface =
+        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_BEACON_PORT) {
+            Ok(ti) => ti,
+            Err(e) => {
+                eprintln!("Can't connect to beacon port: {e}");
+                process::exit(1);
+            }
+        };
 
     let mut bulk_messages: Vec<Msg> = Vec::new();
     let stdin_fd = std::io::stdin().as_raw_fd();
@@ -232,7 +263,7 @@ async fn main() {
 
             match msg_build_res {
                 Ok(msg) => {
-                    send_msg_to_sc(msg, &mut tcp_interface);
+                    send_msg_to_sc(msg, &mut esat_uhf_interface);
 
                     let mut buf = [0u8; 128];
                     let awaiting_ack = Arc::new(Mutex::new(true));
@@ -243,7 +274,7 @@ async fn main() {
                     });
 
                     while *awaiting_ack.lock().await {
-                        let bytes_read = tcp_interface.read(&mut buf).unwrap();
+                        let bytes_read = esat_uhf_interface.read(&mut buf).unwrap();
                         if bytes_read > 0 {
                             let recvd_msg = deserialize_msg(&buf).unwrap();
                             if recvd_msg.header.op_code == 200 {
@@ -257,9 +288,11 @@ async fn main() {
                 }
             }
         } else {
+            beacon_listen(&mut esat_beacon_interface);
+
             let mut read_buf = [0; 128];
 
-            let bytes_received = match tcp_interface.read(&mut read_buf) {
+            let bytes_received = match esat_uhf_interface.read(&mut read_buf) {
                 Ok(len) => len,
                 Err(e) => {
                     println!("read failed: {e}");
@@ -290,8 +323,12 @@ async fn main() {
                     //     recvd_msg.header.dest_id.clone(),
                     // );
                     // Listening mode for bulk msgs
-                    read_bulk_msgs(&mut tcp_interface, &mut bulk_messages, num_msgs_to_recv)
-                        .unwrap();
+                    read_bulk_msgs(
+                        &mut esat_uhf_interface,
+                        &mut bulk_messages,
+                        num_msgs_to_recv,
+                    )
+                    .unwrap();
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                     match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
