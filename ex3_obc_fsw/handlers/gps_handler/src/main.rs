@@ -2,12 +2,19 @@
 Written by _
 Fall 2024
 
-Three things to do:
-    1. handle opcodes using enums and match
-    2. three interfaces: msg_dispatcher (alr exists, where it gets op codes/msgs from ground station), 
-    one in the example, talks to the sim gps, gets time lat long etc 
-    and the one to send thingfs backt o the ground station (example of that in the shell handler file rn ie when send things back to client, 
-
+Background info:
+    COMMAND MSG UPLINK:
+    - Command message (sent from GS thru comms, to the GPS) will contain a msg header and a msg body.
+    - For the GPS, only the header matters there is no extra command data related to the opcode (as on Nov 18 2024)
+    - Question: handle message error detection in the message body?
+    BULK MSG DOWNLINK:
+    - In the handler, make a new message with the path to bulk data
+    - Send that path to the Bulk Msg Dispatcher!
+    - The Bulk Msg Dipatcher slices data into smaller pieces, and then:
+        - Send Cmd Msg to GS handler: "this is the size of buffer you need to prepare for!"
+        - When GS allocates this buffer and sends an ACK back to Bulk Msg Dispatcher, 
+        - then Bulk Msg Dispatcher sends Msg's in its vector of the IPC socket
+        - GS will continuously read and store these!
 
 */
 
@@ -24,19 +31,23 @@ use message_structure::*;
 
 use std::{thread, time};
 
+const SIM_GPS = "gps_device"
+
 struct GPSHandler {
     // Olivia and ben write the interface from the example here!!!!
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient> // For sending messages to the GS through the coms_handler
-    // "Why should the GPS ever directly communicate to the ground station? No reason. 
-    //The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
-    //Talk to OBC over PHYSICAL port.
-    //The GPS shouldnt decide where the data goes. ."
+    /* Comments from Hari:
+    "Why should the GPS ever directly communicate to the ground station? No reason. 
+    The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
+    Talk to OBC over PHYSICAL port.
+    The GPS shouldnt decide where the data goes. ."
+    */
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
 impl GPSHandler {
-    // this is an implementation block for the struct GPSHandler (see above). 
+    // this is an implementation block for the struct GPSHandler. 
     pub fn new(msg_dispatcher_interface: Result<IpcServer, std::io::Error>,) -> Self {
     //  creates a new GPSHandler object, setting up its internal message dispatcher interface for communication with the dispatcher.
     //  We should ideally have only one active GPSHandler instance at a time.
@@ -57,7 +68,7 @@ impl GPSHandler {
         }
         if gps_interface.is_err(){
             warn!(
-                "Error creating gs interface: {:?}",
+                "Error creating gps interface: {:?}",
                 gps_interface.as_ref().err().unwrap()
             );
         }
@@ -91,19 +102,54 @@ impl GPSHandler {
 
             // Handling the bulk message dispatcher interface
             let msg_dispatcher_interface = self.msg_dispatcher_interface.as_ref().unwrap();
-            if msg_dispatcher_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+            
+            if msg_dispatcher_interface.buffer != [0u8; IPC_BUFFER_SIZE] { 
+                // "0u8" is the smallest value repr by u8 type. 
+                // "[0u8; IPC_BUFFER_SIZE]" means an array of IPC_BUFFER_SIZE filled with u8 zeroes.
                 let recv_msg: Msg = deserialize_msg(&msg_dispatcher_interface.buffer).unwrap();
                 debug!("Received and deserialized msg");
-                self.handle_msg(recv_msg)?;
+                self.handle_msg_for_gps(recv_msg)?;
             }
         }
     }
-    // HANDLE MATCH STATEMENTS
-    fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
-        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
+
+    fn handle_msg_for_gps(&mut self, msg: Msg) -> Result<(), Error> {
+        //match the opcodes with the message header op_code
+        //returns none if Ok, Error if err
+        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
         // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
-        match opcodes::GPS::
+        let (cmd_msg, success) = match opcodes::GPS::from(msg.header.op_code){
+            //for now im using the simulated gps commands but this will change when we get the actual gps commands
+            opcodes::GPS::GetLatLong => {   
+                trace!("Getting latitude and longitude");
+                ("latlong", true)
+            }
+            opcodes::GPS::GetUTCTime => {
+                trace!("Getting UTC time");
+                ("time", true)
+            }
+            opcodes::GPS::GetHK => {
+                trace!("Getting HK");
+                ("ping", true)
+            }
+            opcodes::GPS::Reset => {
+                trace!("Resetting");
+                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN...
+                ("NOT IMPLEMENTED YET", true)
+            }
+            _ => { //match case for everything else 
+                warn!(
+                    "{}",
+                    format!("Error: Opcode {} not found for GPS", msg.header.op_code)
+                ); // logs a warning (warn! is from the module log)
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Error: Opcode {} not found for GPS", msg.header.op_code),
+                    //return a warning for NotFound opcode.
+                ))
+            }
+        }
     }
 }
 
