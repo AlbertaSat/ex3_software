@@ -11,9 +11,12 @@ TODO
     - Have the 'up' key bring back the previously entered command
 
 */
+mod bulk;
+mod eps;
+mod shell;
 
 use common::bulk_msg_slicing::*;
-use common::*;
+use common::{ports, ComponentIds};
 use libc::c_int;
 use message_structure::*;
 use std::fs::File;
@@ -22,14 +25,13 @@ use std::str::from_utf8;
 use interface::{tcp::*, Interface};
 
 use libc::{poll, POLLIN};
-use std::fs;
 use std::io::prelude::*;
 use std::io::Write;
 use std::os::unix::io::AsRawFd;
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{fs, process};
 use std::time::Duration;
-use std::{process, thread};
+use strum::IntoEnumIterator;
 use tokio::sync::Mutex;
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
@@ -60,61 +62,95 @@ const STDIN_POLL_TIMEOUT: c_int = 10;
 //     let _ = writer.flush();
 // }
 
+fn help() {
+    println!("Available commands:");
+    println!("<payload> <args>, where <payload> is:");
+    for x in ComponentIds::iter() {
+        println!("  {}", x);
+    }
+    println!("quit/exit");
+    println!("help/?");
+}
+
 /// Build a message from operator input string, where values are delimited by spaces.
 /// 1st value is the destination component string - converted to equivalent component id.
 /// 2nd value is opcode num - converted from ascii to a byte.
 /// Remaining values are the data - converted from ascii into bytes.
-fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::Error> {
+fn build_msg_from_operator_input(operator_str: String) -> Option<Msg> {
     //Parse input string by spaces
-    let operator_str_split: Vec<&str> = operator_str.split(" ").collect();
+    let input_tokens: Vec<&str> = operator_str.split(" ").collect();
 
-    if operator_str_split.len() < 2 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Not enough arguments",
-        ));
+    if input_tokens.len() < 2 {
+        let cmd = input_tokens[0];
+        if cmd == "exit" || cmd == "quit" {
+            process::exit(0);  // does not return
+        }
+        else {
+            help();
+        }
+        return None;
     }
 
-    let dest_id = component_ids::ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
-    let mut msg_body: Vec<u8> = Vec::new();
-    let mut msg_type = 0;
+    let cmd = input_tokens[0].to_uppercase();
+    let payload = match ComponentIds::iter().find(|x| cmd == format!("{x}")) {
+        Some(p) => p,
+        None => {
+            let p = ComponentIds::BulkMsgDispatcher;
+            if input_tokens[0] == format!("{p}") {
+                p
+            }
+            else {
+                println!("Unknown payload: {}", input_tokens[0]);
+                return None;
+            }
+        }
+    };
+
     let mut opcode = 0;
+    let msg_type = MsgType::Cmd as u8;
 
-    // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
-    if dest_id == component_ids::ComponentIds::BulkMsgDispatcher as u8 {
-        msg_type = MsgType::Cmd as u8;
-        msg_body = operator_str_split[1].as_bytes().to_vec();
-    } else {
-        opcode = operator_str_split[1].parse::<u8>().unwrap();
+    let msg_body = match payload {
+        ComponentIds::BulkMsgDispatcher => bulk::parse_cmd(&input_tokens[1..]),
+        ComponentIds::EPS => eps::parse_cmd(&input_tokens[1..]),
+        ComponentIds::SHELL => shell::parse_cmd(&input_tokens[1..]),
+        _ => {
+            opcode = input_tokens[1].parse::<u8>().unwrap();
+            Some(input_tokens[2..].join(" ").as_bytes().to_vec())
+        }
+    };
 
-        msg_body.extend(operator_str_split[2..].join(" ").bytes());
+    match msg_body {
+        Some(b) => {
+            let msg = Msg::new(msg_type, 0, payload as u8, ComponentIds::GS as u8, opcode, b);
+            println!("Built msg: {:?}", msg);
+            Some(msg)
+        },
+        None => None,
     }
-
-    let msg = Msg::new(
-        msg_type,
-        0,
-        dest_id,
-        component_ids::ComponentIds::GS as u8,
-        opcode,
-        msg_body,
-    );
-    println!("Built msg: {:?}", msg);
-    Ok(msg)
 }
 
 /// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
-fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
+fn handle_response(msg: &Msg) {
     //TODO - handle if the Ack is OK or ERR , OR not an ACK at all
-    println!("Received ACK: {:?}", msg);
-    *awaiting_ack = false;
-    Ok(())
+    if msg.header.op_code == AckCode::Failed as u8 {
+        match std::str::from_utf8(&msg.msg_body) {
+            Ok(s) => println!("Command failed: {}", s),
+            Err(e) => println!("Command failed, respnse corrupt: {}", e),
+        }
+    }
+    else {
+        if let Ok(payload) = ComponentIds::try_from(msg.header.source_id) {
+            println!("got response from {}", payload);
+        }
+    };
 }
 
 fn send_msg_to_sc(msg: Msg, tcp_interface: &mut TcpInterface) {
     let serialized_msg = serialize_msg(&msg).unwrap();
-    let ret = tcp_interface.send(&serialized_msg).unwrap();
-    println!("Sent {} bytes to Coms handler", ret);
-    std::io::stdout().flush().unwrap();
+    match tcp_interface.send(&serialized_msg) {
+        Ok(len) => println!("Sent {} bytes to Coms handler", len),
+        Err(e) => println!("Send to COMs handler failed: {}", e),
+    };
 }
 
 /// Sleep for 1 second intervals - and check if the await ack flag has been reset each second
@@ -133,37 +169,10 @@ async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
     *lock = false;
     println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
 }
-/// Function to represent the state of reading bulk msgs continuously.
-/// It modifies the bulk_messages in place by taking a mutable reference.
-fn read_bulk_msgs(
-    tcp_interface: &mut TcpInterface,
-    bulk_messages: &mut Vec<Msg>,
-    num_msgs_to_recv: u16,
-) -> Result<(), std::io::Error> {
-    let mut bulk_buf = [0u8; 4096];
-    let mut num_msgs_recvd = 0;
-    println!("Num msgs incoming: {}", num_msgs_to_recv);
-    while num_msgs_recvd < num_msgs_to_recv {
-        let bytes_read = tcp_interface.read(&mut bulk_buf)?;
-        if bytes_read > 0 {
-            let cur_msg = deserialize_msg(&bulk_buf[0..bytes_read])?;
-            if cur_msg.header.msg_type == MsgType::Bulk as u8 {
-                let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
-                println!("Received msg #{}", seq_id);
-                // println!("{:?}", cur_msg);
-                bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(1));
-                num_msgs_recvd += 1;
-            }
-        }
-    }
-
-    Ok(())
-}
 
 /// Function to save downlinked data to a file
 fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
-    let mut dir_name = match component_ids::ComponentIds::try_from(src) {
+    let mut dir_name = match ComponentIds::try_from(src) {
         Ok(c) => format!("{c}"),
         Err(_) => "misc".to_string(),
     };
@@ -264,33 +273,33 @@ async fn main() {
             stdin.read_line(&mut input).unwrap();
             let input = input.trim().to_string();
 
-            let msg_build_res = build_msg_from_operator_input(input);
+            if let Some(msg) = build_msg_from_operator_input(input) {
+                send_msg_to_sc(msg, &mut tcp_interface);
 
-            match msg_build_res {
-                Ok(msg) => {
-                    send_msg_to_sc(msg, &mut esat_uhf_interface);
+                let mut buf = [0u8; 128];
+                let awaiting_ack = Arc::new(Mutex::new(true));
+                let awaiting_ack_clone = Arc::clone(&awaiting_ack);
 
-                    let mut buf = [0u8; 128];
-                    let awaiting_ack = Arc::new(Mutex::new(true));
-                    let awaiting_ack_clone = Arc::clone(&awaiting_ack);
+                tokio::task::spawn(async move {
+                    awaiting_ack_timeout_task(awaiting_ack_clone).await;
+                });
 
-                    tokio::task::spawn(async move {
-                        awaiting_ack_timeout_task(awaiting_ack_clone).await;
-                    });
-
-                    while *awaiting_ack.lock().await {
-                        let bytes_read = esat_uhf_interface.read(&mut buf).unwrap();
-                        if bytes_read > 0 {
-                            let recvd_msg = deserialize_msg(&buf).unwrap();
-                            if recvd_msg.header.op_code == 200 {
-                                let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
-                            }
+                println!("waiting for ack");
+                match tcp_interface.read(&mut buf) {
+                    Ok(len) => {
+                        if len == 0 {
+                            println!("satellite connection ended");
                         }
-                    }
+                        else {
+                            match deserialize_msg(&buf) {
+                                Ok(response) => handle_response(&response),
+                                Err(e) => println!("Response garbled: {}", e),
+                            };
+                        }
+                    },
+                    Err(e) => println!("read from satellite failed: {}", e),
                 }
-                Err(e) => {
-                    eprintln!("Error building message: {}", e);
-                }
+                *awaiting_ack.lock().await = false;
             }
         } else {
             // Listens on beacon channel for any beacons we get and prints beacon msg to stdout
@@ -329,12 +338,13 @@ async fn main() {
                     //     recvd_msg.header.dest_id.clone(),
                     // );
                     // Listening mode for bulk msgs
-                    read_bulk_msgs(
-                        &mut esat_uhf_interface,
+                    bulk::read_msgs(
+                        &mut tcp_interface,
                         &mut bulk_messages,
                         num_msgs_to_recv,
                     )
                     .unwrap();
+
                     // clone bulk_messages BUT maybe hurts performance if there's tons of packets
                     match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
                         Ok(large_msg) => {
