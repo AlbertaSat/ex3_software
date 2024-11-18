@@ -11,6 +11,10 @@ Three things to do:
 
 */
 
+//GPS data is primarily only used for
+// 1. TIME SYNCINg
+// 2. COORDINATE TAGGING of IRIS PHOTOS
+
 use log::{debug, trace, warn};
 use logging::*;
 use std::io::Error;
@@ -24,6 +28,10 @@ struct GPSHandler {
     // Olivia and ben write the interface from the example here!!!!
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient> // For sending messages to the GS through the coms_handler
+    // "Why should the GPS ever directly communicate to the ground station? No reason. 
+    //The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
+    //Talk to OBC over PHYSICAL port.
+    //The GPS shouldnt decide where the data goes. ."
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
