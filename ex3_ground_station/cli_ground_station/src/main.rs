@@ -223,7 +223,7 @@ async fn main() {
     let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
 
     eprintln!("Connecting to UHF channel via TCP at {ipaddr}...");
-
+    // Create tcp client listening to simulated uhf server.
     let mut esat_uhf_interface =
         match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_UHF_PORT) {
             Ok(ti) => ti,
@@ -234,7 +234,7 @@ async fn main() {
         };
 
     eprintln!("Connecting to beacon broadcast channel via TCP at {ipaddr}...");
-
+    // Create tcp client listening to simulated uhf beacon server.
     let mut esat_beacon_interface =
         match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_BEACON_PORT) {
             Ok(ti) => ti,
