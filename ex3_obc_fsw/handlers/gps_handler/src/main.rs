@@ -25,35 +25,32 @@ Background info:
 use log::{debug, trace, warn};
 use logging::*;
 use std::io::Error;
-
+use common::opcodes;
 use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
 use message_structure::*;
-
 use std::{thread, time};
 
-const SIM_GPS = "gps_device"
+const HK_INTERVAL = time::Duration::from_secs(20);
+
+/* Comments from Hari:
+"Why should the GPS ever directly communicate to the ground station? No reason. 
+The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
+Talk to OBC over PHYSICAL port.
+The GPS shouldnt decide where the data goes. ."
+*/
 
 struct GPSHandler {
-    // Olivia and ben write the interface from the example here!!!!
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient> // For sending messages to the GS through the coms_handler
-    /* Comments from Hari:
-    "Why should the GPS ever directly communicate to the ground station? No reason. 
-    The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
-    Talk to OBC over PHYSICAL port.
-    The GPS shouldnt decide where the data goes. ."
-    */
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
 impl GPSHandler {
-    // this is an implementation block for the struct GPSHandler. 
-    pub fn new(msg_dispatcher_interface: Result<IpcServer, std::io::Error>,) -> Self {
-    //  creates a new GPSHandler object, setting up its internal message dispatcher interface for communication with the dispatcher.
-    //  We should ideally have only one active GPSHandler instance at a time.
-    //  Does not create/dispatch new messages--simply initializes listening
-    // "new" is an associated function that returns a new instance of GPSHandler. "Self" is an alias for "GPSHandler".
-    // use the enum Result<T,E> for error handling (see below the err and the ok)
+    pub fn new(
+        msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
+        gs_interface: Result<IpcServer, std::io::Error>,
+        gps_interface: Result<IpcServer, std::io::Error>,
+    ) -> GPSHandler {
         if msg_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
@@ -72,6 +69,7 @@ impl GPSHandler {
                 gps_interface.as_ref().err().unwrap()
             );
         }
+
         GPSHandler {
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
             gs_interface: gs_interface.ok(),
@@ -81,8 +79,26 @@ impl GPSHandler {
 
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
+
+        //Note that HK_INTERVAL is a global const
+        let mut last_hk_collect = time::Instant::now(); // Housekeeping should occur regularly. Begin the timer now.
+
         // Poll for messages
         loop {
+
+            // Check if we should collect HK:
+            if last_hk_collect.elapsed() >= HK_INTERVAL {
+                match self.collect_hk() {
+                    Ok(_) => {
+                        debug!("Collected and stored HK.");
+                    }
+                    Err(e) => {
+                        debug!("HK collection failed: {}", e);
+                    }
+                }
+                last_hk_collect= time::Instant::now();
+            }
+
             // First, take the Option<IpcClient> out of `self.dispatcher_interface`
             // This consumes the Option, so you can work with the owned IpcClient
             let msg_dispatcher_interface = self.msg_dispatcher_interface.take().expect("Cmd_Disp has value of None");
@@ -93,6 +109,7 @@ impl GPSHandler {
             // Now you can borrow this mutable option and place it in the vector
             let mut server: Vec<&mut Option<IpcServer>> = vec![
                 &mut msg_dispatcher_interface_option,
+                //QUESTION: do we need to add the other interfaces here?
             ];
 
             poll_ipc_server_sockets(&mut server);
@@ -111,6 +128,13 @@ impl GPSHandler {
                 self.handle_msg_for_gps(recv_msg)?;
             }
         }
+
+        fn collect_hk(&mut self) -> io::Result<()> {
+            let hk_msg = Msg::new() //Question: idk what to put in it now, but will need to make a Msg for Hk...
+            // TODO: WHAT IS GPS HK ACTION
+            //UNFINISHED
+        }
+
     }
 
     fn handle_msg_for_gps(&mut self, msg: Msg) -> Result<(), Error> {
@@ -119,24 +143,22 @@ impl GPSHandler {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
         // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
-        let (cmd_msg, success) = match opcodes::GPS::from(msg.header.op_code){
+        match opcodes::GPS::from(msg.header.op_code){
             //for now im using the simulated gps commands but this will change when we get the actual gps commands
             opcodes::GPS::GetLatLong => {   
                 trace!("Getting latitude and longitude");
-                ("latlong", true)
             }
             opcodes::GPS::GetUTCTime => {
                 trace!("Getting UTC time");
-                ("time", true)
+
             }
             opcodes::GPS::GetHK => {
                 trace!("Getting HK");
-                ("ping", true)
+            
             }
             opcodes::GPS::Reset => {
                 trace!("Resetting");
-                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN...
-                ("NOT IMPLEMENTED YET", true)
+                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN...   
             }
             _ => { //match case for everything else 
                 warn!(
@@ -154,6 +176,7 @@ impl GPSHandler {
 }
 
 fn main() {
+    // Initialize logging
     let log_path = "ex3_obc_fsw/handlers/gps_handler/logs";
     init_logger(log_path);
     trace!("Logger initialized")
@@ -165,14 +188,24 @@ fn main() {
     // Create IPC interface for GPS handler to talk to Comms (Messages for Ground Station)
     let gs_interface = IpcClient::new("gs_non_bulk".to_string());
 
-    // example (TODO add gps_interface to GPSHandler object and poll in run loop)
-    let mut gps_interface = IpcClient::new("gps_device".to_string()).ok();      // connect("/tmp/fifo_socket_gps_device")
-    let _ = ipc_write(&gps_interface.as_ref().unwrap().fd, "time".as_bytes());  // send("time")
-    thread::sleep(time::Duration::from_millis(100));                            // wait (only for example)
-    let _ = poll_ipc_clients(&mut vec![&mut gps_interface]);                    // recv()
-    println!("Got \"{}\"", String::from_utf8(gps_interface.as_mut().unwrap().read_buffer()).unwrap());
+    // Create IPC interface for GPS handler to talk to simulated GPS 
+    let gps_interface = IpcClient::new("gps_device".to_string());   // connect("/tmp/fifo_socket_gps_device")
     
+    // Create GPS handler
     let mut gps_handler = GPSHandler::new(msg_dispatcher_interface, gs_interface, gps_interface);
     
-    let _ = gps_handler.run();
+    /*
+    Below is example written by Kaaden:
+// example (TODO add gps_interface to GPSHandler object and poll in run loop)
+let mut gps_interface = IpcClient::new("gps_device".to_string()).ok();      // connect("/tmp/fifo_socket_gps_device")
+let _ = ipc_write(&gps_interface.as_ref().unwrap().fd, "time".as_bytes());  // send("time")
+thread::sleep(time::Duration::from_millis(100));                            // wait (only for example)
+let _ = poll_ipc_clients(&mut vec![&mut gps_interface]);                    // recv()
+println!("Got \"{}\"", String::from_utf8(gps_interface.as_mut().unwrap().read_buffer()).unwrap()); */
+
+    // Start the GPS handler
+    match gps_handler.run() {
+        Ok(_) => debug!("GPS handler run successfully!"),
+        Err(e) => debug!("Error occured while running GPS handler: {}", e),
+    }
 }
