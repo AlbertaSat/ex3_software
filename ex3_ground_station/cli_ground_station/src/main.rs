@@ -18,6 +18,7 @@ use libc::c_int;
 use message_structure::*;
 use std::fs::File;
 use std::path::Path;
+use std::str::from_utf8;
 use tcp_interface::*;
 
 use libc::{poll, POLLIN};
@@ -202,10 +203,7 @@ fn beacon_listen(esat_beacon_interface: &mut TcpInterface) {
     let bytes_read = match esat_beacon_interface.read(&mut buff) {
         // If we read no bytes just return early
         Ok(0) => return,
-        Ok(bytes) => {
-            println!("Received Beacon: {} bytes", &bytes);
-            bytes
-        }
+        Ok(bytes) => bytes,
         Err(e) => {
             eprintln!("Error reading bytes from UHF beacon port");
             eprintln!("{}", e);
@@ -213,8 +211,12 @@ fn beacon_listen(esat_beacon_interface: &mut TcpInterface) {
         }
     };
     if bytes_read > 0 {
-        let beacon_msg = deserialize_msg(&buff).unwrap();
-        println!("{:?}", beacon_msg);
+        let beacon_msg = from_utf8(&buff).unwrap();
+        // Hardcoded slice for now, this code will change in future
+        let call_sign_len = 7;
+        let call_sign = &beacon_msg[..call_sign_len];
+        let content = &beacon_msg[call_sign_len..];
+        println!("Beacon ({} bytes): {} {}", bytes_read, call_sign, content);
     }
 }
 
