@@ -174,6 +174,21 @@ impl GPSHandler {
             }
         }
     }
+
+    fn write_msg_to_GS(interface: &mut TcpInterface, msg: MSG) {
+        // heavily lifted from coms_handler
+        let serialized_msg_result = serialize_msg(&msg);    // converts msg to bytes -> Result<Vec<u8>
+        match serialized_msg_result {
+            Ok(serialized_msg) => {
+                // TODO
+            }
+            Err(e) => {
+                debug!("Error sending message to GS");
+
+            }
+        }
+
+    }
 }
 
 fn main() {
