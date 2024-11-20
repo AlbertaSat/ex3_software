@@ -46,7 +46,7 @@ struct GPSHandler {
 }
 
 impl GPSHandler {
-    pub fn new(
+    pub fn new( 
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
         gs_interface: Result<IpcServer, std::io::Error>,
         gps_interface: Result<IpcServer, std::io::Error>,
@@ -147,6 +147,7 @@ impl GPSHandler {
             //for now im using the simulated gps commands but this will change when we get the actual gps commands
             opcodes::GPS::GetLatLong => {   
                 trace!("Getting latitude and longitude");
+                // QUESTION: what to put here
             }
             opcodes::GPS::GetUTCTime => {
                 trace!("Getting UTC time");
