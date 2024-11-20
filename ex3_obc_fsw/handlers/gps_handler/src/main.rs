@@ -148,6 +148,9 @@ impl GPSHandler {
             opcodes::GPS::GetLatLong => {   
                 trace!("Getting latitude and longitude");
                 // QUESTION: what to put here
+                // steps:
+                //  get data from GPS; 
+                //  if data < 128, send to GS else send to bulk
             }
             opcodes::GPS::GetUTCTime => {
                 trace!("Getting UTC time");
