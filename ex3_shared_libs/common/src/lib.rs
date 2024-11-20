@@ -6,6 +6,7 @@ pub mod ports {
     pub const SIM_ESAT_UART_PORT: u16 = 1805;
     pub const SIM_IRIS_PORT: u16 = 1806;
     pub const SIM_ESAT_UHF_PORT: u16 = 1808;
+    pub const SIM_ESAT_BEACON_PORT: u16 = 1809;
 
     pub const DFGM_HANDLER_DISPATCHER_PORT: u16 = 1900;
     pub const SCHEDULER_DISPATCHER_PORT: u16 = 1901;
