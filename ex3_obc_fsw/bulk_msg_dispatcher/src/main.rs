@@ -1,6 +1,5 @@
 use bulk_msg_slicing::*;
 use common::*;
-use component_ids::{DFGM, GS};
 use ipc::*;
 use message_structure::*;
 use std::fs::{File, OpenOptions};
@@ -138,7 +137,9 @@ fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: &OwnedFd) ->
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
     num_msgs_bytes.append(&mut num_bytes_bytes);
-    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, GS, DFGM, 2, 0,  num_msgs_bytes);
+    let num_msg: Msg = Msg::new(MsgType::Bulk as u8,
+                                ComponentIds::GS as u8, ComponentIds::DFGM as u8,
+                                2, 0,  num_msgs_bytes);
     ipc_write(fd, &serialize_msg(&num_msg)?)?;
     Ok(())
 }
@@ -169,7 +170,7 @@ fn get_data_from_path(path: &str) -> Result<Msg, std::io::Error> {
     // Get src id
     let mut src_id: u8 = 0;
     if path.contains("dfgm") {
-        src_id = DFGM;
+        src_id = ComponentIds::DFGM as u8;
     } else if path.contains("iris") {
         src_id = component_ids::ComponentIds::IRIS as u8;
     } else if path.contains("coms") {
