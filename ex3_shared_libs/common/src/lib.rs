@@ -47,7 +47,8 @@ pub mod component_ids {
         BulkMsgDispatcher = 9,
         SHELL = 10,
         UHF = 11,
-        LAST = 12,
+        SCHEDULER = 12,
+        LAST = 13,
     }
 
     impl fmt::Display for ComponentIds {
@@ -65,6 +66,7 @@ pub mod component_ids {
                 ComponentIds::BulkMsgDispatcher => write!(f, "BulkMsgDispatcher"),
                 ComponentIds::SHELL => write!(f, "SHELL"),
                 ComponentIds::UHF => write!(f, "UHF"),
+                ComponentIds::SCHEDULER => write!(f, "SCHEDULER"),
                 ComponentIds::LAST => write!(f, "illegal"),
             }
         }
@@ -85,6 +87,7 @@ pub mod component_ids {
                 "BulkMsgDispatcher" => Ok(ComponentIds::BulkMsgDispatcher),
                 "SHELL" => Ok(ComponentIds::SHELL),
                 "UHF" => Ok(ComponentIds::UHF),
+                "SCHEDULER" => Ok(ComponentIds::SCHEDULER),
                 "LAST" => Err(()),
                 _ => Err(()),
             }
@@ -112,6 +115,7 @@ pub mod component_ids {
                 }
                 x if x == ComponentIds::SHELL as u8 => Ok(ComponentIds::SHELL),
                 x if x == ComponentIds::UHF as u8 => Ok(ComponentIds::UHF),
+                x if x == ComponentIds::SCHEDULER as u8 => Ok(ComponentIds::SCHEDULER),
                 x if x == ComponentIds::LAST as u8 => Err(()),
                 _ => Err(()),
             }
