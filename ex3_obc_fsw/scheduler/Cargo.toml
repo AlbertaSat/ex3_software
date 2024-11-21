@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tcp_interface = { path = "../../ex3_shared_libs/tcp_interface" }
-message_structure = { path = "../../ex3_shared_libs/message_structure" }
-common = { path = "../../ex3_shared_libs/common" }
 log = "0.4"
 log4rs = { version = "1.2", features = ["rolling_file_appender", "compound_policy", "size_trigger", "fixed_window_roller", "toml_format"] }
 chrono = "0.4"
-serde_json = "1.0.117"
+common = {path = "../../ex3_shared_libs/common"}
+ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
+logging = { path = "../../ex3_shared_libs/logging" }
+message_structure = { path = "../../ex3_shared_libs/message_structure" }
