@@ -2,6 +2,7 @@ pub mod component_ids;
 pub use component_ids::{ComponentIds};
 pub mod message_structure;
 pub mod logging;
+pub mod tcp_interface;
 
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {

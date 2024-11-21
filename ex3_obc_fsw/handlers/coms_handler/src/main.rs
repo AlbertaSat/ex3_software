@@ -19,7 +19,7 @@ use ipc::*;
 use common::message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
-use tcp_interface::{Interface, TcpInterface};
+use common::tcp_interface::{Interface, TcpInterface};
 mod uhf_handler;
 use uhf_handler::UHFHandler;
 

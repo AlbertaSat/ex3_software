@@ -23,5 +23,4 @@ members = [
     "ex3_shared_libs/interfaces/i2c",
     "ex3_shared_libs/interfaces/ipc",
     "ex3_shared_libs/interfaces/uart",
-    "ex3_shared_libs/tcp_interface"
 ]

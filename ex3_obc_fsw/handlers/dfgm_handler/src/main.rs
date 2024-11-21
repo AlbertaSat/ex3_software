@@ -16,7 +16,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 use ipc::{poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
-use tcp_interface::*;
+use common::tcp_interface::*;
 use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
