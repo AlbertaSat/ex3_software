@@ -9,7 +9,7 @@ TODO - implement a 'gs' connection flag, which the handler uses to determine whe
 TODO - mucho error handling
 */
 use log::{debug, trace, warn};
-use logging::*;
+use common::logging::*;
 
 use common::component_ids::ComponentIds;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
