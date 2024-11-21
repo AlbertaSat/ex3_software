@@ -11,7 +11,7 @@ TODO: get an idea of the actual ADCS commands and figure out a clean way to send
 use common::{opcodes, ports};
 use ipc::*;
 use log::{debug, trace, warn};
-use logging::*;
+use common::logging::*;
 use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;

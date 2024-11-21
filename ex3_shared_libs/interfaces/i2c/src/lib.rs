@@ -1,6 +1,6 @@
 use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
-use message_structure::{deserialize_msg, serialize_msg, Msg};
+use common::message_structure::{deserialize_msg, serialize_msg, Msg};
 
 pub trait Interface {
     fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError>;

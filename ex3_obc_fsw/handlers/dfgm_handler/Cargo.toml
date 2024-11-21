@@ -10,5 +10,4 @@ tcp_interface = { path = "../../../ex3_shared_libs/tcp_interface" }
 ipc = { path = "../../../ex3_shared_libs/interfaces/ipc" }
 common = {path = "../../../ex3_shared_libs/common"}
 nix = "0.26.2"
-logging = { path = "../../../ex3_shared_libs/logging" }
 log = "0.4.22"
