@@ -11,7 +11,7 @@ TODO - mucho error handling
 use log::{debug, trace, warn};
 use logging::*;
 
-use common::component_ids::{ComponentIds, COMS, GS};
+use common::component_ids::ComponentIds;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
@@ -355,7 +355,9 @@ fn main() {
             //EMIT AN ACK TO TELL SENDER WE RECEIVED THE MSG
             // OK -> if decryption and msg deserialization of bytes succeeds
             // ERR -> If decryption fails or msg deserialization fails (inform sender what failed)
-            let ack_msg = Msg::new(0, ack_msg_id, GS, COMS, 200, ack_msg_body);
+            let ack_msg = Msg::new(0, ack_msg_id,
+                                   ComponentIds::GS as u8, ComponentIds::COMS as u8,
+                                   200, ack_msg_body);
             write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), ack_msg);
             uhf_buf.fill(0);
         }
