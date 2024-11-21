@@ -1,4 +1,4 @@
-use bulk_msg_slicing::*;
+use common::bulk_msg_slicing::*;
 use common::*;
 use ipc::*;
 use message_structure::*;
