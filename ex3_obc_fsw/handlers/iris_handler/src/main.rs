@@ -21,16 +21,14 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 use logging::*;
 use log::{debug, trace, warn};
-use common::component_ids::IRIS;
+use common::{opcodes, ports, ComponentIds};
 use common::opcodes::IRIS::GetHK;
-use common::{opcodes, ports};
 use ipc::*;
 use message_structure::*;
 use std::fs::OpenOptions;
 use std::{io, thread};
 use std::io::prelude::*;
-use std::io::Error;
-use std::io::ErrorKind;
+use std::io::{Error, ErrorKind};
 use std::time::{Instant, Duration};
 use tcp_interface::*;
 use std::collections::HashMap;
@@ -218,7 +216,9 @@ impl IRISHandler {
     /// This function is a first iteration of how a handler will collect HK.
     /// Each handler will have a different version of this function as each HK is unique
     fn collect_hk(&mut self) -> io::Result<()> {
-        let hk_msg = Msg::new(55,55,IRIS, IRIS, GetHK as u8, vec![]);
+        let hk_msg = Msg::new(55, 55,
+                              ComponentIds::IRIS as u8, ComponentIds::IRIS as u8,
+                              GetHK as u8, vec![]);
         if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
             let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
             store_iris_data("hk_test", &hk_bytes)?;
