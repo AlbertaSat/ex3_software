@@ -10,3 +10,25 @@ nix = { version = "0.29.0", features = ["socket"] }
 ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
 common = {path = "../../ex3_shared_libs/common"}
 log = "0.4.22"
+
+[dev-dependencies]
+nix = { version = "0.26.2", features = ["socket", "poll"] }
+ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
+i2c = { path = "../../ex3_shared_libs/interfaces/i2c" }
+uart = { path = "../../ex3_shared_libs/interfaces/uart" }
+common = {path = "../../ex3_shared_libs/common"}
+
+[[example]]
+name = "i2c_test"
+
+[[example]]
+name = "ipc_dummy_client"
+
+[[example]]
+name = "ipc_burst_hardcoded"
+
+[[example]]
+name = "ipc_server_dev_tool"
+
+[[example]]
+name = "arduino_uart_test"

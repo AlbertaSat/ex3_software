@@ -12,6 +12,7 @@ use common::message_structure::{CmdMsg, SerializeAndDeserialize};
 
 use nix::poll::{poll, PollFd, PollFlags};
 use std::io::{self, Read};
+use std::os::fd::OwnedFd;
 
 const STDIN_POLL_TIMEOUT_MS: i32 = 100;
 
@@ -48,8 +49,8 @@ fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
 }
 
 fn poll_stdin(buffer: &mut [u8]) -> Option<usize> {
-    let stdin_fd = 0; // File descriptor for stdin is always 0
-    let mut poll_fds = [PollFd::new(stdin_fd, PollFlags::POLLIN)];
+    let stdin = 0_i32;
+    let mut poll_fds = [PollFd::new(stdin, PollFlags::POLLIN)];
 
     match poll(&mut poll_fds, STDIN_POLL_TIMEOUT_MS) {
         Ok(1) if poll_fds[0].revents().unwrap().contains(PollFlags::POLLIN) => {
