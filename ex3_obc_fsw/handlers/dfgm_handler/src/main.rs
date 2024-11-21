@@ -17,7 +17,7 @@ use ipc::{poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
 use tcp_interface::*;
-use message_structure::*;
+use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;

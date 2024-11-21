@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 i2cdev = "0.6.1"
-message_structure = {path = "../../message_structure/"}
+common = {path = "../../common"}

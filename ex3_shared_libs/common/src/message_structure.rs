@@ -9,7 +9,7 @@ References:
     - https://crates.io/crates/serde_json/1.0.1
     - https://crates.io/crates/serde-pickle
 */
-use common::component_ids::ComponentIds;
+use crate::component_ids::ComponentIds;
 use std::fmt;
 use std::io::Error as IoError;
 

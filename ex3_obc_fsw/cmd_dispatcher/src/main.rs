@@ -5,7 +5,7 @@ use std::os::fd::{AsFd, AsRawFd};
 
 use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
-use message_structure::MsgHeader;
+use common::message_structure::MsgHeader;
 
 fn main() {
     let component_streams: Vec<Option<IpcClient>> =

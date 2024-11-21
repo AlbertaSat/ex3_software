@@ -12,7 +12,7 @@ use common::{opcodes, ports};
 use ipc::*;
 use log::{debug, trace, warn};
 use logging::*;
-use message_structure::*;
+use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
