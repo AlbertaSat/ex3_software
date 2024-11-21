@@ -23,7 +23,7 @@ use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
 use common::{ports, opcodes}; 
-use logging::*;
+use common::logging::*;
 use log::{debug, trace, warn};
 
 

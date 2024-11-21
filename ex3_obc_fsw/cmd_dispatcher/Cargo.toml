@@ -9,5 +9,4 @@ strum_macros = "0.26"
 nix = { version = "0.29.0", features = ["socket"] }
 ipc = { path = "../../ex3_shared_libs/interfaces/ipc" }
 common = {path = "../../ex3_shared_libs/common"}
-logging = { path = "../../ex3_shared_libs/logging" }
 log = "0.4.22"

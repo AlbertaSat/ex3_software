@@ -19,7 +19,7 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use logging::*;
+use common::logging::*;
 use log::{debug, trace, warn};
 use common::{opcodes, ports, ComponentIds};
 use common::opcodes::IRIS::GetHK;
