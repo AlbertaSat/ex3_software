@@ -13,7 +13,7 @@ Usage:
 
 
 use ipc::*;
-use message_structure::{Msg, serialize_msg};
+use common::message_structure::{Msg, serialize_msg};
 use common::*;
 
 fn main() {
