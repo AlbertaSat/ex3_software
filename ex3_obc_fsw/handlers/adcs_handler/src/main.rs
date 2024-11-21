@@ -17,7 +17,7 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
-use tcp_interface::*;
+use common::tcp_interface::*;
 
 const CMD_DELIMITER: u8 = b":"[0];
 const ADCS_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/adcs_handler/adcs_data";
