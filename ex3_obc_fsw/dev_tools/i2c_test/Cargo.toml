@@ -1,7 +1,0 @@
-[package]
-name = "i2c_test"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-i2c = {path = "../../../ex3_shared_libs/interfaces/i2c" }
