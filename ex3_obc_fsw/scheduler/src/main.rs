@@ -94,11 +94,11 @@ impl Scheduler {
 
 }
 
-// fn main() {
-//     init_logger();
-//     check_saved_messages();
-//     run_scheduler();
-// }
+use common::component_ids::ComponentIds::{GS, SHELL};
+use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
+use log::{debug, trace, warn};
+use logging::*;
+use message_structure::*;
 
 fn check_saved_messages() {
     let already_read = Arc::new(Mutex::new(HashSet::new()));
@@ -111,39 +111,62 @@ fn check_saved_messages() {
     });
 }
 
-// fn run_scheduler() {
-//     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+impl Scheduler {
+    fn new(
+        cmd_dispatcher_interface: Result<IpcServer, std::io::Error>,
+        coms_handler_resp_interface: Result<IpcClient, std::io::Error>,
+    ) -> Scheduler {
+        if cmd_dispatcher_interface.is_err() {
+            warn!(
+                "Error creating dispatcher interface: {:?}",
+                msg_dispatcher_interface.as_ref().err().unwrap()
+            );
+        }
+        if coms_handler_resp_interface.is_err() {
+            warn!(
+                "Error creating coms interface: {:?}",
+                gs_interface.as_ref().err().unwrap()
+            );
+        }
+        Scheduler {
+            cmd_dispatcher_interface: cmd_dispatcher_interface.ok(),
+            coms_handler_resp_interface: coms_handler_resp_interface.ok(),
+        }
+    }
 
-//     let ip = "127.0.0.1".to_string();
-//     let port = SCHEDULER_DISPATCHER_PORT;
-//     loop {
+    fn run(&mut self) -> std::io::Result<()> {
+        // start thread for checking execution time of scheduled commands
+        check_saved_messages();
+        // Poll for messages
+        loop {
+            // First, take the Option<IpcClient> out of `self.dispatcher_interface`
+            // This consumes the Option, so you can work with the owned IpcClient
+            let cmd_dispatcher_interface = self.cmd_dispatcher_interface.take().expect("Cmd_Disp interface has value of None");
 
-//         let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
+            // Create a mutable Option<IpcClient> so its lifetime persists
+            let mut cmd_dispatcher_interface_option = Some(cmd_dispatcher_interface);
 
-//         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-//         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+            // Now you can borrow this mutable option and place it in the vector
+            let mut server: Vec<&mut Option<IpcServer>> = vec![
+                &mut cmd_dispatcher_interface_option,
+            ];
 
-//         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
+            poll_ipc_server_sockets(&mut server);
 
-//         let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
+            // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
+            self.cmd_dispatcher_interface = cmd_dispatcher_interface_option;
 
-//         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-//         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+            // Handling the bulk message dispatcher interface
+            let msg_dispatcher_interface = self.cmd_dispatcher_interface.as_ref().unwrap();
+            if msg_dispatcher_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
+                let recv_msg: Msg = deserialize_msg(&msg_dispatcher_interface.buffer).unwrap();
+                debug!("Received and deserialized msg");
+                self.handle_msg(recv_msg)?;
+            }
 
-//         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
-//         match sched_reader_rx.recv() {
-//             Ok(buffer) => {
-//                 let deserialized_msg: Msg = deserialize_msg(buffer).unwrap();
-//                 process_message(deserialized_msg, &input);
-//             }
-//             Err(e) => {
-//                 // ID 5 is arbitrary ID for error message
-//                 log_error(format!("Failed to deserialize message {}", e), 5);
-//             }
-//         }
-//     }
-// }
-
+        }
+    }
+}
 fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     // unwrap message to get inner message for the subsystem
     // the message body is the serialized message
@@ -171,6 +194,7 @@ fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     }
 }
 
+
 fn main() {
     let log_path = "ex3_obc_fsw/scheduler/logs";
     init_logger(log_path);
@@ -186,6 +210,7 @@ fn main() {
 
     let _ = scheduler.run();
 }
+
 
 #[cfg(test)]
 mod tests {
