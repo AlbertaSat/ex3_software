@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-message_structure = {path = "../../message_structure"}
 serialport = "4.6.0"
+common = {path = "../../common"}

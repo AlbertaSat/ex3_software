@@ -16,7 +16,7 @@ use logging::*;
 use std::io::Error;
 
 use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
-use message_structure::*;
+use common::message_structure::*;
 
 use std::{thread, time};
 

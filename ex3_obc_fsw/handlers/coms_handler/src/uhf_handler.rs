@@ -8,7 +8,7 @@ getting and setting functions for the simulated UHF parameters.
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use log::{debug, trace, warn};
-use message_structure::*;
+use common::message_structure::*;
 use tcp_interface::{Interface, TcpInterface};
 
 // Struct containing UHF parameters to be modified

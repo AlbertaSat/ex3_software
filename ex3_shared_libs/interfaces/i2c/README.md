@@ -8,4 +8,3 @@ This library allows userspace programs to communicate with devices via the I2C c
 
 ## dependencies
 i2cdev = "0.6.1"
-message_structure = {path = "../../message_structure/"}
