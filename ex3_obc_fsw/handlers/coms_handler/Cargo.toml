@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../../../ex3_shared_libs/common" }
-ipc = { path = "../../../ex3_shared_libs/interfaces/ipc" }
+interface = { path = "../../../ex3_shared_libs/interface" }
 log = "0.4.22"
