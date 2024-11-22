@@ -1,4 +1,4 @@
-use i2c::*;
+use interface::i2c::*;
 use std::{process::exit, thread::sleep, time};
 // Enter I2C bus path here
 const BUS_PATH: &str = "/dev/i2c-0";
