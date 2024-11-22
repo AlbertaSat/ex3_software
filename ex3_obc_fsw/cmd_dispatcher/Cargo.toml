@@ -26,7 +26,4 @@ name = "ipc_dummy_client"
 name = "ipc_burst_hardcoded"
 
 [[example]]
-name = "ipc_server_dev_tool"
-
-[[example]]
 name = "arduino_uart_test"
