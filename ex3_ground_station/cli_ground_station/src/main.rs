@@ -32,6 +32,11 @@ use std::time::Duration;
 use std::{process, thread};
 use tokio::sync::Mutex;
 
+use std::fs::OpenOptions;
+use serde_json::json;
+use std::io::{self, BufRead, BufReader};
+use serde::{Deserialize, Serialize};
+
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 const STDIN_POLL_TIMEOUT: c_int = 10;
 
@@ -375,4 +380,39 @@ async fn main() {
             }
         }
     }
+}
+
+// @Parameters:
+// pipe_path - "../server/cli_to_server"
+// json_struct -  json!({"key1": "value1", "key2":"value2"})
+//
+// @Example
+// write_to_pipe(json!({"key1": "value1", "key2":"value2"}), "../server/cli_to_server")
+//
+fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
+    let mut pipe = OpenOptions::new().write(true).open(pipe_path)?;
+
+    let data = json!(json_struct);
+    let serialized = serde_json::to_string(&data).unwrap();
+
+    pipe.write_all(serialized.as_bytes())?;
+
+    Ok(())
+}
+
+// @Parameters
+// pipe_path "server_to_cli"
+// 
+// @Example
+// let value = read_from_pipe("server_to_cli")
+// let myStruct: MyStruct = serde_json::from_str(&value).unwrap();
+// println!("{}", myStruct.key1)
+fn read_from_pipe(pipe_path: &str) -> io::Result<String> {
+    let pipe = File::open(pipe_path)?;
+    let mut reader = BufReader::new(pipe);
+
+    let mut serialized = String::new();
+    reader.read_line(&mut serialized)?;
+
+    Ok(serialized)
 }

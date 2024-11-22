@@ -6,6 +6,12 @@ use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
 use dotenv::dotenv;
 
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
+
 #[macro_use]
 extern crate rocket;
 
@@ -74,4 +80,25 @@ async fn rocket() -> _ {
         .mount("/", routes![get_cmds, post_cmd, options_cors])
         .mount("/", FileServer::from(relative!("static")))
         .attach(cors)
+}
+
+fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
+    let mut pipe = OpenOptions::new().write(true).open(pipe_path)?;
+
+    let data = json!(json_struct);
+    let serialized = serde_json::to_string(&data).unwrap();
+
+    pipe.write_all(serialized.as_bytes())?;
+
+    Ok(())
+}
+
+fn read_from_pipe(pipe_path: &str) -> io::Result<String> {
+    let pipe = File::open(pipe_path)?;
+    let mut reader = BufReader::new(pipe);
+
+    let mut serialized = String::new();
+    reader.read_line(&mut serialized)?;
+
+    Ok(serialized)
 }
