@@ -2,7 +2,7 @@ use std::io::{self, Read};
 use std::panic::panic_any;
 use std::sync::mpsc;
 use std::thread;
-use uart::UARTInterface;
+use interfaces::{uart::UARTInterface, Interface};
 
 fn main() {
     let mut arduino_serial = UARTInterface::new("/dev/ttyACM2", 9600).unwrap();

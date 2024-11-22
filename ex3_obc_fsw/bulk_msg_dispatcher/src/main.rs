@@ -1,7 +1,7 @@
 use bulk_msg_slicing::*;
 use common::*;
 use component_ids::{DFGM, GS};
-use ipc::*;
+use interfaces::ipc::*;
 use message_structure::*;
 use std::fs::{File, OpenOptions};
 use std::io::Error as IoError;

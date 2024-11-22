@@ -12,7 +12,7 @@ Usage:
 */
 
 
-use ipc::*;
+use interfaces::ipc::*;
 use message_structure::{Msg, serialize_msg};
 use common::*;
 

@@ -15,11 +15,10 @@ use common::component_ids::{ComponentIds, COMS, GS};
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
-use ipc::*;
+use interfaces::{ipc::*, tcp::*, Interface};
 use message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
-use tcp_interface::{Interface, TcpInterface};
 mod uhf_handler;
 use uhf_handler::UHFHandler;
 
@@ -100,7 +99,7 @@ fn write_msg_to_uhf_for_downlink(interface: &mut TcpInterface, msg: Msg) {
     let serialized_msg_result = serialize_msg(&msg);
     match serialized_msg_result {
         Ok(serialized_msg) => {
-            let send_result = interface.send(&serialized_msg);
+            let send_result = interface.write(&serialized_msg);
             match send_result {
                 Ok(_) => {
                     // Successfully sent the message

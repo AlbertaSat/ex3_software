@@ -9,7 +9,7 @@ use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use log::{debug, trace, warn};
 use message_structure::*;
-use tcp_interface::{Interface, TcpInterface};
+use interfaces::{Interface, tcp::TcpInterface};
 
 // Struct containing UHF parameters to be modified
 pub struct UHFHandler {
@@ -235,7 +235,7 @@ impl UHFHandler {
     }
 
     fn send_msg(&mut self, uhf_interface: &mut TcpInterface, content: Vec<u8>) {
-        let send_result = uhf_interface.send(&content);
+        let send_result = uhf_interface.write(&content);
         match send_result {
             Ok(_) => trace!("Sent command successfully"),
             Err(e) => warn!("Error occured setting beacon value:  {:?}", e),

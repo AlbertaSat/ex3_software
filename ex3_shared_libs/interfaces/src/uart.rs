@@ -1,12 +1,7 @@
+use super::Interface;
 use message_structure::{deserialize_msg, serialize_msg, Msg};
 use serialport::{ClearBuffer, SerialPort, SerialPortBuilder};
 use std::io::{Error as IoError, Read, Write};
-
-// Interface to send and read Msg structures
-pub trait Interface {
-    fn read_msg(&mut self) -> Result<Msg, IoError>;
-    fn write_msg(&mut self, msg: &Msg) -> Result<usize, IoError>;
-}
 
 // Uart interface struct.
 pub struct UARTInterface {
@@ -14,17 +9,18 @@ pub struct UARTInterface {
 }
 
 impl Interface for UARTInterface {
-    // reads a Msg structure from interface, returns a Msg struct.
-    fn read_msg(&mut self) -> Result<Msg, IoError> {
-        let mut bytes = Vec::new();
-        self.read(&mut bytes)?;
-        deserialize_msg(&bytes)
+    // reads raw bytes from uart interface into buffer, returns the number of bytes read.
+    // Note that if the number of available bytes in the buffer is less than the size of the
+    // buffer, then the remaining portion of the buffer is unmodified.
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, IoError> {
+        let result = self.interface.read(buffer);
+        self.clear_input_buffer()?;
+        result
     }
 
-    // sends a Msg structure to interface, returns the bytes written.
-    fn write_msg(&mut self, msg: &Msg) -> Result<usize, IoError> {
-        let bytes = serialize_msg(msg)?;
-        self.write(&bytes)
+    // sends raw bytes in buffer to uart interface, returns the number of bytes written.
+    fn write(&mut self, buffer: &[u8]) -> Result<usize, IoError> {
+        self.interface.write(buffer)
     }
 }
 
@@ -54,20 +50,6 @@ impl UARTInterface {
     ) -> Result<UARTInterface, IoError> {
         let interface = port_with_settings.open()?;
         Ok(UARTInterface { interface })
-    }
-
-    // reads raw bytes from uart interface into buffer, returns the number of bytes read.
-    // Note that if the number of available bytes in the buffer is less than the size of the
-    // buffer, then the remaining portion of the buffer is unmodified.
-    pub fn read(&mut self, buffer: &mut [u8]) -> Result<usize, IoError> {
-        let result = self.interface.read(buffer);
-        self.clear_input_buffer()?;
-        result
-    }
-
-    // sends raw bytes in buffer to uart interface, returns the number of bytes written.
-    pub fn write(&mut self, buffer: &[u8]) -> Result<usize, IoError> {
-        self.interface.write(buffer)
     }
 
     // getter for device name

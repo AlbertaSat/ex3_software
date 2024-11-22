@@ -24,7 +24,7 @@ use log::{debug, trace, warn};
 use common::component_ids::IRIS;
 use common::opcodes::IRIS::GetHK;
 use common::{opcodes, ports};
-use ipc::*;
+use interfaces::{ipc::*, tcp::*, Interface};
 use message_structure::*;
 use std::fs::OpenOptions;
 use std::{io, thread};
@@ -32,7 +32,6 @@ use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::time::{Instant, Duration};
-use tcp_interface::*;
 use std::collections::HashMap;
 use serde_json::json;
 
@@ -136,7 +135,7 @@ impl IRISHandler {
         };
         if success {
             // Send command message to IRIS
-            let status = TcpInterface::send(self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
+            let status = TcpInterface::write(self.peripheral_interface.as_mut().unwrap(), command_msg.as_bytes());
 
             if write_status(status, command_msg) { // Write succeeded
                 let status = receive_response(self.peripheral_interface.as_mut().unwrap());
@@ -270,7 +269,7 @@ fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 }
 
 
-fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  Result<String, Error>{
+fn receive_response(peripheral_interface: &mut TcpInterface) ->  Result<String, Error>{
     let mut packet_content = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
     let packet_len = parse_packet(peripheral_interface, &mut packet_content, false,"None")?;
    
@@ -309,7 +308,7 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
 /// Receives and translates IRIS packet, currently the IRIS simulated subsystem sends packets in the following format:
 /// FLAG:length:...data...|END|, where length is replaced with the length of data
 /// Until we know for certain the commands and their response structures this will have to make do
-fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  response:  &mut [u8; IRIS_INTERFACE_BUFFER_SIZE], is_image:  bool, image_name: &str) ->  Result<usize, Error>{
+fn parse_packet(peripheral_interface: &mut TcpInterface,  response:  &mut [u8; IRIS_INTERFACE_BUFFER_SIZE], is_image:  bool, image_name: &str) ->  Result<usize, Error>{
     let flag: [u8; 4] = [70, 76, 65, 71]; // is "FLAG" in bytes
     let mut flag_match: usize = 0;
     let delim = 58; // is the delimiter for the simulated subsystem ":"

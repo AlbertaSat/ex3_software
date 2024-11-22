@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tcp_interface = { path = "../tcp_interface" }
+interfaces = { path = "../interfaces" }
 common = { path = "../common" }
 message_structure = { path = "../message_structure" }

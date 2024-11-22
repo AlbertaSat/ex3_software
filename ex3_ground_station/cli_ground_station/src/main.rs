@@ -19,7 +19,7 @@ use message_structure::*;
 use std::fs::File;
 use std::path::Path;
 use std::str::from_utf8;
-use tcp_interface::*;
+use interfaces::{tcp::*, Interface};
 
 use libc::{poll, POLLIN};
 use std::fs;
@@ -112,7 +112,7 @@ fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
 
 fn send_msg_to_sc(msg: Msg, tcp_interface: &mut TcpInterface) {
     let serialized_msg = serialize_msg(&msg).unwrap();
-    let ret = tcp_interface.send(&serialized_msg).unwrap();
+    let ret = tcp_interface.write(&serialized_msg).unwrap();
     println!("Sent {} bytes to Coms handler", ret);
     std::io::stdout().flush().unwrap();
 }

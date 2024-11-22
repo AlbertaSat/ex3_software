@@ -3,7 +3,7 @@ use nix::Error;
 use strum::IntoEnumIterator;
 use std::os::fd::{AsFd, AsRawFd};
 
-use ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use interfaces::ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
 use message_structure::MsgHeader;
 
