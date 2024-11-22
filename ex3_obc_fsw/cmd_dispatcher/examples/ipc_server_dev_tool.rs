@@ -7,7 +7,7 @@ Create an ipc server on the path specified as an arg - and send hardcoded data b
 */
 
 use common::component_ids::{ComponentIds};
-use ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
+use interface::ipc::{ipc_write, poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
 use common::message_structure::{CmdMsg, SerializeAndDeserialize};
 
 use nix::poll::{poll, PollFd, PollFlags};
@@ -35,7 +35,7 @@ fn handle_user_input(read_data: &[u8], ipc_server: &mut IpcServer) {
             //write first hardcoded msg to ipc client
             let msg = CmdMsg::new(2, ComponentIds::SHELL as u8, 3, 1, vec![5, 6, 7, 8, 9, 10]);
             let serialized_msg = CmdMsg::serialize_to_bytes(&msg).unwrap();
-            ipc_write(ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slice())
+            ipc_write(ipc_server.data_fd.as_ref().unwrap(), serialized_msg.as_slyice())
         }
         _ => {
             println!("Invalid input");
