@@ -8,8 +8,8 @@ use dotenv::dotenv;
 
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
-use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
+use serde_json::json;
 use std::io::Write;
 
 #[macro_use]

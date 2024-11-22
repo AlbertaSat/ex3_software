@@ -35,7 +35,6 @@ use tokio::sync::Mutex;
 use std::fs::OpenOptions;
 use serde_json::json;
 use std::io::{self, BufRead, BufReader};
-use serde::{Deserialize, Serialize};
 
 const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 const STDIN_POLL_TIMEOUT: c_int = 10;
@@ -401,7 +400,7 @@ fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Re
 }
 
 // @Parameters
-// pipe_path "server_to_cli"
+// pipe_path - "server_to_cli"
 // 
 // @Example
 // let value = read_from_pipe("server_to_cli")
