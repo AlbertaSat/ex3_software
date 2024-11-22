@@ -407,6 +407,7 @@ fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Re
 // let value = read_from_pipe("server_to_cli")
 // let myStruct: MyStruct = serde_json::from_str(&value).unwrap();
 // println!("{}", myStruct.key1)
+//
 fn read_from_pipe(pipe_path: &str) -> io::Result<String> {
     let pipe = File::open(pipe_path)?;
     let mut reader = BufReader::new(pipe);
