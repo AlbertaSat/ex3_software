@@ -12,7 +12,10 @@ The `Interface` struct provides methods to initialize a UART connection, and rea
 - Read messages from the UART interface.
 - Write messages to the UART interface.
 
-### Dependencies
+## I2C Interface
+This library allows userspace programs to communicate with devices via the I2C communication protocol. It includes an I2cDeviceInterface Structure that allows the user to read and write message structures as well as raw bytes over the I2C interface.
 
-- [serialport](https://crates.io/crates/serialport): A crate for serial port communication.
-- `message_structure`: A module that defines the `Msg` format used for communication.
+### Features
+- Constructor to construct the I2C interface.
+- read and send implementation for trait Interface allows user to read and write message structures using I2C interface.
+- read and send function implemented allowing for communication using raw bytes.

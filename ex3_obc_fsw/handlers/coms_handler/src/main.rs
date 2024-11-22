@@ -15,7 +15,7 @@ use common::component_ids::ComponentIds;
 use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
-use ipc::*;
+use interface::ipc::*;
 use common::message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;

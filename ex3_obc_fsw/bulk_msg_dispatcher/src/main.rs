@@ -1,6 +1,6 @@
 use common::bulk_msg_slicing::*;
 use common::*;
-use ipc::*;
+use interface::ipc::*;
 use message_structure::*;
 use std::fs::{File, OpenOptions};
 use std::io::Error as IoError;

@@ -23,7 +23,7 @@ use common::logging::*;
 use log::{debug, trace, warn};
 use common::{opcodes, ports, ComponentIds};
 use common::opcodes::IRIS::GetHK;
-use ipc::*;
+use interface::ipc::*;
 use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::{io, thread};
