@@ -1,5 +1,4 @@
 use super::Interface;
-use message_structure::{deserialize_msg, serialize_msg, Msg};
 use serialport::{ClearBuffer, SerialPort, SerialPortBuilder};
 use std::io::{Error as IoError, Read, Write};
 
