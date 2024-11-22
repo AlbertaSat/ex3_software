@@ -9,7 +9,7 @@ TODO: figure out how to cleanly handle errors such as improper inputs
 TODO: get an idea of the actual ADCS commands and figure out a clean way to send commands
 */
 use common::{opcodes, ports};
-use ipc::*;
+use interface::ipc::*;
 use log::{debug, trace, warn};
 use common::logging::*;
 use common::message_structure::*;

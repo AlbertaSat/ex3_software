@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ipc = { path = "../../../ex3_shared_libs/interfaces/ipc" }
+interface = { path = "../../../ex3_shared_libs/interface" }
 common = {path = "../../../ex3_shared_libs/common"}
 nix = "0.26.2"
 serde_json = "1.0.125"
