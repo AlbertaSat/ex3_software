@@ -5,7 +5,7 @@
     It will break it into multiple packets if this condition is true and
     will assign the packets a sequence number at msg_body[0]
  */
-use message_structure::*;
+use crate::message_structure::*;
 /// This function holds all the functionality for slicing a large msg into many smaller ones.
 /// The size that the message is sliced into is configurable by the parameter max_body_size.
 /// This parameter DOES NOT account for the size of the header (as of now).

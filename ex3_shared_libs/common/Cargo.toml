@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 strum = { version = "0.26", features = ["derive"] }
 strum_macros = "0.26"
+log = "0.4.22"
+log4rs = "1.3.0"
+nix = "0.26.2"
+rand = "0.8.5"

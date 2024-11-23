@@ -9,30 +9,29 @@ use nix::sys::socket::{self, AddressFamily, SockFlag, SockType, UnixAddr};
 use nix::unistd::{read, write};
 use std::env;
 use std::ffi::CString;
-use std::io::{self, Read};
+use std::io::{Read};
 use std::net::{TcpStream};
 use std::path::Path;
 use std::process;
-use std::os::fd::AsRawFd;
+use std::os::fd::{OwnedFd, AsRawFd};
 use std::net::TcpListener;
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 const BUFFER_SIZE: usize = 1024;
 const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
 
-fn create_socket() -> io::Result<i32> {
-    let socket_fd = socket::socket(
+fn create_socket() -> nix::Result<OwnedFd> {
+    socket::socket(
         AddressFamily::Unix,
         SockType::SeqPacket,
         SockFlag::empty(),
         None,
-    )?;
-    Ok(socket_fd)
+    )
 }
 
 /// Function so that it can receive data from a TCP client
 /// Want to keep the same polling protocol as before
-fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
+fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: &OwnedFd) {
     let tcp_fd = tcp_stream.as_raw_fd();
 
     let mut poll_fds = [
@@ -42,7 +41,7 @@ fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
             revents: 0,
         },
         libc::pollfd {
-            fd: data_socket_fd,
+            fd: data_socket_fd.as_raw_fd(),
             events: libc::POLLIN,
             revents: 0,
         },
@@ -77,9 +76,9 @@ fn handle_client(mut tcp_stream: TcpStream, data_socket_fd: i32) {
                             process::exit(1);
                         });
                     }
-                } else if poll_fd.fd == data_socket_fd {
+                } else if poll_fd.fd == data_socket_fd.as_raw_fd() {
                     let mut socket_buf = vec![0u8; BUFFER_SIZE];
-                    let ret = read(data_socket_fd, &mut socket_buf).unwrap();
+                    let ret = read(data_socket_fd.as_raw_fd(), &mut socket_buf).unwrap();
 
                     if ret == 0 {
                         println!("Connection to Unix server dropped. Exiting...");
@@ -122,13 +121,13 @@ fn main() {
 
     println!("Attempting to connect to {}", socket_path.to_str().unwrap());
 
-    socket::connect(data_socket_fd, &addr).unwrap_or_else(|err| {
+    socket::connect(data_socket_fd.as_raw_fd(), &addr).unwrap_or_else(|err| {
         eprintln!("Failed to connect to server: {}", err);
         process::exit(1);
     });
 
     println!(
-        "Successfully Connected to {}, with fd: {}",
+        "Successfully Connected to {}, with fd: {:?}",
         socket_path.to_str().unwrap(),
         data_socket_fd
     );
@@ -144,7 +143,7 @@ fn main() {
         match stream {
             Ok(tcp_stream) => {
                 println!("New TCP client connected");
-                handle_client(tcp_stream, data_socket_fd);
+                handle_client(tcp_stream, &data_socket_fd);
             }
             Err(err) => {
                 eprintln!("TCP connection failed: {}", err);
