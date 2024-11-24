@@ -2,7 +2,7 @@ use std::io::{self, Read};
 use std::panic::panic_any;
 use std::sync::mpsc;
 use std::thread;
-use interface::uart::UARTInterface;
+use interface::{uart::UARTInterface, Interface};
 
 fn main() {
     let mut arduino_serial = UARTInterface::new("/dev/ttyACM2", 9600).unwrap();
@@ -33,7 +33,7 @@ fn main() {
                 println!("Toggling data collection");
                 data_collection = !data_collection;
                 if data_collection {
-                    match arduino_serial.write(&[1]) {
+                    match arduino_serial.send(&[1]) {
                         Ok(_) => {
                             println!("Data collection toggled on.");
                             arduino_serial
@@ -45,7 +45,7 @@ fn main() {
                         }
                     }
                 } else {
-                    match arduino_serial.write(&[0]) {
+                    match arduino_serial.send(&[0]) {
                         Ok(_) => {
                             println!("Data collection toggled off.");
                         }

@@ -19,7 +19,7 @@ use message_structure::*;
 use std::fs::File;
 use std::path::Path;
 use std::str::from_utf8;
-use tcp_interface::*;
+use interface::{tcp::*, Interface};
 
 use libc::{poll, POLLIN};
 use std::fs;
