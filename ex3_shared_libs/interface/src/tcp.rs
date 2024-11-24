@@ -2,6 +2,7 @@
 Written by Devin Headrick and Rowan Rasmusson
 Summer 2024
 */
+use super::Interface;
 use nix::libc;
 use std::io;
 use std::io::{Error, Read, Write};
@@ -10,14 +11,6 @@ use std::os::unix::io::AsRawFd;
 
 pub const BUFFER_SIZE: usize = 1024;
 const CLIENT_POLL_TIMEOUT_MS: i32 = 100;
-
-/// Interface trait to be implemented by all external interfaces
-pub trait Interface {
-    /// Send byte data to the interface as a shared slice type byte. Return number of bytes sent
-    fn send(&mut self, data: &[u8]) -> Result<usize, Error>;
-    /// Read byte data from the interface into a byte slice buffer. Return number of bytes read
-    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error>;
-}
 
 /// TCP Interface for communication with simulated external peripherals
 #[allow(dead_code)]
