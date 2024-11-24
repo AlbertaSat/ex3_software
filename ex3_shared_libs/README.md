@@ -6,7 +6,6 @@ common: library that is shared between the Ground Station (GS) and the On Board
     - ports: ports used by the payloads for inter-component communication
     - component_ids: definitions of payload IDs
     - message_structure: bulk/cmd/response message formats
-    - tcp_interface: client and server tcp support
     - logging: time-stamped logging facility
 
 interface: library of I/O interface helpers that is shared among the handlers
@@ -14,3 +13,4 @@ interface: library of I/O interface helpers that is shared among the handlers
    - ipc: inter-payload communication client/server support
    - i2c: I2C communication support
    - uart: serial port support
+   - tcp: client and server tcp support
