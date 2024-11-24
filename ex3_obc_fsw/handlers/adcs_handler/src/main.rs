@@ -9,7 +9,7 @@ TODO: figure out how to cleanly handle errors such as improper inputs
 TODO: get an idea of the actual ADCS commands and figure out a clean way to send commands
 */
 use common::{opcodes, ports};
-use interface::ipc::*;
+use interface::{ipc::*, tcp::*, Interface};
 use log::{debug, trace, warn};
 use common::logging::*;
 use common::message_structure::*;
@@ -17,7 +17,6 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
-use common::tcp_interface::*;
 
 const CMD_DELIMITER: u8 = b":"[0];
 const ADCS_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/adcs_handler/adcs_data";
