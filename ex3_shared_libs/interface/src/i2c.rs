@@ -1,11 +1,7 @@
+use super::Interface;
 use i2cdev::core::*;
-use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
-use common::message_structure::{deserialize_msg, serialize_msg, Msg};
-
-pub trait Interface {
-    fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError>;
-    fn read(&mut self) -> Result<Msg, LinuxI2CError>;
-}
+use std::io::Error;
+use i2cdev::linux::LinuxI2CDevice;
 
 // I2c Device structure.
 pub struct I2cDeviceInterface {
@@ -15,23 +11,22 @@ pub struct I2cDeviceInterface {
 }
 
 impl Interface for I2cDeviceInterface {
-    // sends a Msg struct to i2c device, returns the number of bytes sent
-    fn send(&mut self, msg: &Msg) -> Result<usize, LinuxI2CError> {
-        let bytes = serialize_msg(msg)?;
-        self.send_raw_bytes(&bytes)
+    // sends raw bytes to i2c device, returns the amount of bytes sent
+    fn send(&mut self, data: &[u8]) -> Result<usize, Error> {
+        self.device.write(data)?;
+        Ok(data.len())
     }
 
-    // reads a Msg struct from i2c device, returns a Msg struct
-    fn read(&mut self) -> Result<Msg, LinuxI2CError> {
-        let mut bytes = Vec::new();
-        self.read_raw_bytes(&mut bytes)?;
-        Ok(deserialize_msg(&bytes)?)
+    // reads raw bytes from device into buffer
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error> {
+        self.device.read(buffer)?;
+        Ok(buffer.len())
     }
 }
 
 impl I2cDeviceInterface {
     // Constructor for I2cDeviceInterface struct
-    pub fn new(path: &str, client_address: u16) -> Result<I2cDeviceInterface, LinuxI2CError> {
+    pub fn new(path: &str, client_address: u16) -> Result<I2cDeviceInterface, Error> {
         let device = LinuxI2CDevice::new(path, client_address)?;
         Ok(I2cDeviceInterface {
             device,
@@ -40,25 +35,16 @@ impl I2cDeviceInterface {
         })
     }
 
-    // sends raw bytes to i2c device, returns the amount of bytes sent
-    pub fn send_raw_bytes(&mut self, data: &[u8]) -> Result<usize, LinuxI2CError> {
-        self.device.write(data)?;
-        Ok(data.len())
-    }
-
-    // reads raw bytes from device into buffer
-    pub fn read_raw_bytes(&mut self, buffer: &mut [u8]) -> Result<(), LinuxI2CError> {
-        self.device.read(buffer)
-    }
-
     // writes a single byte to a specific register of a SMbus device
-    pub fn send_byte_smbus(&mut self, register: u8, byte: u8) -> Result<(), LinuxI2CError> {
-        self.device.smbus_write_byte_data(register, byte)
+    pub fn send_byte_smbus(&mut self, register: u8, byte: u8) -> Result<(), Error> {
+        self.device.smbus_write_byte_data(register, byte)?;
+        Ok(())
     }
 
     // reads a single byte from a specific register of a SMbus device
-    pub fn read_byte_smbus(&mut self, address: u8) -> Result<u8, LinuxI2CError> {
-        self.device.smbus_read_byte_data(address)
+    pub fn read_byte_smbus(&mut self, address: u8) -> Result<u8, Error> {
+        let val = self.device.smbus_read_byte_data(address)?;
+        Ok(val)
     }
 
     // Getter for device's bus path

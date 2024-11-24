@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nix = { version = "0.29.0", features = ["socket", "fs"] }
+nix = "0.29.0"
 i2cdev = "0.6.1"
 serialport = "4.6.0"
 common = {path = "../common"}
