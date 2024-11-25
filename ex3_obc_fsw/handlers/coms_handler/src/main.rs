@@ -16,7 +16,9 @@ use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use common::ports;
 use interface::{ipc::*, tcp::*, Interface};
-use common::message_structure::{deserialize_msg, serialize_msg, Msg, MsgType};
+use common::message_structure::{SerializeAndDeserialize,
+                                deserialize_msg, serialize_msg,
+                                AckCode, CmdMsg, Msg, MsgType};
 use std::os::fd::OwnedFd;
 use std::vec;
 mod uhf_handler;
@@ -363,7 +365,9 @@ fn main() {
             if status == AckCode::Failed {
                 warn!("{}", ackbody);
                 /* Nack failed messages back to the sender */
-                let nack = Msg::new(MsgType::Ack as u8, cmd.header.msg_id, GS, COMS, status as u8, ackbody.as_bytes().to_vec());
+                let nack = Msg::new(MsgType::Ack as u8, cmd.header.msg_id,
+                                    ComponentIds::GS as u8, ComponentIds::COMS as u8,
+                                    status as u8, ackbody.as_bytes().to_vec());
                 write_msg_to_uhf_for_downlink(tcp_interface.as_mut().unwrap(), nack);
                 uhf_buf.fill(0);
             }

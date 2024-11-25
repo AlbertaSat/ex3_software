@@ -2,8 +2,8 @@ use std::thread;
 use std::time::Duration;
 
 use common::component_ids::ComponentIds;
-use message_structure::*;
-use tcp_interface::*;
+use common::message_structure::*;
+use common::tcp_interface::*;
 
 pub fn parse_cmd(input: &[&str]) -> Option<Vec<u8>> {
     match input.len() {
