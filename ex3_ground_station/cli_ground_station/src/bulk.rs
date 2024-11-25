@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use common::component_ids::ComponentIds;
 use common::message_structure::*;
-use common::tcp_interface::*;
+use interface::{Interface, tcp::TcpInterface};
 
 pub fn parse_cmd(input: &[&str]) -> Option<Vec<u8>> {
     match input.len() {
