@@ -17,8 +17,8 @@ mod shell;
 
 use common::bulk_msg_slicing::*;
 use common::{ports, ComponentIds};
+use common::message_structure::*;
 use libc::c_int;
-use message_structure::*;
 use std::fs::File;
 use std::path::Path;
 use std::str::from_utf8;
@@ -274,7 +274,7 @@ async fn main() {
             let input = input.trim().to_string();
 
             if let Some(msg) = build_msg_from_operator_input(input) {
-                send_msg_to_sc(msg, &mut tcp_interface);
+                send_msg_to_sc(msg, &mut esat_uhf_interface);
 
                 let mut buf = [0u8; 128];
                 let awaiting_ack = Arc::new(Mutex::new(true));
@@ -285,7 +285,7 @@ async fn main() {
                 });
 
                 println!("waiting for ack");
-                match tcp_interface.read(&mut buf) {
+                match esat_uhf_interface.read(&mut buf) {
                     Ok(len) => {
                         if len == 0 {
                             println!("satellite connection ended");
@@ -339,7 +339,7 @@ async fn main() {
                     // );
                     // Listening mode for bulk msgs
                     bulk::read_msgs(
-                        &mut tcp_interface,
+                        &mut esat_uhf_interface,
                         &mut bulk_messages,
                         num_msgs_to_recv,
                     )
