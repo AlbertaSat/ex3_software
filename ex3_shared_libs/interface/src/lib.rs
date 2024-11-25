@@ -1,7 +1,7 @@
 use std::io::{Error};
 
 pub mod ipc;
-pub mod i2c;
+//pub mod i2c;
 pub mod uart;
 pub mod tcp;
 
