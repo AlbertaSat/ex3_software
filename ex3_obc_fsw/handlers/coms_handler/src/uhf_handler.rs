@@ -9,7 +9,7 @@ use common::constants::UHF_MAX_MESSAGE_SIZE_BYTES;
 use common::opcodes;
 use log::{debug, trace, warn};
 use common::message_structure::*;
-use common::tcp_interface::{Interface, TcpInterface};
+use interface::{tcp::*, Interface};
 
 // Struct containing UHF parameters to be modified
 pub struct UHFHandler {

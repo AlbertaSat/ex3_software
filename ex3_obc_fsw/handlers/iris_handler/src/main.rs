@@ -23,14 +23,13 @@ use common::logging::*;
 use log::{debug, trace, warn};
 use common::{opcodes, ports, ComponentIds};
 use common::opcodes::IRIS::GetHK;
-use interface::ipc::*;
+use interface::{ipc::*, tcp::*, Interface};
 use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::{io, thread};
 use std::io::prelude::*;
 use std::io::{Error, ErrorKind};
 use std::time::{Instant, Duration};
-use common::tcp_interface::{Interface, TcpInterface};
 use std::collections::HashMap;
 use serde_json::json;
 
