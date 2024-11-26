@@ -25,8 +25,8 @@ sleep 0.25
 # Bulk Dispatcher ommited as this script only focuses on uplink
 
 # Create the hanlders and other obc fsw components (coms handler, dfgm handler, etc. )
-tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 tmux new-window -n "COMS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin coms_handler; exec bash"
+tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 # tmux new-window -n "IRIS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin iris_handler; exec bash"
 sleep 0.25
 
