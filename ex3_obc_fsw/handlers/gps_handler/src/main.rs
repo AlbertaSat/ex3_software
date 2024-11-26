@@ -178,6 +178,31 @@ impl GPSHandler {
         }
     }
 
+    /// Format HK into a JSON to create an easily readable HK
+    /// copied from iris handler
+    fn store_gps_hk(data: &[u8]) - > Result<Vec<u8>>, std::io::Error> {
+        let mut hk_map = HashMap::new() // think of hashmap as python dict
+
+        //  convert data to string and trim newline characters
+        let data_str = std::str::from_utf8(data).unwrap().trim_end();
+
+        for line in data_str.lines() {
+            //Some tells us we know a value is present; in this case a key value pair
+            if let Some((key, value)) = line.split_once(": ") {     
+                hk_map.insert(key.trim().to_string(), value.trim().to_string());
+            } else {
+                debug!("Failed to precess line of HK without ':' ");
+            }
+        }
+
+        let json_value = json!(hk_map);
+        let json_bytes = serde_json::to_vec(&json_value)?;
+        race!("Num HK bytes: {}", json_bytes.len());
+        trace!("HK bytes: {:?}", json_bytes);
+    
+        Ok(json_bytes)
+    }
+
     fn write_msg_to_GS(interface: &mut TcpInterface, msg: MSG) {
         // heavily lifted from coms_handler
         let serialized_msg_result = serialize_msg(&msg);    // converts msg to bytes -> Result<Vec<u8>
