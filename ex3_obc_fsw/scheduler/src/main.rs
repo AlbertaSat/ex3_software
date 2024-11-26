@@ -8,23 +8,17 @@
 
 // TMP for cargo build
 
-use std::{time::Duration, sync::{Arc, Mutex}, collections::HashSet};
-use std::sync::mpsc;
+use std::{collections::HashSet, sync::{Arc, Mutex}, time::Duration};
 use std::thread;
 pub mod schedule_message;
 use crate::schedule_message::*;
 pub mod scheduler;
 use crate::scheduler::*;
-pub mod log;
-use crate::log::*;
 use message_structure::*;
-use common::{self, ports::SCHEDULER_DISPATCHER_PORT};
 
-use common::component_ids::ComponentIds::{GS, SHELL};
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
+use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
-use logging::*;
-use message_structure::*;
+use logging::init_logger;
 
 const CHECK_DELAY: u8 = 100;
 
@@ -41,13 +35,13 @@ impl Scheduler {
         if cmd_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
-                msg_dispatcher_interface.as_ref().err().unwrap()
+                cmd_dispatcher_interface.as_ref().err().unwrap()
             );
         }
         if coms_handler_resp_interface.is_err() {
             warn!(
                 "Error creating coms interface: {:?}",
-                gs_interface.as_ref().err().unwrap()
+                coms_handler_resp_interface.as_ref().err().unwrap()
             );
         }
         Scheduler {
@@ -92,7 +86,7 @@ impl Scheduler {
     fn handle_msg(&mut self, msg: Msg) -> Result<(), std::io::Error> {
         self.cmd_dispatcher_interface.as_mut().unwrap().clear_buffer();
 
-        process_message(deserialized_msg, input);
+        process_message(msg, &Arc::new(Mutex::new(String::new())));
 
         Ok(())
     }
@@ -100,11 +94,11 @@ impl Scheduler {
 
 }
 
-fn main() {
-    init_logger();
-    check_saved_messages();
-    run_scheduler();
-}
+// fn main() {
+//     init_logger();
+//     check_saved_messages();
+//     run_scheduler();
+// }
 
 fn check_saved_messages() {
     let already_read = Arc::new(Mutex::new(HashSet::new()));
@@ -117,43 +111,44 @@ fn check_saved_messages() {
     });
 }
 
-fn run_scheduler() {
-    let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+// fn run_scheduler() {
+//     let input: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
 
-    let ip = "127.0.0.1".to_string();
-    let port = SCHEDULER_DISPATCHER_PORT;
-    loop {
+//     let ip = "127.0.0.1".to_string();
+//     let port = SCHEDULER_DISPATCHER_PORT;
+//     loop {
 
-        let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
+//         let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
 
-        let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-        // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+//         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
+//         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
 
-        tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
+//         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
 
-        let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
+//         let tcp_interface = tcp_interface::TcpInterface::new_server(ip.clone(), port).unwrap();
 
-        let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
-        // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
+//         let (sched_reader_tx, sched_reader_rx) = mpsc::channel();
+//         // let (sched_writer_tx, sched_writer_rx) = mpsc::channel();
 
-        tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
-        match sched_reader_rx.recv() {
-            Ok(buffer) => {
-                let deserialized_msg: Msg = deserialize_msg(buffer).unwrap();
-                process_message(deserialized_msg, &input);
-            }
-            Err(e) => {
-                // ID 5 is arbitrary ID for error message
-                log_error(format!("Failed to deserialize message {}", e), 5);
-            }
-        }
-    }
-}
+//         tcp_interface::async_read(tcp_interface.clone(), sched_reader_tx, TCP_BUFFER_SIZE);
+//         match sched_reader_rx.recv() {
+//             Ok(buffer) => {
+//                 let deserialized_msg: Msg = deserialize_msg(buffer).unwrap();
+//                 process_message(deserialized_msg, &input);
+//             }
+//             Err(e) => {
+//                 // ID 5 is arbitrary ID for error message
+//                 log_error(format!("Failed to deserialize message {}", e), 5);
+//             }
+//         }
+//     }
+// }
 
 fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     // unwrap message to get inner message for the subsystem
     // the message body is the serialized message
-    let subsystem_msg: Msg = deserialize_msg(deserialized_msg.msg_body).unwrap();
+
+    let subsystem_msg = deserialize_msg(&deserialized_msg.msg_body).unwrap();
 
     let command_time: u64 = get_time(subsystem_msg.msg_body);
     let curr_time_millis: u64 = get_current_time_millis();
@@ -162,18 +157,34 @@ fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
 
     if command_time <= curr_time_millis {
-        log_error("Received command from past".to_string(), deserialized_msg.header.msg_id);
+        trace!("Received command from past: ID {}", deserialized_msg.header.msg_id);
     } else {
         if let Err(err) = write_input_tuple_to_rolling_file(&input_tuple) {
             eprintln!("Failed to write input tuple to file: {}", err);
         } else {
             println!("Input tuple written to file successfully.");
         }
-        log_info("Command stored and scheduled for later".to_string(), deserialized_msg.header.msg_id);
+        trace!("Command ID: {} stored and scheduled for later", deserialized_msg.header.msg_id);
 
         let mut shared_input = input.lock().unwrap();
         *shared_input = deserialized_msg.header.msg_id.to_string();
     }
+}
+
+fn main() {
+    let log_path = "ex3_obc_fsw/scheduler/logs";
+    init_logger(log_path);
+
+    trace!("Starting Scheduler...");
+
+    // Create Unix domain socket interface for to talk to message dispatcher
+    let cmd_dispatcher_interface = IpcServer::new("SCHEDULER".to_string());
+
+    let gs_interface = IpcClient::new("gs_non_bulk".to_string());
+
+    let mut scheduler = Scheduler::new(cmd_dispatcher_interface, gs_interface);
+
+    let _ = scheduler.run();
 }
 
 #[cfg(test)]
