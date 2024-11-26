@@ -13,19 +13,18 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use interface::ipc::{poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
+use interface::ipc::{poll_ipc_server_sockets, IpcClient, IpcServer, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
-use interface::{tcp::*, Interface};
+use common::logging::*;
 use common::message_structure::*;
+use common::{opcodes, ports};
+use interface::{tcp::*, Interface};
+use log::{debug, trace, warn};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
-use common::{ports, opcodes}; 
-use common::logging::*;
-use log::{debug, trace, warn};
-
 
 const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
 //const DFGM_PACKET_SIZE: usize = 1252;
