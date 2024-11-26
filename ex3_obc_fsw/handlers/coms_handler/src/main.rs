@@ -182,7 +182,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(1));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
-        match TcpInterface::new_server(ipaddr, ports::SIM_ESAT_UART_PORT) {
+        match TcpInterface::new_client(ipaddr, ports::SIM_ESAT_UART_PORT) {
             Ok(tcp) => Some(tcp),
             Err(e) => {
                 warn!("Error creating UHF interface: {e}");
