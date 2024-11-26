@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 interface = { path = "../../../ex3_shared_libs/interface" }
 common = {path = "../../../ex3_shared_libs/common"}
-nix = "0.26.2"
+nix = "0.29.0"
 log = "0.4.22"
