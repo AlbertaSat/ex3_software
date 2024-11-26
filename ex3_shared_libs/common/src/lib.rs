@@ -20,7 +20,6 @@ pub mod ports {
     pub const BULK_MSG_HANDLER_DISPATCHER_PORT: u16 = 1903;
 }
 
-
 /// For constants that are used across the entire project
 pub mod constants {
     pub const UHF_MAX_MESSAGE_SIZE_BYTES: u8 = 128;
