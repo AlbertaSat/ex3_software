@@ -129,8 +129,17 @@ impl GPSHandler {
             }
         }
 
+
+        /// handles how GPS will collect HK
+        /// most of this is placeholder as we do not yet know what kind of HK data to recieve
         fn collect_hk(&mut self) -> io::Result<()> {
-            let hk_msg = Msg::new() //Question: idk what to put in it now, but will need to make a Msg for Hk...
+            let hk_msg = Msg::new("HK_test_one".to_string()) //Question: idk what to put in it now, but will need to make a Msg for Hk...
+            if let Some(hk_string) = self.handle_msg_for_gps(hk_msg) {
+                let hk_bytes = format_gps_hk(hk_string.as_bytes())?;
+                store_gps_data("HK_test", &hk_bytes)?;
+            }
+
+            ok(());
             // TODO: WHAT IS GPS HK ACTION
             //UNFINISHED
         }
@@ -178,9 +187,10 @@ impl GPSHandler {
         }
     }
 
+
     /// Format HK into a JSON to create an easily readable HK
     /// copied from iris handler
-    fn store_gps_hk(data: &[u8]) - > Result<Vec<u8>>, std::io::Error> {
+    fn format_gps_hk(data: &[u8]) - > Result<Vec<u8>>, std::io::Error> {
         let mut hk_map = HashMap::new() // think of hashmap as python dict
 
         //  convert data to string and trim newline characters
