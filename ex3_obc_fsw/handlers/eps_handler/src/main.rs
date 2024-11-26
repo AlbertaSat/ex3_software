@@ -1,36 +1,34 @@
 /*
-Written by Kaaden RumanCam and Ron Unrau
-Summer 2024
-
-...
-
-TODO - If connection is lost with an interface, attempt to reconnect every 5 seconds
-TOOD - Figure out way to use polymorphism and have the interfaces be configurable at runtime (i.e. TCP, UART, etc.)
-TODO - Get state variables from a state manager (channels?) upon instantiation and update them as needed.
-TODO - Setup a way to handle opcodes from messages passed to the handler
-
+Written by Kaaden RumanCam
+Fall 2024
 */
 
-use std::io::Error;
-use std::process::Command;
-
-use common::component_ids::ComponentIds::{GS, SHELL};
-use common::constants::DOWNLINK_MSG_BODY_SIZE;
-use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
-use common::logging::*;
-use common::message_structure::*;
+use std::io::Error;
 
-struct ShellHandler {
+use common::{logging::*, message_structure::*, opcodes, ports};
+use common::component_ids::ComponentIds::{EPS, GS};
+use common::constants::DOWNLINK_MSG_BODY_SIZE;
+use interface::{ipc::*, tcp::*, Interface};
+
+struct EPSHandler {
+    eps_interface: Option<TcpInterface>, // To communicate with the EPS
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
-impl ShellHandler {
+impl EPSHandler {
     pub fn new(
+        eps_interface: Result<TcpInterface, std::io::Error>,
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
         gs_interface: Result<IpcClient, std::io::Error>,
-    ) -> ShellHandler {
+    ) -> EPSHandler {
+        if eps_interface.is_err() {
+            warn!(
+                "Error creating eps interface: {:?}",
+                eps_interface.as_ref().err().unwrap()
+            );
+        }
         if msg_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
@@ -43,7 +41,8 @@ impl ShellHandler {
                 gs_interface.as_ref().err().unwrap()
             );
         }
-        ShellHandler {
+        EPSHandler {
+            eps_interface: eps_interface.ok(),
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
             gs_interface: gs_interface.ok(),
         }
@@ -65,7 +64,7 @@ impl ShellHandler {
                 &mut msg_dispatcher_interface_option,
             ];
 
-            let _ = poll_ipc_server_sockets(&mut server);
+            poll_ipc_server_sockets(&mut server);
 
             // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;
@@ -83,44 +82,64 @@ impl ShellHandler {
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
 
-        trace!("SHELL msg opcode: {} {:?} = {}", msg.header.op_code, msg.msg_body, String::from_utf8(msg.msg_body.clone()).unwrap());
+        trace!("EPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
 
-        let body = String::from_utf8(msg.msg_body).unwrap();
+        let mut tcp_buf = [0u8;BUFFER_SIZE];
 
-        match Command::new("bash").arg("-c").arg(body).output() {
-            Ok(out) => {
-                trace!("command outputted: {}", String::from_utf8(out.stdout.clone()).unwrap());
+        let opcode = opcodes::EPS::from(msg.header.op_code);
+        let mut cmd = "dummy";
+        match opcode {
+            opcodes::EPS::On => {
+                trace!("on");
+            }
+            opcodes::EPS::Off => {
+                trace!("off");
+            }
+            opcodes::EPS::GetHK => {
+                trace!("gethk");
+                cmd = "request:Temperature";
+            }
+            opcodes::EPS::Reset => {
+                trace!("reset");
+                cmd = "execute:ResetDevice";
+            }
+            opcodes::EPS::Error => {
+                debug!("Unrecognised opcode");
+            }
+        }
 
-                for chunk in out.stdout.chunks(DOWNLINK_MSG_BODY_SIZE) {
-                    let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
-                    if let Some(gs_resp_interface) = &self.gs_interface {
-                        let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
-                    } else {
-                        debug!("Response not sent to gs. IPC interface not created");
-                    }
-                }
-            },
-            Err(e) => {
-                trace!("command failed: {e}");
-            },
-        };
+        TcpInterface::send(self.eps_interface.as_mut().unwrap(), cmd.as_bytes())?;
+        TcpInterface::read(self.eps_interface.as_mut().unwrap(), &mut tcp_buf)?;
+        let tmp = String::from_utf8(tcp_buf.to_vec()).unwrap();
+        let mut resp = tmp.trim_end_matches(char::from(0)).to_string();
+        trace!("From EPS got: {:?}",resp);
+        resp.truncate(DOWNLINK_MSG_BODY_SIZE);
+
+        let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, EPS as u8, 0, resp.as_bytes().to_vec());
+        if let Some(gs_resp_interface) = &self.gs_interface {
+            let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
+        } else {
+            debug!("Response not sent to gs. IPC interface not created");
+        }
 
         Ok(())
     }
 }
 
 fn main() {
-    let log_path = "ex3_obc_fsw/handlers/shell_handler/logs";
+    let log_path = "ex3_obc_fsw/handlers/eps_handler/logs";
     init_logger(log_path);
 
-    trace!("Starting Shell Handler...");
+    trace!("Starting EPS Handler...");
 
     // Create Unix domain socket interface for to talk to message dispatcher
-    let msg_dispatcher_interface = IpcServer::new("SHELL".to_string());
+    let msg_dispatcher_interface = IpcServer::new("EPS".to_string());
 
     let gs_interface = IpcClient::new("gs_non_bulk".to_string());
 
-    let mut shell_handler = ShellHandler::new(msg_dispatcher_interface, gs_interface);
+    let eps_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_EPS_PORT);
 
-    let _ = shell_handler.run();
+    let mut eps_handler = EPSHandler::new(eps_interface, msg_dispatcher_interface, gs_interface);
+
+    let _ = eps_handler.run();
 }

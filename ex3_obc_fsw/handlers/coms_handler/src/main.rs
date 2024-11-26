@@ -159,7 +159,7 @@ fn main() {
     // This sets the read to be completely unblocking, so it comes with quite a bit of function
     // call overhead.
     let _ = tcp_interface.as_ref().as_mut().unwrap().stream.set_read_timeout(Some(std::time::Duration::from_millis(50)));
-    let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize]; //Buffer to read incoming messages from UHF
+    let mut uhf_buf = vec![0; UHF_MAX_MESSAGE_SIZE_BYTES]; //Buffer to read incoming messages from UHF
     let mut uhf_num_bytes_read = 0;
     let mut received_bulk_ack = false;
     let mut bulk_msgs_read = 0;
