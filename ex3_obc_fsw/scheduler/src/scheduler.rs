@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use std::io::BufRead;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use crate::{log_info, log_error};
+use log::trace;
 
 pub fn process_saved_messages(dir: &str, curr_time_millis: u64, already_read: &Arc<Mutex<HashSet<String>>>) {
     let saved_messages_dir = Path::new(dir);
@@ -21,7 +21,7 @@ pub fn process_saved_messages(dir: &str, curr_time_millis: u64, already_read: &A
             Err(e) => eprintln!("Error reading directory: {:?}", e),
         }
     } else {
-        log_error("Directory does not exist or is not a directory.".to_string(), 54);
+        trace!("Directory does not exist or is not a directory.");
     }
 }
 
@@ -56,7 +56,7 @@ fn send_message(file_path: &Path, file_name: &str) {
             } else {
                 println!("File {} does not have an ID.", file_name);
             }
-            log_info(format!("Processed file: {}", file_name), 0); // Message ID can be managed as needed
+            trace!("Processed file: {}", file_name);
         }
         Err(e) => eprintln!("Failed to open file {}: {:?}", file_name, e),
     }
