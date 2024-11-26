@@ -39,6 +39,13 @@ pub mod opcodes {
         GetBeacon = 5,
         Error = 6,
     }
+    pub enum EPS {
+        On = 1,
+        Off = 2,
+        GetHK = 3,
+        Reset = 7,
+        Error = 99,
+    }
     pub enum DFGM {
         ToggleDataCollection = 0,
         Error = 99,
@@ -89,6 +96,18 @@ pub mod opcodes {
                 _ => {
                     DFGM::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for EPS {
+        fn from(value: u8) -> Self {
+            match value {
+                1 => EPS::On,
+                2 => EPS::Off,
+                3 => EPS::GetHK,
+                7 => EPS::Reset,
+                _ => EPS::Error,
             }
         }
     }
