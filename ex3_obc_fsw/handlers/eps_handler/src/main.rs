@@ -8,12 +8,11 @@ use logging::*;
 use std::io::Error;
 
 use common::component_ids::ComponentIds::{EPS, GS};
+use common::constants::DONWLINK_MSG_BODY_SIZE;
 use common::{opcodes, ports};
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
+use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
 use message_structure::*;
 use tcp_interface::*;
-
-use std::{thread, time};
 
 struct EPSHandler {
     eps_interface: Option<TcpInterface>, // To communicate with the EPS
@@ -86,36 +85,38 @@ impl EPSHandler {
     fn handle_msg(&mut self, msg: Msg) -> Result<(), Error> {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
 
-        // e.g. talk to sim
-        TcpInterface::send(self.eps_interface.as_mut().unwrap(), "request:Temperature".as_bytes())?;
-        let mut tcp_buf = [0u8;BUFFER_SIZE];
-        TcpInterface::read(self.eps_interface.as_mut().unwrap(), &mut tcp_buf)?;
-        println!("{:?}",String::from_utf8(tcp_buf.to_vec()).unwrap().trim());
-        // e.g. end
+        trace!("EPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
 
-        println!("EPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+        let mut tcp_buf = [0u8;BUFFER_SIZE];
 
         let opcode = opcodes::EPS::from(msg.header.op_code);
-        trace!("Received opcode:");
         match opcode {
             opcodes::EPS::On => {
-                println!("on");
+                trace!("on");
             }
             opcodes::EPS::Off => {
-                println!("off");
+                trace!("off");
             }
             opcodes::EPS::GetHK => {
-                println!("gethk");
+                trace!("gethk");
+                TcpInterface::send(self.eps_interface.as_mut().unwrap(), "request:Temperature".as_bytes())?;
             }
             opcodes::EPS::Reset => {
-                println!("reset");
+                trace!("reset");
+                TcpInterface::send(self.eps_interface.as_mut().unwrap(),"execute:ResetDevice".as_bytes())?;
             }
             opcodes::EPS::Error => {
                 debug!("Unrecognised opcode");
             }
         }
 
-        let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, EPS as u8, 0, vec![1,2,3,4]);
+        TcpInterface::read(self.eps_interface.as_mut().unwrap(), &mut tcp_buf)?;
+        let tmp = String::from_utf8(tcp_buf.to_vec()).unwrap();
+        let mut resp = tmp.trim_end_matches(char::from(0)).to_string();
+        trace!("From EPS got: {:?}",resp);
+        resp.truncate(DONWLINK_MSG_BODY_SIZE);
+
+        let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, EPS as u8, 0, resp.as_bytes().to_vec());
         if let Some(gs_resp_interface) = &self.gs_interface {
             let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
         } else {
