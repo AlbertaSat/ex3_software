@@ -13,7 +13,7 @@ use std::{fs, io};
 use logging::*;
 use log::{trace, warn};
 
-const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
+const INTERNAL_MSG_BODY_SIZE: usize = 4088; // 4KB - 8 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     // This pipeline is directly to the coms_handler to be directly downlinked sliced data packets
@@ -47,7 +47,7 @@ fn main() -> Result<(), IoError> {
         let mut servers = vec![&mut coms_interface, &mut cmd_disp_interface];
         thread::sleep(Duration::from_secs(1));
         poll_ipc_server_sockets(&mut servers);
-    
+
         for server in servers.into_iter().flatten() {
             if let Some(msg) = handle_client(server)? {
                 if server.socket_path.contains("gs_bulk") {
@@ -64,7 +64,7 @@ fn main() -> Result<(), IoError> {
                                     break;
                                 }
                                 trace!("Sent msg #{}", i + 1);
-                                thread::sleep(Duration::from_millis(1));
+                                thread::sleep(Duration::from_micros(1));
                             }
                             messages.clear();
                             server.clear_buffer();
@@ -79,12 +79,12 @@ fn main() -> Result<(), IoError> {
                         Ok(bulk_msg) => {
                             trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
                             messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
-    
+
                             let first_msg = messages[0].clone();
                             num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
                             num_bytes = bulk_msg.msg_body.len() as u64;
                             trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
-    
+
                             server.clear_buffer();
                         }
                         Err(e) => {
@@ -106,7 +106,6 @@ fn main() -> Result<(), IoError> {
         }
     }
     }
-    
 }
 
 fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
