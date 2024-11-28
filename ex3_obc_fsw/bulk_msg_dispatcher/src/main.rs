@@ -13,7 +13,7 @@ use std::{fs, io};
 use logging::*;
 use log::{trace, warn};
 
-const INTERNAL_MSG_BODY_SIZE: usize = 4089; // 4KB - 7 (header) being passed internally
+const INTERNAL_MSG_BODY_SIZE: usize = 4088; // 4KB - 8 (header) being passed internally
 fn main() -> Result<(), IoError> {
     // All connected handlers and other clients will have a socket for the server defined here
     // This pipeline is directly to the coms_handler to be directly downlinked sliced data packets
@@ -64,7 +64,7 @@ fn main() -> Result<(), IoError> {
                                     break;
                                 }
                                 trace!("Sent msg #{}", i + 1);
-                                thread::sleep(Duration::from_millis(1));
+                                thread::sleep(Duration::from_micros(1));
                             }
                             messages.clear();
                             server.clear_buffer();
