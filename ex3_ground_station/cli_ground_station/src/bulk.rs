@@ -41,19 +41,11 @@ pub fn read_msgs(
         if bytes_read > 0 {
             let cur_msg = deserialize_msg(&bulk_buf[0..bytes_read])?;
             if cur_msg.header.msg_type == MsgType::Bulk as u8 {
-
-                let seq_id = if cur_msg.msg_body.len() >= 2 {
-                    // Attempt to read seq_id as u16 if enough bytes are available
-                    u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]])
-                } else {
-                    // Fallback: use the first byte as seq_id if insufficient bytes
-                    cur_msg.msg_body[0] as u16
-                };
-
+                let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
                 println!("Received msg #{}", seq_id);
                 // println!("{:?}", cur_msg);
                 bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_micros(10));
                 num_msgs_recvd += 1;
             }
         }
