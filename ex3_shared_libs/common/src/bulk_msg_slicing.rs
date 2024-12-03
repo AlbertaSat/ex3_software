@@ -62,7 +62,7 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
 
     // TODO - is this necessary?
     let body: &[u8] = &msg.msg_body[0..max_body_size.min(msg.msg_body.len())];
-    head.msg_len = 7 + body.len() as u16;
+    head.msg_len = HEADER_SIZE as u16 + body.len() as u16;
     Msg {
         header: head,
         msg_body: body.to_vec(),

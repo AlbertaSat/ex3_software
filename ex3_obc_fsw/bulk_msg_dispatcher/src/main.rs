@@ -55,16 +55,16 @@ fn main() -> Result<(), IoError> {
                         // TODO: Do we need the msg body to be 0? Will this disp see any other types of ACKs?
                         if msg.msg_body[0] == 0 {
                             for (i, message) in messages.iter().enumerate() {
-                                let serialized_msgs = serialize_msg(message)?;
-                                trace!("Sending {} B", serialized_msgs.len());
+                                let serialized_msg = serialize_msg(message)?;
+                                trace!("Sending {} B", serialized_msg.len());
                                 if let Some(data_fd) = &server.data_fd {
-                                    ipc_write(data_fd, &serialized_msgs)?;
+                                    ipc_write(data_fd, &serialized_msg)?;
                                 } else {
                                     warn!("No data file descriptor found in coms_interface.");
                                     break;
                                 }
                                 trace!("Sent msg #{}", i + 1);
-                                thread::sleep(Duration::from_micros(1));
+                                thread::sleep(Duration::from_secs(1));
                             }
                             messages.clear();
                             server.clear_buffer();
@@ -77,7 +77,7 @@ fn main() -> Result<(), IoError> {
                     let path = get_path_from_bytes(path_bytes)?;
                     match get_data_from_path(&path) {
                         Ok(bulk_msg) => {
-                            trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + 7); // +7 for header
+                            trace!("Bytes expected at GS: {}", bulk_msg.msg_body.len() + HEADER_SIZE); // +8 for header
                             messages = handle_large_msg(bulk_msg.clone(), INTERNAL_MSG_BODY_SIZE)?;
     
                             let first_msg = messages[0].clone();
@@ -137,9 +137,9 @@ fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: &OwnedFd) ->
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
     num_msgs_bytes.append(&mut num_bytes_bytes);
-        let num_msg: Msg = Msg::new(MsgType::Bulk as u8, 0,
-                                    ComponentIds::GS as u8, ComponentIds::DFGM as u8,
-                                    2, num_msgs_bytes);
+    let num_msg: Msg = Msg::new(MsgType::Bulk as u8, 0,
+                                ComponentIds::GS as u8, ComponentIds::DFGM as u8,
+                                2, num_msgs_bytes);
     ipc_write(fd, &serialize_msg(&num_msg)?)?;
     Ok(())
 }

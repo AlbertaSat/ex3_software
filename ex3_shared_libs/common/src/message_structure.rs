@@ -243,7 +243,7 @@ impl fmt::Display for AckCode {
 }
 
 // ---------------------------------------------------------------------
-const HEADER_SIZE: usize = 8;
+pub const HEADER_SIZE: usize = 8;
 
 /// This message header is shared by all message types
 #[derive(Debug, Clone)]
@@ -318,7 +318,7 @@ impl Msg {
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
         let header = MsgHeader::from_bytes(&bytes[0..HEADER_SIZE])?;
-        let msg_body = bytes[HEADER_SIZE..header.msg_len as usize + 1].to_vec(); // don't include trailing nulls in body
+        let msg_body = bytes[HEADER_SIZE..header.msg_len as usize].to_vec(); // don't include trailing nulls in body
         Ok(Msg { header, msg_body })
     }
 }
@@ -375,17 +375,23 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let msg = Msg::new(0,1, 2, 3, 4, vec![0, 1, 2, 3, 4, 5, 6]);
+        let msg: Msg = Msg::new(MsgType::Bulk as u8, 0,ComponentIds::GS as u8, ComponentIds::DFGM as u8,2, vec![113,1]);
 
         // Serialize
         let serialized_msg = serialize_msg(&msg).unwrap();
+        println!("ser msg: {:?}", serialized_msg);
 
         // Deserialize
         let deserialized_msg = deserialize_msg(&serialized_msg).unwrap();
+        println!("deserd msg: {:?}",deserialized_msg);
 
         // Assert equality
-        assert_eq!(deserialized_msg.header.msg_type, 0);
-        assert_eq!(deserialized_msg.msg_body, vec![0, 1, 2, 3, 4, 5, 6]);
+        assert_eq!(deserialized_msg.header.msg_type, msg.header.msg_type);
+        assert_eq!(deserialized_msg.header.msg_id, msg.header.msg_id);
+        assert_eq!(deserialized_msg.header.dest_id, msg.header.dest_id);
+        assert_eq!(deserialized_msg.header.source_id, msg.header.source_id);
+        assert_eq!(deserialized_msg.header.op_code, msg.header.op_code);
+        assert_eq!(deserialized_msg.msg_body, msg.msg_body);
     }
 
     #[test]
