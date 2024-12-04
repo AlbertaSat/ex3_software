@@ -44,7 +44,10 @@ impl SpiInterface {
         spi_device.configure(&spi_config)?;
         Ok(SpiInterface {device: spi_device, path: path.to_string()})
     }
-    
+    // getter for device path
+    pub fn get_dev_path(&mut self) -> String {
+        self.path.clone()
+    }
     // Flushes the output stream
     pub fn flush_out_buff(&mut self) -> Result<(), Error> {
         self.device.flush()
