@@ -1,5 +1,5 @@
 pub mod component_ids;
-pub use component_ids::{ComponentIds};
+pub use component_ids::ComponentIds;
 pub mod message_structure;
 pub mod bulk_msg_slicing;
 pub mod logging;
