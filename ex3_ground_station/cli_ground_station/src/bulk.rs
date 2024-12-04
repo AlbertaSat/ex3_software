@@ -45,7 +45,7 @@ pub fn read_msgs(
                 println!("Received msg #{}", seq_id);
                 // println!("{:?}", cur_msg);
                 bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(Duration::from_micros(10));
                 num_msgs_recvd += 1;
             }
         }
