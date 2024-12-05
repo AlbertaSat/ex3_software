@@ -12,5 +12,6 @@ interface: library of I/O interface helpers that is shared among the handlers
    on the OBC. Some of the modules are:
    - ipc: inter-payload communication client/server support
    - i2c: I2C communication support
+   - spi: SPI communication support
    - uart: serial port support
    - tcp: client and server tcp support

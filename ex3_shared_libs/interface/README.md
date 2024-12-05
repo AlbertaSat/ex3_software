@@ -8,6 +8,9 @@ This module allows userspace programs to talk with devices via a serial port con
 ## I2C Interface
 This library allows userspace programs to communicate with devices via the I2C communication protocol. It includes an I2cDeviceInterface Structure that allows the user to read and write raw bytes over the I2C interface.
 
+## I2C Interface
+This library allows userspace programs to communicate with devices via the SPI communication protocol. It includes an SpiInterface Structure that allows the user to read and write raw bytes over the SPI interface.
+
 ## IPC
 
 This is the libary used by various OBC FSW component to communicate with eachother using IPC Unix Domain Sockets of type SOCKSEQ packet.
