@@ -14,7 +14,7 @@ pub mod schedule_message;
 use crate::schedule_message::*;
 pub mod scheduler;
 use crate::scheduler::*;
-use common::{message_structure::*, logging};
+use common::{message_structure::*, logging::init_logger};
 
 use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
@@ -45,13 +45,13 @@ impl Scheduler {
         if cmd_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
-                msg_dispatcher_interface.as_ref().err().unwrap()
+                cmd_dispatcher_interface.as_ref().err().unwrap()
             );
         }
         if coms_handler_resp_interface.is_err() {
             warn!(
                 "Error creating coms interface: {:?}",
-                gs_interface.as_ref().err().unwrap()
+                coms_handler_resp_interface.as_ref().err().unwrap()
             );
         }
         Scheduler {
@@ -92,6 +92,12 @@ impl Scheduler {
 
         }
     }
+
+    fn handle_msg(&self, msg: Msg) -> Result<(), std::io::Error>{
+
+
+        Ok(())
+    }
 }
 fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
     // unwrap message to get inner message for the subsystem
@@ -101,7 +107,7 @@ fn process_message(deserialized_msg: Msg, input: &Arc<Mutex<String>>) {
 
     let command_time: u64 = get_time(subsystem_msg.msg_body);
     let curr_time_millis: u64 = get_current_time_millis();
-    let input_tuple: (u64, u8) = (command_time, subsystem_msg.header.msg_id);
+    let input_tuple: (u64, u16) = (command_time, subsystem_msg.header.msg_id);
 
     println!("Command Time: {:?} ms, ID: {} Current time is {:?} ms", input_tuple.0, input_tuple.1, curr_time_millis);
 
@@ -146,7 +152,7 @@ mod tests {
     #[test]
     fn test_write_input_tuple_creates_file() {
         let test_dir = "scheduler/saved_messages".to_string();
-        let input_tuple: (u64, u8) = (1717110630000, 30);
+        let input_tuple: (u64, u16) = (1717110630000, 30);
 
         let result = write_input_tuple_to_rolling_file(&input_tuple);
         assert!(result.is_ok());
