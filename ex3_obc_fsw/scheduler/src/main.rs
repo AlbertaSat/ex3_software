@@ -14,11 +14,10 @@ pub mod schedule_message;
 use crate::schedule_message::*;
 pub mod scheduler;
 use crate::scheduler::*;
-use message_structure::*;
+use common::{message_structure::*, logging};
 
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, poll_ipc_server_sockets};
+use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
-use logging::init_logger;
 
 const CHECK_DELAY: u8 = 100;
 
@@ -26,79 +25,6 @@ struct Scheduler {
     cmd_dispatcher_interface: Option<IpcServer>,
     coms_handler_resp_interface: Option<IpcClient>
 }
-
-impl Scheduler {
-    fn new(
-        cmd_dispatcher_interface: Result<IpcServer, std::io::Error>,
-        coms_handler_resp_interface: Result<IpcClient, std::io::Error>,
-    ) -> Scheduler {
-        if cmd_dispatcher_interface.is_err() {
-            warn!(
-                "Error creating dispatcher interface: {:?}",
-                cmd_dispatcher_interface.as_ref().err().unwrap()
-            );
-        }
-        if coms_handler_resp_interface.is_err() {
-            warn!(
-                "Error creating coms interface: {:?}",
-                coms_handler_resp_interface.as_ref().err().unwrap()
-            );
-        }
-        Scheduler {
-            cmd_dispatcher_interface: cmd_dispatcher_interface.ok(),
-            coms_handler_resp_interface: coms_handler_resp_interface.ok(),
-        }
-    }
-
-    fn run(&mut self) -> std::io::Result<()> {
-        // start thread for checking execution time of scheduled commands
-        check_saved_messages();
-        // Poll for messages
-        loop {
-            // First, take the Option<IpcClient> out of `self.dispatcher_interface`
-            // This consumes the Option, so you can work with the owned IpcClient
-            let cmd_dispatcher_interface = self.cmd_dispatcher_interface.take().expect("Cmd_Disp interface has value of None");
-
-            // Create a mutable Option<IpcClient> so its lifetime persists
-            let mut cmd_dispatcher_interface_option = Some(cmd_dispatcher_interface);
-
-            // Now you can borrow this mutable option and place it in the vector
-            let mut server: Vec<&mut Option<IpcServer>> = vec![
-                &mut cmd_dispatcher_interface_option,
-            ];
-
-            poll_ipc_server_sockets(&mut server);
-
-            // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
-            self.cmd_dispatcher_interface = cmd_dispatcher_interface_option;
-
-            // Handling the bulk message dispatcher interface
-            let msg_dispatcher_interface = self.cmd_dispatcher_interface.as_ref().unwrap();
-            if msg_dispatcher_interface.buffer != [0u8; IPC_BUFFER_SIZE] {
-                let recv_msg: Msg = deserialize_msg(&msg_dispatcher_interface.buffer).unwrap();
-                debug!("Received and deserialized msg");
-                self.handle_msg(recv_msg)?;
-            }
-
-        }
-    }
-
-    fn handle_msg(&mut self, msg: Msg) -> Result<(), std::io::Error> {
-        self.cmd_dispatcher_interface.as_mut().unwrap().clear_buffer();
-
-        process_message(msg, &Arc::new(Mutex::new(String::new())));
-
-        Ok(())
-    }
-
-
-}
-
-use common::component_ids::ComponentIds::{GS, SHELL};
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
-use log::{debug, trace, warn};
-use logging::*;
-use message_structure::*;
 
 fn check_saved_messages() {
     let already_read = Arc::new(Mutex::new(HashSet::new()));
