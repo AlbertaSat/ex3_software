@@ -326,7 +326,7 @@ fn main() {
                         status = AckCode::Failed;
                         ackbody.push_str("no connection to cmd dispatcher");
                     }
-                    CmdMsg::deserialize_from_bytes(&msg)
+                    CmdMsg::deserialize_from_bytes(msg)
                 }
                 Err(e) => {
                     status = AckCode::Failed;

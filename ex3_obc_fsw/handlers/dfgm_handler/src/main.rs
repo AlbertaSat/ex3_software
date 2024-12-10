@@ -39,6 +39,7 @@ struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    #[allow(dead_code)]
     gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
