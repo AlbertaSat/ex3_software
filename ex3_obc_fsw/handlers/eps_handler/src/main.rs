@@ -4,15 +4,12 @@ Fall 2024
 */
 
 use log::{debug, trace, warn};
-use logging::*;
 use std::io::Error;
 
+use common::{logging::*, message_structure::*, opcodes, ports};
 use common::component_ids::ComponentIds::{EPS, GS};
 use common::constants::DONWLINK_MSG_BODY_SIZE;
-use common::{opcodes, ports};
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
-use message_structure::*;
-use tcp_interface::*;
+use interface::{ipc::*, tcp::*, Interface};
 
 struct EPSHandler {
     eps_interface: Option<TcpInterface>, // To communicate with the EPS
