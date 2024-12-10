@@ -5,7 +5,7 @@
     It will break it into multiple packets if this condition is true and
     will assign the packets a sequence number at msg_body[0]
  */
-use message_structure::*;
+use crate::message_structure::*;
 /// This function holds all the functionality for slicing a large msg into many smaller ones.
 /// The size that the message is sliced into is configurable by the parameter max_body_size.
 /// This parameter DOES NOT account for the size of the header (as of now).
@@ -62,7 +62,7 @@ fn deconstruct_msg(mut msg: Msg, sequence_num: u16, total_packets: Option<u16>, 
 
     // TODO - is this necessary?
     let body: &[u8] = &msg.msg_body[0..max_body_size.min(msg.msg_body.len())];
-    head.msg_len = 7 + body.len() as u16;
+    head.msg_len = HEADER_SIZE as u16 + body.len() as u16;
     Msg {
         header: head,
         msg_body: body.to_vec(),

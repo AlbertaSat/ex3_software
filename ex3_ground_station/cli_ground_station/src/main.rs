@@ -11,28 +11,29 @@ TODO
     - Have the 'up' key bring back the previously entered command
 
 */
+mod bulk;
+mod eps;
+mod shell;
 
-use bulk_msg_slicing::*;
-use common::*;
-use libc::c_int;
-use message_structure::*;
-use std::fs::File;
-use std::path::Path;
-use tcp_interface::*;
+use common::{ports, ComponentIds};
+use common::message_structure::*;
+use interface::{tcp::*, Interface};
 
-use libc::{poll, POLLIN};
-use std::fs;
-use std::io::prelude::*;
+use std::str::from_utf8;
+
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::{process, thread};
+use std::process;
+use std::os::fd::{AsFd};
 use std::time::Duration;
-use tokio::sync::Mutex;
 
-const WAIT_FOR_ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
-const STDIN_POLL_TIMEOUT: c_int = 10;
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
+use strum::IntoEnumIterator;
+
+const STDIN_PFD: usize = 0;
+const UHF_PFD: usize = 1;
+const BEACON_PFD: usize = 2;
+
+const ACK_TIMEOUT: u64 = 10; // seconds a receiver (GS or SC) will wait before timing out and asking for a resend
 
 //TOOD - create a new file for each time the program is run
 //TODO - get file if one already this time the 'program is run' - then properly append JSON data (right now it just appends json data entirely)
@@ -59,269 +60,276 @@ const STDIN_POLL_TIMEOUT: c_int = 10;
 //     let _ = writer.flush();
 // }
 
+fn help() {
+    println!("Available commands:");
+    println!("<payload> <args>, where <payload> is:");
+    for x in ComponentIds::iter() {
+        println!("  {}", x);
+    }
+    println!("quit/exit");
+    println!("help/?");
+}
+
 /// Build a message from operator input string, where values are delimited by spaces.
 /// 1st value is the destination component string - converted to equivalent component id.
 /// 2nd value is opcode num - converted from ascii to a byte.
 /// Remaining values are the data - converted from ascii into bytes.
-fn build_msg_from_operator_input(operator_str: String) -> Result<Msg, std::io::Error> {
+fn build_msg_from_operator_input(operator_str: String) -> Option<Msg> {
     //Parse input string by spaces
-    let operator_str_split: Vec<&str> = operator_str.split(" ").collect();
+    let input_tokens: Vec<&str> = operator_str.split(" ").collect();
 
-    if operator_str_split.len() < 2 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Not enough arguments",
-        ));
+    if input_tokens.len() < 2 {
+        let cmd = input_tokens[0];
+        if cmd == "exit" || cmd == "quit" {
+            process::exit(0);  // does not return
+        }
+        else {
+            help();
+        }
+        return None;
     }
 
-    let dest_id = component_ids::ComponentIds::from_str(operator_str_split[0]).unwrap() as u8;
-    let mut msg_body: Vec<u8> = Vec::new();
-    let mut msg_type = 0;
+    let cmd = input_tokens[0].to_uppercase();
+    let payload = match ComponentIds::iter().find(|x| cmd == format!("{x}")) {
+        Some(p) => p,
+        None => {
+            let p = ComponentIds::BulkMsgDispatcher;
+            if input_tokens[0] == format!("{p}") {
+                p
+            }
+            else {
+                println!("Unknown payload: {}", input_tokens[0]);
+                return None;
+            }
+        }
+    };
+
     let mut opcode = 0;
+    let msg_type = MsgType::Cmd as u8;
 
-    // This is for the Bulk Msg Disp to parse and determine the path it needs to use to get the data
-    if dest_id == component_ids::ComponentIds::BulkMsgDispatcher as u8 {
-        msg_type = MsgType::Cmd as u8;
-        msg_body = operator_str_split[1].as_bytes().to_vec();
-    } else {
-        opcode = operator_str_split[1].parse::<u8>().unwrap();
+    let msg_body = match payload {
+        ComponentIds::BulkMsgDispatcher => bulk::parse_cmd(&input_tokens[1..]),
+        ComponentIds::EPS => eps::parse_cmd(&input_tokens[1..]),
+        ComponentIds::SHELL => shell::parse_cmd(&input_tokens[1..]),
+        _ => {
+            opcode = input_tokens[1].parse::<u8>().unwrap();
+            Some(input_tokens[2..].join(" ").as_bytes().to_vec())
+        }
+    };
 
-        msg_body.extend(operator_str_split[2..].join(" ").bytes());
+    match msg_body {
+        Some(b) => {
+            let msg = Msg::new(msg_type, 0, payload as u8, ComponentIds::GS as u8, opcode, b);
+            // println!("Built msg: {:?}", msg);
+            Some(msg)
+        },
+        None => None,
     }
-    
-    let msg = Msg::new(msg_type, 0, dest_id, component_ids::ComponentIds::GS as u8, opcode, msg_body);
-    println!("Built msg: {:?}", msg);
-    Ok(msg)
 }
 
 /// Takes mutable reference to the awaiting ack flag, derefs it and sets the value
-fn handle_ack(msg: Msg, awaiting_ack: &mut bool) -> Result<(), std::io::Error> {
+fn handle_response(msg: &Msg) {
     //TODO - handle if the Ack is OK or ERR , OR not an ACK at all
-    println!("Received ACK: {:?}", msg);
-    *awaiting_ack = false;
-    Ok(())
+    if msg.header.op_code == AckCode::Failed as u8 {
+        match std::str::from_utf8(&msg.msg_body) {
+            Ok(s) => println!("Command failed: {}", s),
+            Err(e) => println!("Command failed, respnse corrupt: {}", e),
+        }
+        return;
+    }
+
+    if let Ok(payload) = ComponentIds::try_from(msg.header.source_id) {
+        match payload {
+            ComponentIds::BulkMsgDispatcher => bulk::handle_response(msg),
+            ComponentIds::EPS => eps::handle_response(msg),
+            ComponentIds::SHELL => shell::handle_response(msg),
+            _ => {
+                println!("response from {:?}: {:?}", payload, msg);
+            },
+        }
+    };
 }
 
-fn send_msg_to_sc(msg: Msg, tcp_interface: &mut TcpInterface) {
-    let serialized_msg = serialize_msg(&msg).unwrap();
-    let ret = tcp_interface.send(&serialized_msg).unwrap();
-    println!("Sent {} bytes to Coms handler", ret);
-    std::io::stdout().flush().unwrap();
-}
-
-/// Sleep for 1 second intervals - and check if the await ack flag has been reset each second
-/// This is so that if an ACK is read, then this task ends
-async fn awaiting_ack_timeout_task(awaiting_ack_clone: Arc<Mutex<bool>>) {
-    let mut count = 0;
-    while count < WAIT_FOR_ACK_TIMEOUT {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        count += 1;
-        let lock = awaiting_ack_clone.lock().await;
-        if !(*lock) {
+fn send_cmd(uhf_iface: &mut TcpInterface) {
+    let mut input = String::new();
+    let stdin = std::io::stdin();
+    match stdin.read_line(&mut input) {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("stdin read error: {}", e);
             return;
         }
     }
-    let mut lock = awaiting_ack_clone.lock().await;
-    *lock = false;
-    println!("WARNING: NO ACK received - Last sent message may not have been received by SC.");
-}
-/// Function to represent the state of reading bulk msgs continuously.
-/// It modifies the bulk_messages in place by taking a mutable reference.
-fn read_bulk_msgs(
-    tcp_interface: &mut TcpInterface,
-    bulk_messages: &mut Vec<Msg>,
-    num_msgs_to_recv: u16,
-) -> Result<(), std::io::Error> {
-    let mut bulk_buf = [0u8; 4096];
-    let mut num_msgs_recvd = 0;
-    println!("Num msgs incoming: {}", num_msgs_to_recv);
-    while num_msgs_recvd < num_msgs_to_recv {
-        let bytes_read = tcp_interface.read(&mut bulk_buf)?;
-        if bytes_read > 0 {
-            let cur_msg = deserialize_msg(&bulk_buf[0..bytes_read])?;
-            if cur_msg.header.msg_type == MsgType::Bulk as u8 {
-                let seq_id = u16::from_le_bytes([cur_msg.msg_body[0], cur_msg.msg_body[1]]);
-                println!("Received msg #{}", seq_id);
-                // println!("{:?}", cur_msg);
-                bulk_messages.push(cur_msg.clone());
-                thread::sleep(Duration::from_millis(10));
-                num_msgs_recvd += 1;
+
+    let input = input.trim().to_string();
+    match build_msg_from_operator_input(input) {
+        Some(mstruct) => {
+            let msg = serialize_msg(&mstruct).unwrap();
+            match uhf_iface.send(&msg) {
+                Ok(len) => println!("Sent {} bytes to Coms handler", len),
+                Err(e) => {
+                    eprintln!("Send to Satellite failed: {}", e);
+                    return;
+                }
             }
-        }
-    }
-
-    Ok(())
-}
-
-
-/// Function to save downlinked data to a file
-fn save_data_to_file(data: Vec<u8>, src: u8) -> std::io::Result<()> {
-    let mut dir_name = match component_ids::ComponentIds::try_from(src) {
-        Ok(c) => format!("{c}"),
-        Err(_) => "misc".to_string(),
+        },
+        None => return, // No message to send
     };
 
-    // Prepend directory we want it to be created in
-    dir_name.insert_str(0, "ex3_ground_station/");
-    fs::create_dir_all(dir_name.clone())?;
-    let mut file_path = Path::new(&dir_name).join("data");
+    let mut buf = [0u8; 128];
 
-    // Append number to file name if it already exists
-    let mut count = 0;
-    while file_path.exists() {
-        count += 1;
-        file_path = Path::new(&dir_name).join(format!("data{}", count));
+    let _ = uhf_iface.stream.set_read_timeout(Some(Duration::from_secs(ACK_TIMEOUT)));
+
+    match uhf_iface.read(&mut buf) {
+        Ok(len) => {
+            if len == 0 {
+                println!("satellite connection ended");
+            }
+            else {
+                match deserialize_msg(&buf) {
+                    Ok(response) => handle_response(&response),
+                    Err(e) => println!("Response garbled: {}", e),
+                };
+            }
+        },
+        Err(e) => println!("read from satellite failed: {}", e),
     }
-    let mut file = File::create(file_path)?;
-
-    file.write_all(&data)?;
-
-    Ok(())
 }
 
-
-/// Function for rebuilding msgs that have been downlinked from the SC
-/// First, it takes a chunk of 128B msgs and makes a 4KB packet out of that
-/// Then, takes the vector of 4KB packets and makes one large msg using it
-fn process_bulk_messages(
-    bulk_messages: Vec<Msg>,
-    num_bytes: usize,
-) -> Result<Msg, &'static str> {
-    let mut reconstructed_large_msg = reconstruct_msg(bulk_messages)?;
-    reconstructed_large_msg.msg_body = reconstructed_large_msg.msg_body[0..num_bytes].to_vec();
-    Ok(reconstructed_large_msg)
+fn beacon_listen(beacon_iface: &mut TcpInterface) {
+    // This function takes a tcp client connected to the simulated uhf's beacon server
+    // it reads the buffer and if it is not empty the contents are deserialized into a message
+    // right now it is just printing the contents of message to stdout.
+    let mut buff = [0; 128];
+    let bytes_read = match beacon_iface.read(&mut buff) {
+        // If we read no bytes just return early
+        Ok(0) => return,
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("Error reading bytes from UHF beacon port");
+            eprintln!("{}", e);
+            return;
+        }
+    };
+    if bytes_read > 0 {
+        let beacon_msg = from_utf8(&buff).unwrap();
+        // Hardcoded slice for now, this code will change in future
+        let call_sign_len = 7;
+        let call_sign = &beacon_msg[..call_sign_len];
+        let content = &beacon_msg[call_sign_len..];
+        println!("Beacon ({} bytes): {} {}", bytes_read, call_sign, content);
+    }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let ipaddr = std::env::args().nth(1).unwrap_or("localhost".to_string());
 
-    eprintln!("Connecting to Coms handler via TCP at {ipaddr}...");
+    eprintln!("Connecting to UHF channel via TCP at {ipaddr}...");
+    // Create tcp client listening to simulated uhf server.
+    let mut uhf_iface =
+        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_UHF_PORT) {
+            Ok(ti) => ti,
+            Err(e) => {
+                eprintln!("Can't connect to satellite: {e}");
+                process::exit(1);
+            }
+        };
 
-    let mut tcp_interface = match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_COMMS_PORT) {
-	Ok(ti) => ti,
-	Err(e) => {
-	   eprintln!("Can't connect to satellite: {e}");
-	   process::exit(1);
-	}
-    };
-    eprintln!("Connected to Coms handler via TCP ");
+    eprintln!("Connecting to beacon broadcast channel via TCP at {ipaddr}...");
+    // Create tcp client listening to simulated uhf beacon server.
+    let mut beacon_iface =
+        match TcpInterface::new_client(ipaddr.to_string(), ports::SIM_ESAT_BEACON_PORT) {
+            Ok(ti) => ti,
+            Err(e) => {
+                eprintln!("Can't connect to beacon port: {e}");
+                process::exit(2);
+            }
+        };
 
-    let mut bulk_messages: Vec<Msg> = Vec::new();
-    let stdin_fd = std::io::stdin().as_raw_fd();
+    let stdin_stream = std::io::stdin();
+    let stdin_pfd = PollFd::new(stdin_stream.as_fd(), PollFlags::POLLIN);
+    let uhf_stream = uhf_iface.stream.try_clone().unwrap();
+    let uhf_pfd = PollFd::new(uhf_stream.as_fd(), PollFlags::POLLIN);
+    let beacon_stream = beacon_iface.stream.try_clone().unwrap();
+    let beacon_pfd = PollFd::new(beacon_stream.as_fd(), PollFlags::POLLIN);
+    let mut fds = [stdin_pfd, beacon_pfd, uhf_pfd];
 
     loop {
-        let mut fds = [libc::pollfd {
-            fd: stdin_fd,
-            events: POLLIN,
-            revents: 0,
-        }];
+        print!("ex3> ");
+        let _ = std::io::stdout().flush();
+
+        fds[STDIN_PFD] = stdin_pfd;
+        fds[BEACON_PFD] = beacon_pfd;
+        fds[UHF_PFD] = uhf_pfd;
 
         // Poll stdin for input
-        let ret = unsafe { poll(fds.as_mut_ptr(), 1, STDIN_POLL_TIMEOUT) }; // 10 ms timeout
-        if ret > 0 && fds[0].revents & POLLIN != 0 {
-            let mut input = String::new();
-            let mut stdin = std::io::stdin().lock();
-            stdin.read_line(&mut input).unwrap();
-            let input = input.trim().to_string();
-
-            let msg_build_res = build_msg_from_operator_input(input);
-
-            match msg_build_res {
-                Ok(msg) => {
-                    send_msg_to_sc(msg, &mut tcp_interface);
-
-                    let mut buf = [0u8; 128];
-                    let awaiting_ack = Arc::new(Mutex::new(true));
-                    let awaiting_ack_clone = Arc::clone(&awaiting_ack);
-
-                    tokio::task::spawn(async move {
-                        awaiting_ack_timeout_task(awaiting_ack_clone).await;
-                    });
-
-                    while *awaiting_ack.lock().await {
-                        let bytes_read = tcp_interface.read(&mut buf).unwrap();
-                        if bytes_read > 0 {
-                            let recvd_msg = deserialize_msg(&buf).unwrap();
-                            if recvd_msg.header.op_code == 200 {
-                                let _ = handle_ack(recvd_msg, &mut *awaiting_ack.lock().await);
-                            }
-                        }
-                    }
+        match poll(&mut fds, PollTimeout::NONE) {
+            Ok(n) => {
+                if n == 0 {
+                    eprintln!("Can't timeout with infinite timeout!");
+                    continue;
                 }
-                Err(e) => {
-                    eprintln!("Error building message: {}", e);
-                }
+            },
+            Err(e) => {
+                eprintln!("poll failed! {}", e);
+                process::exit(3);
             }
-        } else {
-            let mut read_buf = [0; 128];
+        };
 
-            let bytes_received = match tcp_interface.read(&mut read_buf) {
-                Ok(len) => len,
-                Err(e) => {
-                    println!("read failed: {e}");
-                    break;
+        let stdin_events = fds[STDIN_PFD].revents().expect("Unexpected STDIN event");
+        for flag in stdin_events {
+            match flag {
+                PollFlags::POLLIN => {
+                    send_cmd(&mut uhf_iface);
+                },
+                PollFlags::POLLHUP => {
+                    eprintln!("Lost stdin connection");
+                    //stdin_pfd = fake_pollfd();
+                    todo!();
                 }
+                pf => {
+                    eprintln!("Unexpected stdin flag: {:?}", pf);
+                    process::exit(4);
+                },
             };
-            if bytes_received > 0 {
-                let recvd_msg = deserialize_msg(&read_buf).unwrap();
-                // Bulk Msg Downlink Mode. Will stay in this mode until all packets are received (as of now).
-                if recvd_msg.header.msg_type == MsgType::Bulk as u8 {
-                    let num_msgs_to_recv =
-                        u16::from_le_bytes([recvd_msg.msg_body[0], recvd_msg.msg_body[1]]);
-                    let bytes = [recvd_msg.msg_body[2],
-                        recvd_msg.msg_body[3],
-                        recvd_msg.msg_body[4],
-                        recvd_msg.msg_body[5],
-                        recvd_msg.msg_body[6],
-                        recvd_msg.msg_body[7],
-                        recvd_msg.msg_body[8],
-                        recvd_msg.msg_body[9]];
-                    let num_bytes_to_recv = u64::from_le_bytes(bytes);
-                    // build_and_send_ack(
-                    //     &mut tcp_interface,
-                    //     recvd_msg.header.msg_id.clone(),
-                    //     recvd_msg.header.source_id,
-                    //     recvd_msg.header.dest_id.clone(),
-                    // );
-                    // Listening mode for bulk msgs
-                    read_bulk_msgs(
-                        &mut tcp_interface,
-                        &mut bulk_messages,
-                        num_msgs_to_recv,
-                    )
-                    .unwrap();
-                    // clone bulk_messages BUT maybe hurts performance if there's tons of packets
-                    match process_bulk_messages(bulk_messages.clone(), num_bytes_to_recv as usize) {
-                        Ok(large_msg) => {
-                            println!("Successfully reconstructed 4K messages");
-                            match save_data_to_file(
-                                large_msg.msg_body,
-                                large_msg.header.source_id,
-                            ) {
-                                Ok(_) => {
-                                    println!("Data saved to file");
-                                }
-                                Err(e) => {
-                                    eprintln!("Error writing data to file: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => eprintln!("Error reconstructing 4K messages: {}", e),
-                    }
+        }
 
-                    println!(
-                        "We have {} bulk msgs including initial header msg",
-                        bulk_messages.len()
-                    );
-                    
-                }
-                println!("Received Message: {:?}, body {:?} = {}", recvd_msg.header, recvd_msg.msg_body,String::from_utf8(recvd_msg.msg_body.clone()).unwrap());
-            } else {
-                // Deallocate memory of these messages. Reconstructed version 
-                // has been written to a file. This is slightly slower than .clear() though
-                bulk_messages = Vec::new();
-            }
+        let beacon_events = fds[BEACON_PFD].revents().expect("Unexpected beacon event");
+        for flag in beacon_events {
+            match flag {
+                PollFlags::POLLIN => {
+                    // Listens on beacon channel for any beacons we get and
+                    // prints beacon msg to stdout
+                    beacon_listen(&mut beacon_iface);
+                },
+                PollFlags::POLLHUP => {
+                    eprintln!("Lost beacon connection");
+                    beacon_iface.close();
+                    // beacon_pfd = fake_pollfd();
+                    todo!();
+                },
+                pf => {
+                    eprintln!("Unexpected beacon flag: {:?}", pf);
+                    process::exit(5);
+                },
+            };
+        }
+
+        let uhf_events = fds[UHF_PFD].revents().expect("Unexpected UHF event");
+        for flag in uhf_events {
+            match flag {
+                PollFlags::POLLIN => bulk::process_download(&mut uhf_iface),
+                PollFlags::POLLHUP => {
+                    eprintln!("Lost UHF connection");
+                    beacon_iface.close();
+                    // uhf_pfd = fake_pollfd();
+                    todo!();
+                },
+                pf => {
+                    eprintln!("Unexpected UHF flag: {:?}", pf);
+                    process::exit(6);
+                },
+            };
         }
     }
 }

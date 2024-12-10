@@ -17,6 +17,7 @@ tmux -f .tmux.conf new-session -d -s "uplink_command_msg"
 
 # Create the simulated subystem components (dfgm and uhf transciever) - because they are tcp servers  
 tmux new-window -n "SIM_DFGM_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/DFGM && python3 ./dfgm_subsystem.py; exec bash"
+tmux new-window -n "SIM_UHF_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py; exec bash"
 # tmux new-window -n "SIM_IRIS_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/IRIS && python3 ./iris_simulated_server.py; exec bash"
 # For now the UHF transceiver is bypassed and the GS sends msgs directly to the coms handler 
 sleep 0.25
@@ -24,8 +25,8 @@ sleep 0.25
 # Bulk Dispatcher ommited as this script only focuses on uplink
 
 # Create the hanlders and other obc fsw components (coms handler, dfgm handler, etc. )
-tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 tmux new-window -n "COMS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin coms_handler; exec bash"
+tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 # tmux new-window -n "IRIS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin iris_handler; exec bash"
 sleep 0.25
 

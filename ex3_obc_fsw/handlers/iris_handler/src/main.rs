@@ -19,20 +19,17 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use logging::*;
+use common::logging::*;
 use log::{debug, trace, warn};
-use common::component_ids::IRIS;
+use common::{opcodes, ports, ComponentIds};
 use common::opcodes::IRIS::GetHK;
-use common::{opcodes, ports};
-use ipc::*;
-use message_structure::*;
+use interface::{ipc::*, tcp::*, Interface};
+use common::message_structure::*;
 use std::fs::OpenOptions;
 use std::{io, thread};
 use std::io::prelude::*;
-use std::io::Error;
-use std::io::ErrorKind;
+use std::io::{Error, ErrorKind};
 use std::time::{Instant, Duration};
-use tcp_interface::*;
 use std::collections::HashMap;
 use serde_json::json;
 
@@ -218,7 +215,9 @@ impl IRISHandler {
     /// This function is a first iteration of how a handler will collect HK.
     /// Each handler will have a different version of this function as each HK is unique
     fn collect_hk(&mut self) -> io::Result<()> {
-        let hk_msg = Msg::new(55,55,IRIS, IRIS, GetHK as u8, vec![]);
+        let hk_msg = Msg::new(55, 55,
+                              ComponentIds::IRIS as u8, ComponentIds::IRIS as u8,
+                              GetHK as u8, vec![]);
         if let Some(hk_string) = self.handle_msg_for_iris(hk_msg) {
             let hk_bytes = format_iris_hk(hk_string.as_bytes())?;
             store_iris_data("hk_test", &hk_bytes)?;
@@ -270,7 +269,7 @@ fn format_iris_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 }
 
 
-fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  Result<String, Error>{
+fn receive_response(peripheral_interface: &mut TcpInterface) ->  Result<String, Error>{
     let mut packet_content = [0u8; IRIS_INTERFACE_BUFFER_SIZE];
     let packet_len = parse_packet(peripheral_interface, &mut packet_content, false,"None")?;
    
@@ -309,7 +308,7 @@ fn receive_response(peripheral_interface: &mut tcp_interface::TcpInterface) ->  
 /// Receives and translates IRIS packet, currently the IRIS simulated subsystem sends packets in the following format:
 /// FLAG:length:...data...|END|, where length is replaced with the length of data
 /// Until we know for certain the commands and their response structures this will have to make do
-fn parse_packet(peripheral_interface: &mut tcp_interface::TcpInterface,  response:  &mut [u8; IRIS_INTERFACE_BUFFER_SIZE], is_image:  bool, image_name: &str) ->  Result<usize, Error>{
+fn parse_packet(peripheral_interface: &mut TcpInterface,  response:  &mut [u8; IRIS_INTERFACE_BUFFER_SIZE], is_image:  bool, image_name: &str) ->  Result<usize, Error>{
     let flag: [u8; 4] = [70, 76, 65, 71]; // is "FLAG" in bytes
     let mut flag_match: usize = 0;
     let delim = 58; // is the delimiter for the simulated subsystem ":"

@@ -13,19 +13,18 @@ TODO - Setup a way to handle opcodes from messages passed to the handler
 
 */
 
-use ipc::{poll_ipc_server_sockets, IpcServer, IPC_BUFFER_SIZE};
+use interface::ipc::{poll_ipc_server_sockets, IpcClient, IpcServer, IPC_BUFFER_SIZE};
 
 //use tcp_interface::BUFFER_SIZE;
-use tcp_interface::*;
-use message_structure::*;
+use common::logging::*;
+use common::message_structure::*;
+use common::{opcodes, ports};
+use interface::{tcp::*, Interface};
+use log::{debug, trace, warn};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Error;
 use std::io::ErrorKind;
-use common::{ports, opcodes}; 
-use logging::*;
-use log::{debug, trace, warn};
-
 
 const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
 //const DFGM_PACKET_SIZE: usize = 1252;
@@ -38,14 +37,17 @@ const DFGM_DATA_DIR_PATH: &str = "ex3_obc_fsw/handlers/dfgm_handler/dfgm_data";
 /// Interfaces are option types incase they are not properly created upon running this handler, so the program does not panic
 struct DFGMHandler {
     toggle_data_collection: bool,
-    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic 
+    peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    #[allow(dead_code)]
+    gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
 impl DFGMHandler {
     pub fn new(
         dfgm_interface: Result<TcpInterface, std::io::Error>,
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
+        gs_interface: Result<IpcClient, std::io::Error>,
     ) -> DFGMHandler {
         //if either interfaces are error, print this
         if dfgm_interface.is_err() {
@@ -60,36 +62,52 @@ impl DFGMHandler {
                 msg_dispatcher_interface.as_ref().err().unwrap()
             );
         }
+        if gs_interface.is_err() {
+            warn!(
+                "Error creating ground station interface: {:?}",
+                gs_interface.as_ref().err().unwrap()
+            );
+        }
 
         DFGMHandler {
             toggle_data_collection: false,
             peripheral_interface: dfgm_interface.ok(),
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
+            gs_interface: gs_interface.ok(),
         }
     }
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
-        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer();
+        // msg body being encoded as ASCII now. Changed handling to so ASCII 48 is 0 and ASCII 49 is 1
+        //self.gs_interface.as_mut().unwrap().clear_buffer();
         trace!("Matching opcode.");
         let opcode_enum = opcodes::DFGM::from(msg.header.op_code);
         match opcode_enum {
             opcodes::DFGM::ToggleDataCollection => {
-                if msg.msg_body[0] == 0 {
+                if msg.msg_body[0] == 48 {
+                    // ASCII 0
                     self.toggle_data_collection = false;
                     trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
-                } else if msg.msg_body[0] == 1 {
+                } else if msg.msg_body[0] == 49 {
+                    // ASCII 1
                     self.toggle_data_collection = true;
                     trace!("Data toggle set to {}", self.toggle_data_collection);
                     Ok(())
                 } else {
                     debug!("Error: invalid msg body for opcode 0");
-                    Err(Error::new(ErrorKind::InvalidData, "Invalid msg body for opcode 0 on DFGM"))
+                    Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "Invalid msg body for opcode 0 on DFGM",
+                    ))
                 }
             }
             _ => {
                 debug!("Error: invalid msg body for opcode 0");
-                Err(Error::new(ErrorKind::NotFound, format!("Opcode {} not found for DFGM", msg.header.op_code)))
+                Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Opcode {} not found for DFGM", msg.header.op_code),
+                ))
             }
         }
     }
@@ -100,11 +118,9 @@ impl DFGMHandler {
             // Borrowing the dispatcher interfaces
             // let msg_dispatcher_interface = self.msg_dispatcher_interface;
 
-            let mut clients = vec![
-                &mut self.msg_dispatcher_interface,
-            ];
-            poll_ipc_server_sockets(&mut clients);
-            
+            let mut servers = vec![&mut self.msg_dispatcher_interface];
+            poll_ipc_server_sockets(&mut servers);
+
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
                 if cmd_msg_dispatcher.buffer != [0u8; IPC_BUFFER_SIZE] {
@@ -113,10 +129,11 @@ impl DFGMHandler {
                     self.handle_msg_for_dfgm(recv_msg)?;
                 }
             }
-        
+
             if self.toggle_data_collection {
-                let mut tcp_buf = [0u8;BUFFER_SIZE];
-                let status = TcpInterface::read(self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
+                let mut tcp_buf = [0u8; BUFFER_SIZE];
+                let status =
+                    TcpInterface::read(self.peripheral_interface.as_mut().unwrap(), &mut tcp_buf);
                 match status {
                     Ok(data_len) => {
                         trace!("Read {}B from DFGM", data_len);
@@ -129,9 +146,8 @@ impl DFGMHandler {
             }
         }
     }
-                //TODO - After receiving the message, send a response back to the dispatcher ??
+    //TODO - After receiving the message, send a response back to the dispatcher ??
 }
-
 
 /// Write DFGM data to a file (for now --- this may changer later if we use a db or other storage)
 /// Later on we likely want to specify a path to specific storage medium (sd card 1 or 2)
@@ -160,8 +176,10 @@ fn main() -> Result<(), Error> {
     // Interface for IPC of cmd_dispatcher cmds that get sent up with a certain destination
     let msg_dispatcher_interface = IpcServer::new("DFGM".to_string());
 
+    let gs_interface = IpcClient::new("gs_non_bulk".to_string());
+
     //Create DFGM handler
-    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface);
+    let mut dfgm_handler = DFGMHandler::new(dfgm_interface, msg_dispatcher_interface, gs_interface);
 
     dfgm_handler.run()
 }
