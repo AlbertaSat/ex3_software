@@ -146,6 +146,7 @@ fn main() {
 
     // Initialize UHF handler struct
     let mut uhf_handler = UHFHandler::new();
+    std::thread::sleep(std::time::Duration::from_secs(1));
     //Setup interface for comm with UHF transceiver [ground station] (TCP for now)
     let mut tcp_interface =
         match TcpInterface::new_client(ipaddr, ports::SIM_ESAT_UART_PORT) {
@@ -173,7 +174,6 @@ fn main() {
             &mut ipc_coms_interface,
             &mut ipc_cmd_interface,
             &mut ipc_uhf_interface,
-            &mut gs_interface_non_bulk,
         ];
         poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
@@ -357,6 +357,8 @@ fn main() {
             }
         }
 
+        let mut servers: Vec<&mut Option<IpcServer>> = vec![&mut gs_interface_non_bulk];
+        poll_ipc_server_sockets(&mut servers);
         // Handle regular messages for GS
         if let Some(ref mut gs_if) = gs_interface_non_bulk {
             if gs_if.buffer != [0u8; IPC_BUFFER_SIZE] {

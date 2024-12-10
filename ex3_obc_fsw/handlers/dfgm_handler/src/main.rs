@@ -78,7 +78,7 @@ impl DFGMHandler {
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
         // msg body being encoded as ASCII now. Changed handling to so ASCII 48 is 0 and ASCII 49 is 1
-        self.gs_interface.as_mut().unwrap().clear_buffer();
+        //self.gs_interface.as_mut().unwrap().clear_buffer();
         trace!("Matching opcode.");
         let opcode_enum = opcodes::DFGM::from(msg.header.op_code);
         match opcode_enum {
@@ -117,8 +117,8 @@ impl DFGMHandler {
             // Borrowing the dispatcher interfaces
             // let msg_dispatcher_interface = self.msg_dispatcher_interface;
 
-            let mut clients = vec![&mut self.msg_dispatcher_interface];
-            poll_ipc_server_sockets(&mut clients);
+            let mut servers = vec![&mut self.msg_dispatcher_interface];
+            poll_ipc_server_sockets(&mut servers);
 
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {
