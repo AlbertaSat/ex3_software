@@ -39,6 +39,7 @@ struct DFGMHandler {
     toggle_data_collection: bool,
     peripheral_interface: Option<TcpInterface>, // For communication with the DFGM peripheral [external to OBC]. Will be dynamic
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC] (i.e. message dispatcher)
+    #[allow(dead_code)]
     gs_interface: Option<IpcClient>, // To send messages to the GS through the coms_handler
 }
 
@@ -78,7 +79,7 @@ impl DFGMHandler {
 
     fn handle_msg_for_dfgm(&mut self, msg: Msg) -> Result<(), Error> {
         // msg body being encoded as ASCII now. Changed handling to so ASCII 48 is 0 and ASCII 49 is 1
-        self.gs_interface.as_mut().unwrap().clear_buffer();
+        //self.gs_interface.as_mut().unwrap().clear_buffer();
         trace!("Matching opcode.");
         let opcode_enum = opcodes::DFGM::from(msg.header.op_code);
         match opcode_enum {
@@ -117,8 +118,8 @@ impl DFGMHandler {
             // Borrowing the dispatcher interfaces
             // let msg_dispatcher_interface = self.msg_dispatcher_interface;
 
-            let mut clients = vec![&mut self.msg_dispatcher_interface];
-            poll_ipc_server_sockets(&mut clients);
+            let mut servers = vec![&mut self.msg_dispatcher_interface];
+            poll_ipc_server_sockets(&mut servers);
 
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {

@@ -24,8 +24,8 @@ tmux new-window -n "BULK_MSG_DISPATCHER" -- "trap : SIGINT; cd ../ex3_obc_fsw/bu
 sleep 0.5
 
 # ## Create the hanlders and other obc fsw components (coms handler, dfgm handler )
-tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 tmux new-window -n "COMS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin coms_handler; exec bash"
+tmux new-window -n "DFGM_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin dfgm_handler; exec bash"
 sleep 0.25
 
 
