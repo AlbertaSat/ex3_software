@@ -4,6 +4,7 @@ pub mod ipc;
 pub mod i2c;
 pub mod uart;
 pub mod tcp;
+pub mod spi;
 
 /// Interface trait to be implemented by all external interfaces
 pub trait Interface {
