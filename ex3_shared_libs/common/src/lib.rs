@@ -3,6 +3,7 @@ pub use component_ids::ComponentIds;
 pub mod message_structure;
 pub mod bulk_msg_slicing;
 pub mod logging;
+pub mod house_keeping;
 
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {
