@@ -25,7 +25,7 @@ impl UHFHandler {
         UHFHandler {
             mode: 0,
             beacon: String::from("Beacon"),
-            buffer: vec![0; UHF_MAX_MESSAGE_SIZE_BYTES as usize],
+            buffer: vec![0; UHF_MAX_MESSAGE_SIZE_BYTES],
         }
     }
     pub fn handle_msg_for_uhf(&mut self, uhf_interface: &mut TcpInterface, msg: &Msg) {

@@ -87,6 +87,7 @@ impl EPSHandler {
         let mut tcp_buf = [0u8;BUFFER_SIZE];
 
         let opcode = opcodes::EPS::from(msg.header.op_code);
+        let mut cmd = "dummy";
         match opcode {
             opcodes::EPS::On => {
                 trace!("on");
@@ -96,17 +97,18 @@ impl EPSHandler {
             }
             opcodes::EPS::GetHK => {
                 trace!("gethk");
-                TcpInterface::send(self.eps_interface.as_mut().unwrap(), "request:Temperature".as_bytes())?;
+                cmd = "request:Temperature";
             }
             opcodes::EPS::Reset => {
                 trace!("reset");
-                TcpInterface::send(self.eps_interface.as_mut().unwrap(),"execute:ResetDevice".as_bytes())?;
+                cmd = "execute:ResetDevice";
             }
             opcodes::EPS::Error => {
                 debug!("Unrecognised opcode");
             }
         }
 
+        TcpInterface::send(self.eps_interface.as_mut().unwrap(), cmd.as_bytes())?;
         TcpInterface::read(self.eps_interface.as_mut().unwrap(), &mut tcp_buf)?;
         let tmp = String::from_utf8(tcp_buf.to_vec()).unwrap();
         let mut resp = tmp.trim_end_matches(char::from(0)).to_string();
