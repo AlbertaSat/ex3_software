@@ -21,6 +21,8 @@ tmux new-window -n "SIM_EPS" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/EPS && pyth
 tmux new-window -n "BULK_MSG_DISPATCHER" -- "trap : SIGINT; cd ../ex3_obc_fsw/bulk_msg_dispatcher && cargo run; exec bash"
 sleep 0.25
 
+tmux new-window -n "SIM_UHF_SUBSYSTEM" -- "trap : SIGINT; cd $PATH_TO_SIM_SUBS/UHF && python3 ./simulated_uhf.py ; exec bash;"
+
 tmux new-window -n "COMS_HANDLER" -- "trap : SIGINT; cd ../ && cargo run --bin coms_handler; exec bash"
 sleep 0.25
 

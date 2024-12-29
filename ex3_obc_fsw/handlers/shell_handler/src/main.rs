@@ -15,7 +15,7 @@ use std::io::Error;
 use std::process::Command;
 
 use common::component_ids::ComponentIds::{GS, SHELL};
-use common::constants::DONWLINK_MSG_BODY_SIZE;
+use common::constants::DOWNLINK_MSG_BODY_SIZE;
 use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
 use common::logging::*;
@@ -91,7 +91,7 @@ impl ShellHandler {
             Ok(out) => {
                 trace!("command outputted: {}", String::from_utf8(out.stdout.clone()).unwrap());
 
-                for chunk in out.stdout.chunks(DONWLINK_MSG_BODY_SIZE) {
+                for chunk in out.stdout.chunks(DOWNLINK_MSG_BODY_SIZE) {
                     let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, SHELL as u8, 0, chunk.to_vec());
                     if let Some(gs_resp_interface) = &self.gs_interface {
                         let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);

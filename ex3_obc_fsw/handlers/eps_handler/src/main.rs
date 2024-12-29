@@ -8,7 +8,7 @@ use std::io::Error;
 
 use common::{logging::*, message_structure::*, opcodes, ports};
 use common::component_ids::ComponentIds::{EPS, GS};
-use common::constants::DONWLINK_MSG_BODY_SIZE;
+use common::constants::DOWNLINK_MSG_BODY_SIZE;
 use interface::{ipc::*, tcp::*, Interface};
 
 struct EPSHandler {
@@ -111,7 +111,7 @@ impl EPSHandler {
         let tmp = String::from_utf8(tcp_buf.to_vec()).unwrap();
         let mut resp = tmp.trim_end_matches(char::from(0)).to_string();
         trace!("From EPS got: {:?}",resp);
-        resp.truncate(DONWLINK_MSG_BODY_SIZE);
+        resp.truncate(DOWNLINK_MSG_BODY_SIZE);
 
         let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, EPS as u8, 0, resp.as_bytes().to_vec());
         if let Some(gs_resp_interface) = &self.gs_interface {
