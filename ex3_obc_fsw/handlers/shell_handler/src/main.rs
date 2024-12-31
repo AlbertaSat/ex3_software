@@ -16,10 +16,10 @@ use std::process::Command;
 
 use common::component_ids::ComponentIds::{GS, SHELL};
 use common::constants::DONWLINK_MSG_BODY_SIZE;
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
+use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_server_sockets};
 use log::{debug, trace, warn};
-use logging::*;
-use message_structure::*;
+use common::logging::*;
+use common::message_structure::*;
 
 struct ShellHandler {
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
