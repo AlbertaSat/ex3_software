@@ -89,7 +89,7 @@ async fn rocket() -> _ {
 // @Example
 // write_to_pipe(json!({"key1": "value1", "key2":"value2"}), "../cli_ground_station/cli")
 //
-fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
+fn send_to_server(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
     let mut pipe = OpenOptions::new().write(true).open(pipe_path)?;
 
     let data = json!(json_struct);
@@ -107,8 +107,8 @@ fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Re
 // let value = read_from_pipe("cli_to_server")
 // let myStruct: MyStruct = serde_json::from_str(&value).unwrap();
 // println!("{}", myStruct.key1)
-//
-fn read_from_pipe(pipe_path: &str) -> io::Result<String> {
+//12
+fn recieve_from_server(pipe_path: &str) -> io::Result<String> {
     let pipe = File::open(pipe_path)?;
     let mut reader = BufReader::new(pipe);
 

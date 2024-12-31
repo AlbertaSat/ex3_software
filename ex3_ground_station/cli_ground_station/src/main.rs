@@ -382,13 +382,13 @@ async fn main() {
 }
 
 // @Parameters:
-// pipe_path - "../server/cli_to_server"
+// pipe_path - path of the fifo pipe, should just be "../server/cli_to_server"
 // json_struct -  json!({"key1": "value1", "key2":"value2"})
 //
 // @Example
 // write_to_pipe(json!({"key1": "value1", "key2":"value2"}), "../server/cli_to_server")
 //
-fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
+fn send_to_server(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Result<()>{
     let mut pipe = OpenOptions::new().write(true).open(pipe_path)?;
 
     let data = json!(json_struct);
@@ -407,7 +407,7 @@ fn write_to_pipe(json_struct: serde_json::Value, pipe_path: &str) -> std::io::Re
 // let myStruct: MyStruct = serde_json::from_str(&value).unwrap();
 // println!("{}", myStruct.key1)
 //
-fn read_from_pipe(pipe_path: &str) -> io::Result<String> {
+fn recieve_from_server(pipe_path: &str) -> io::Result<String> {
     let pipe = File::open(pipe_path)?;
     let mut reader = BufReader::new(pipe);
 
