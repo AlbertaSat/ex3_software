@@ -33,3 +33,10 @@ error!("Put your error message here");
 Log4rs has an architecture that is allows our logs to be written to various locations, formatted, and filtered conventiently.
 
 Log4rs uses a 'yaml' file for configuration, which can be programatically configured but instead we are using a static file for init;
+
+## House Keeping
+The house_keeping.rs file contains helper functions to allow programmers to create json values in a rust program, as well as
+read and write them to a file. The create_hk function returns a JSON value which can be modified by the subsystem handler
+wanting to record housekeeping data, but it is initalized with the subsystem's ID and the UTC timestamp of when the value was created.
+After the handler adds all subsystem house keeping data to the JSON value they can use the write_hk function to write the JSON to a file.
+this JSON file can then be downlinked via the bulk message dispatcher, the file can then be read into a rust program using the read_hk function.
