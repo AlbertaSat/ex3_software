@@ -1,86 +1,45 @@
-use std::io::{self, Read};
-use std::panic::panic_any;
-use std::sync::mpsc;
-use std::thread;
-use interface::{uart::UARTInterface, Interface};
+use std::os::fd::AsFd;
+use interface::{uart, Interface};
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 
 fn main() {
-    let mut arduino_serial = UARTInterface::new("/dev/ttyACM2", 9600).unwrap();
-
-    let mut buffer = [0; 36].to_vec();
-    let mut data_collection = false;
-
-    let user_input = input_service();
+    let mut arduino = uart::UartInterface::new("/dev/ttyACM0", None);
+    let mut read_buff: [u8; 36] = [0; 36];
+    let polling_fd = arduino.fd.try_clone().unwrap();
+    let pfd = PollFd::new(polling_fd.as_fd(), PollFlags::POLLIN);
+    let mut fds = [pfd];
 
     loop {
-        if arduino_serial.available_to_read().unwrap() == 36 {
-            match arduino_serial.read(&mut buffer) {
-                Ok(0) => println!("No bytes to read"), // No bytes to read
-                Ok(_n) => {
-                    println!("{:?}", buffer);
-                    arduino_serial
-                        .clear_input_buffer()
-                        .expect("Failed to clear input buffer");
+        let _ret = match poll(&mut fds, PollTimeout::NONE) {
+            Ok(n) => {
+                n
+            },
+            Err(e) => {
+                println!("Error occurred while polling: {e}");
+                continue;
+            }
+        };
+        let bytes_to_read = match arduino.available_to_read() {
+            Ok(n) => n,
+            Err(e) => {
+                println!("Could not find bytes available to read: {e}");
+                continue;
+            }
+
+        };
+        if bytes_to_read >= 36 {
+            match arduino.read(&mut read_buff) {
+                Ok(bytes) => {
+                    println!("Bytes Read: {}", bytes );
                 }
                 Err(e) => {
-                    println!("Error reading from simulated dfgm: {e}");
-                    break;
+                    println!("Error reading from arduino: {e}");
+                    continue;
                 }
             }
-        }
-        match user_input.try_recv() {
-            Ok(_) => {
-                println!("Toggling data collection");
-                data_collection = !data_collection;
-                if data_collection {
-                    match arduino_serial.send(&[1]) {
-                        Ok(_) => {
-                            println!("Data collection toggled on.");
-                            arduino_serial
-                                .clear_input_buffer()
-                                .expect("Failed to clear input buffer")
-                        }
-                        Err(e) => {
-                            println!("Error toggling data collection: {e}");
-                        }
-                    }
-                } else {
-                    match arduino_serial.send(&[0]) {
-                        Ok(_) => {
-                            println!("Data collection toggled off.");
-                        }
-                        Err(e) => {
-                            println!("Error toggling data collection: {e}");
-                        }
-                    }
-                }
-            }
-            Err(mpsc::TryRecvError::Empty) => (),
-            Err(e) => {
-                println!("Stopping due to: {e}");
-                break;
-            }
+            println!("{:?}", read_buff);
+            let _ = arduino.flush_input();
         }
     }
 }
 
-fn input_service() -> mpsc::Receiver<()> {
-    let (tx, rx) = mpsc::channel();
-
-    thread::spawn(move || {
-        let mut buffer = [0; 32];
-        loop {
-            // Block awaiting any user input
-            match io::stdin().read(&mut buffer) {
-                Ok(0) => {
-                    drop(tx); // EOF, drop the channel and stop the thread
-                    break;
-                }
-                Ok(_bytes_read) => tx.send(()).unwrap(), // Signal main to stop collection
-                Err(e) => panic_any(e),
-            }
-        }
-    });
-
-    rx
-}
