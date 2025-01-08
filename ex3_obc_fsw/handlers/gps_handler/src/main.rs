@@ -163,7 +163,24 @@ impl GPSHandler {
             }
         }
 
-        TcpInterface::send(self.gps_interface.as_mut().unwrap(), cmd.as_bytes())?;
+        //Send commands to GPS interface using TcpInterface::send
+        // "?" operator at the end of a line: propogates errors -returned by TcpInterface::send- up the call stack until a function higher up can handle it.
+        TcpInterface::send(self.gps_interface.as_mut().unwrap(), cmd.as_bytes())?; //returns usize. 
+        TcpInterface::read(self.gps_interface.as_mut().unwrap(), &mut tcp_buf)?;
+
+        let tmp = String::from_utf8(tcp_buf.to_vec()).unwrap();
+        let mut resp = tmp.trim_end_matches(char::from(0)).to_string();
+        trace!("From GPS got: {:?}",resp);
+        resp.truncate(DOWNLINK_MSG_BODY_SIZE);
+
+        let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, GPS as u8, 0, resp.as_bytes().to_vec());
+        if let Some(gs_resp_interface) = &self.gs_interface {
+            let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
+        } else {
+            debug!("Response not sent to gs. IPC interface not created");
+        }
+
+        Ok(())
     }
 
 
