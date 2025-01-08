@@ -118,7 +118,7 @@ impl GPSHandler {
         /// handles how GPS will collect HK
         /// most of this is placeholder as we do not yet know what kind of HK data to recieve
         fn collect_hk(&mut self) -> io::Result<()> {
-            let hk_msg = Msg::new("HK_test_one".to_string()) //Question: idk what to put in it now, but will need to make a Msg for Hk...
+            let hk_msg = Msg::new("HK_test_one".to_string()); //Question: idk what to put in it now, but will need to make a Msg for Hk...
             if let Some(hk_string) = self.handle_msg_for_gps(hk_msg) {
                 let hk_bytes = format_gps_hk(hk_string.as_bytes())?;
                 store_gps_data("HK_test", &hk_bytes)?;
@@ -213,7 +213,7 @@ impl GPSHandler {
         Ok(json_bytes)
     }
 
-    fn write_msg_to_GS(interface: &mut TcpInterface, msg: MSG) {
+    fn write_msg_to_gs(interface: &mut TcpInterface, msg: MSG) {
         // heavily lifted from coms_handler
         let serialized_msg_result = serialize_msg(&msg);    // converts msg to bytes -> Result<Vec<u8>
         match serialized_msg_result {
@@ -233,7 +233,7 @@ fn main() {
     // Initialize logging
     let log_path = "ex3_obc_fsw/handlers/gps_handler/logs";
     init_logger(log_path);
-    trace!("Logger initialized")
+    trace!("Logger initialized");
     trace!("Starting GPS Handler...");
 
     // Create Unix domain socket interface to talk to message dispatcher
