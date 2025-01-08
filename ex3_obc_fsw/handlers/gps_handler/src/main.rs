@@ -30,8 +30,6 @@ use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, po
 use message_structure::*;
 use std::{thread, time};
 
-const HK_INTERVAL = time::Duration::from_secs(20);
-
 /* Comments from Hari:
 "Why should the GPS ever directly communicate to the ground station? No reason. 
 The gps isnt on the BUS. The gps isnt connected to the spacecraft bus, It HAS to go to the OBC
@@ -48,9 +46,11 @@ struct GPSHandler {
 impl GPSHandler {
     pub fn new( 
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
-        gs_interface: Result<IpcServer, std::io::Error>,
-        gps_interface: Result<IpcServer, std::io::Error>,
+        gs_interface: Result<IpClient, std::io::Error>,
+        gps_interface: Result<IpcClient, std::io::Error>,
     ) -> GPSHandler {
+        
+        //error handling
         if msg_dispatcher_interface.is_err() {
             warn!(
                 "Error creating dispatcher interface: {:?}",
@@ -69,7 +69,8 @@ impl GPSHandler {
                 gps_interface.as_ref().err().unwrap()
             );
         }
-
+        
+        //result ok
         GPSHandler {
             msg_dispatcher_interface: msg_dispatcher_interface.ok(),
             gs_interface: gs_interface.ok(),
@@ -80,24 +81,8 @@ impl GPSHandler {
     // Sets up threads for reading and writing to its interaces, and sets up channels for communication between threads and the handler
     pub fn run(&mut self) -> std::io::Result<()> {
 
-        //Note that HK_INTERVAL is a global const
-        let mut last_hk_collect = time::Instant::now(); // Housekeeping should occur regularly. Begin the timer now.
-
         // Poll for messages
         loop {
-
-            // Check if we should collect HK:
-            if last_hk_collect.elapsed() >= HK_INTERVAL {
-                match self.collect_hk() {
-                    Ok(_) => {
-                        debug!("Collected and stored HK.");
-                    }
-                    Err(e) => {
-                        debug!("HK collection failed: {}", e);
-                    }
-                }
-                last_hk_collect= time::Instant::now();
-            }
 
             // First, take the Option<IpcClient> out of `self.dispatcher_interface`
             // This consumes the Option, so you can work with the owned IpcClient
@@ -109,7 +94,7 @@ impl GPSHandler {
             // Now you can borrow this mutable option and place it in the vector
             let mut server: Vec<&mut Option<IpcServer>> = vec![
                 &mut msg_dispatcher_interface_option,
-                //QUESTION: do we need to add the other interfaces here?
+                //QUESTION: do we need to add the other interfaces here? I'm guessing not because this is the interface that sends messages back to gs?
             ];
 
             poll_ipc_server_sockets(&mut server);
@@ -154,38 +139,34 @@ impl GPSHandler {
         // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
         match opcodes::GPS::from(msg.header.op_code){
             //for now im using the simulated gps commands but this will change when we get the actual gps commands
+            //  get data from GPS; 
+            //  if data < 128, send to GS else send to bulk
             opcodes::GPS::GetLatLong => {   
                 trace!("Getting latitude and longitude");
-                // QUESTION: what to put here
-                // steps:
-                //  get data from GPS; 
-                //  if data < 128, send to GS else send to bulk
+                //for now, the 'cmd' is temporary and only used over TCP to sim gps.
+                cmd="latlong"
             }
             opcodes::GPS::GetUTCTime => {
                 trace!("Getting UTC time");
-
+                cmd="time"
             }
             opcodes::GPS::GetHK => {
                 trace!("Getting HK");
-            
+                cmd="ping" //this definitely isnt what HK shld be but idk what HK should be... 
             }
             opcodes::GPS::Reset => {
                 trace!("Resetting");
-                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN...   
+                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN. What would reset even look like?   
             }
             _ => { //match case for everything else 
-                warn!(
-                    "{}",
-                    format!("Error: Opcode {} not found for GPS", msg.header.op_code)
-                ); // logs a warning (warn! is from the module log)
-                Err(Error::new(
-                    ErrorKind::NotFound,
-                    format!("Error: Opcode {} not found for GPS", msg.header.op_code),
-                    //return a warning for NotFound opcode.
-                ))
+                debug!("Unrecognised opcode");
             }
         }
+
+        TcpInterface::send(self.gps_interface.as_mut().unwrap(), cmd.as_bytes())?;
     }
+
+
 
 
     /// Format HK into a JSON to create an easily readable HK
@@ -207,7 +188,7 @@ impl GPSHandler {
 
         let json_value = json!(hk_map);
         let json_bytes = serde_json::to_vec(&json_value)?;
-        race!("Num HK bytes: {}", json_bytes.len());
+        trace!("Num HK bytes: {}", json_bytes.len());
         trace!("HK bytes: {:?}", json_bytes);
     
         Ok(json_bytes)
