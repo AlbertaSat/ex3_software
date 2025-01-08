@@ -32,6 +32,27 @@ pub mod constants {
 /// This is in common lib because components will need to know what opcodes to use when sending messages to other components
 /// For example if a message is sent to the OBC to get housekeeping data,
 pub mod opcodes {
+
+    pub enum GPS {
+        GetLatLong = 0,
+        GetUTCTime = 1,
+        GetHK = 3,
+        Reset = 7,
+    }
+
+    impl From<u8> for GPS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => GPS::GetLatLong,
+                1 => GPS::GetLatLong
+                3 => GPS::GetHK
+                7 => GPS::Reset,
+                _ => {
+                    GPS::Error
+                }
+            }
+        }
+        
     pub enum COMS {
         GetHK = 3,
         SetBeacon = 4,
