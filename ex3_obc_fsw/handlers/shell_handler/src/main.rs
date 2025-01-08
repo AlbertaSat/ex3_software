@@ -65,7 +65,7 @@ impl ShellHandler {
                 &mut msg_dispatcher_interface_option,
             ];
 
-            poll_ipc_server_sockets(&mut server);
+            let _ = poll_ipc_server_sockets(&mut server);
 
             // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;

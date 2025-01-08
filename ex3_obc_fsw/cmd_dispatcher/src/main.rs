@@ -1,14 +1,15 @@
-use nix::unistd::{write, close};
+use nix::unistd::close;
 use nix::Error;
 use strum::IntoEnumIterator;
-use std::os::fd::{AsFd, AsRawFd};
+use std::os::fd::AsRawFd;
 
-use interface::ipc::{poll_ipc_clients, IpcClient, IPC_BUFFER_SIZE};
+use interface::ipc::{poll_ipc_clients, poll_ipc_server_sockets, IpcClient, IpcServer, IPC_BUFFER_SIZE};
 use common::component_ids::ComponentIds;
 use common::message_structure::MsgHeader;
 
+
 fn main() {
-    let component_streams: Vec<Option<IpcClient>> =
+    let mut component_streams: Vec<Option<IpcClient>> =
         ComponentIds::iter().enumerate().map(|(i,c)| {
             println!("{i}");
             match IpcClient::new(format!("{c}")) {
@@ -21,7 +22,7 @@ fn main() {
                 },
             }
         }).collect();
-    
+
     for x in 0..ComponentIds::LAST as usize {
         let payload = match ComponentIds::try_from(x as u8) {
             Ok(p) => {
@@ -36,41 +37,45 @@ fn main() {
         match component_streams.get(x) {
             Some(element) => match element {
                 Some(_e) => {
-                    println!("{} connected", payload);
+                    println!("{} socket created", payload);
                 }
                 None => {
-                    println!("{} not connected!", payload);
+                    println!("{} not created!", payload);
                 }
             },
             None => println!("bad index {}", x),
         };
     }
 
-    let mut cmd_client = match IpcClient::new("cmd_dispatcher".to_string()) {
+    // I think this should be a server. as it does not initiate communication.
+    let mut cmd_server = match IpcServer::new("cmd_dispatcher".to_string()) {
         Ok(s) => Some(s),
         Err(e) => {
-            eprintln!("Server connection error: {}", e);
+            eprintln!("Couldn't create command server: {}", e);
             return; // Should fix it and retry
         }
     };
 
     loop {
-        let mut clients = vec![&mut cmd_client];
-        let (_s,_bytes) = match poll_ipc_clients(&mut clients) {
+        let mut servers = vec![&mut cmd_server];
+        // Do not care about cmd clients addr since it only recv from a single socket in coms
+        // handler.
+        let (_bytes, _addr) = match poll_ipc_server_sockets(&mut servers) {
             Ok((bytes, sock)) => (bytes,sock),
-            Err(e) => {
-                eprintln!("read error: {}", e);
-                let _ = close(cmd_client.as_ref().unwrap().fd.as_raw_fd());
+            Err(_e) => {
+                let _ = close(cmd_server.as_ref().unwrap().fd.as_raw_fd());
                 continue; // try again
             }
         };
-        if cmd_client.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
-            let dest = cmd_client.as_ref().unwrap().buffer[MsgHeader::DEST_INDEX];
+        if cmd_server.as_ref().unwrap().buffer != [0u8; IPC_BUFFER_SIZE] {
+            // got message, check destination id
+            let dest = cmd_server.as_ref().unwrap().buffer[MsgHeader::DEST_INDEX];
             let res = match ComponentIds::try_from(dest) {
                 Ok(payload) => {
-                    match &component_streams[dest as usize] {
+                    match &mut component_streams[dest as usize] {
                         Some(client) => {
-                            write(client.fd.as_fd(), &cmd_client.as_ref().unwrap().buffer)
+                            let _res = client.send(&cmd_server.as_ref().unwrap().buffer);
+                            Ok(())
                         },
                         None => {
                             eprintln!("No payload: {payload}!");
@@ -86,9 +91,10 @@ fn main() {
 
             if res.is_err() {
                 eprintln!("Dispatch failed: NACKing");
+                println!("{:?}", res);
                 // Should actually NACK
             }
-            cmd_client.as_mut().unwrap().clear_buffer();
+            cmd_server.as_mut().unwrap().clear_buffer();
         }
     }
 }

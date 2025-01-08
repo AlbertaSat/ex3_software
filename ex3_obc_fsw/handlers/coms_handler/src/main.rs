@@ -19,7 +19,6 @@ use interface::{ipc::*, tcp::*, Interface};
 use common::message_structure::{SerializeAndDeserialize,
                                 deserialize_msg, serialize_msg,
                                 AckCode, CmdMsg, Msg, MsgType};
-use std::os::fd::OwnedFd;
 use std::vec;
 mod uhf_handler;
 use uhf_handler::UHFHandler;
@@ -50,7 +49,7 @@ fn send_initial_bulk_to_gs(initial_msg: Msg, interface: &mut TcpInterface) {
 }
 
 /// Function for sending an ACK to the bulk disp letting it know to send bulk msgs for downlink
-fn send_bulk_ack(fd: &OwnedFd) -> Result<(), std::io::Error> {
+fn send_bulk_ack(iface: &mut IpcClient) -> Result<(), std::io::Error> {
     let ack_msg = Msg::new(
         MsgType::Ack as u8,
         20,
@@ -59,7 +58,7 @@ fn send_bulk_ack(fd: &OwnedFd) -> Result<(), std::io::Error> {
         0,
         vec![0],
     );
-    ipc_write(fd, &serialize_msg(&ack_msg)?)?;
+    iface.send(&serialize_msg(&ack_msg)?)?;
     Ok(())
 }
 
@@ -106,7 +105,7 @@ fn main() {
     };
 
     // Interface for IPC of cmd_dispatcher cmds that get sent up with a certain destination
-    let ipc_cmd_interface_res = IpcServer::new("cmd_dispatcher".to_string());
+    let ipc_cmd_interface_res = IpcClient::new("cmd_dispatcher".to_string());
     let mut ipc_cmd_interface = match ipc_cmd_interface_res {
         Ok(i) => Some(i),
         Err(e) => {
@@ -169,13 +168,15 @@ fn main() {
     loop {
         uhf_buf.fill(0);
         // Poll both the UHF transceiver and IPC unix domain socket for the GS channel
-        let mut clients = vec![&mut bulk_downlink_interface];
+        let mut clients = vec![
+            &mut bulk_downlink_interface,
+            &mut ipc_cmd_interface,
+        ];
         let mut servers = vec![
             &mut ipc_coms_interface,
-            &mut ipc_cmd_interface,
             &mut ipc_uhf_interface,
         ];
-        poll_ipc_server_sockets(&mut servers);
+        let _ = poll_ipc_server_sockets(&mut servers);
         let ipc_bytes_read_res = poll_ipc_clients(&mut clients);
 
         if let Some(ref mut init_ipc_gs_interface) = bulk_downlink_interface {
@@ -190,7 +191,7 @@ fn main() {
                             && !received_bulk_ack
                         {
                             trace!("Sending ACK to bulk dispatcher, should be sending messages now");
-                            if let Some(e) = send_bulk_ack(&init_ipc_gs_interface.fd).err() {
+                            if let Some(e) = send_bulk_ack(init_ipc_gs_interface).err() {
                                 println!("failed to send bulk ack: {e}");
                             }
                             received_bulk_ack = true;
@@ -208,17 +209,19 @@ fn main() {
                         {
                             // Here where we read incoming bulk msgs from bulk_msg_disp
                             if bulk_msgs_read < expected_msgs {
-                                if let Ok((ipc_bytes_read, ipc_name)) = ipc_bytes_read_res {
-                                    if ipc_name.contains("gs") {
-                                        let cur_buf =
-                                            init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
-                                        println!("Bytes read: {}", cur_buf.len());
-                                        let cur_msg = deserialize_msg(&cur_buf).unwrap();
-                                        write_msg_to_uhf_for_downlink(
-                                            tcp_interface.as_mut().unwrap(),
-                                            cur_msg,
-                                        );
-                                        bulk_msgs_read += 1;
+                                if let Ok((ipc_bytes_read, _ipc_name)) = ipc_bytes_read_res {
+                                    if let Some(client_addr) = init_ipc_gs_interface.server_addr {
+                                        if client_addr.path().unwrap().to_str().unwrap().contains("gs") {
+                                            let cur_buf =
+                                                init_ipc_gs_interface.buffer[..ipc_bytes_read].to_vec();
+                                            println!("Bytes read: {}", cur_buf.len());
+                                            let cur_msg = deserialize_msg(&cur_buf).unwrap();
+                                            write_msg_to_uhf_for_downlink(
+                                                tcp_interface.as_mut().unwrap(),
+                                                cur_msg,
+                                            );
+                                            bulk_msgs_read += 1;
+                                        }
                                     }
                                 } else {
                                     warn!("Error reading bytes from poll.");
@@ -312,8 +315,8 @@ fn main() {
                 // After decrypting, send directly to the msg_dispatcher
                 Ok(msg) => {
                     if let Some(ref mut init_ipc_cmd_interface) = ipc_cmd_interface {
-                        if let Some(fd) = init_ipc_cmd_interface.data_fd.as_ref() {
-                            match ipc_write(fd, msg) {
+                        if let Some(_server_addr) = init_ipc_cmd_interface.server_addr {
+                            match init_ipc_cmd_interface.send(msg) {
                                 Ok(len) => debug!("coms: forwarded {} bytes", len),
                                 Err(e) => {
                                     status = AckCode::Failed;
@@ -358,7 +361,7 @@ fn main() {
         }
 
         let mut servers: Vec<&mut Option<IpcServer>> = vec![&mut gs_interface_non_bulk];
-        poll_ipc_server_sockets(&mut servers);
+        let _ = poll_ipc_server_sockets(&mut servers);
         // Handle regular messages for GS
         if let Some(ref mut gs_if) = gs_interface_non_bulk {
             if gs_if.buffer != [0u8; IPC_BUFFER_SIZE] {
