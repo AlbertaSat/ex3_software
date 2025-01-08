@@ -29,6 +29,10 @@ use std::time::Duration;
 use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 use strum::IntoEnumIterator;
 
+use std::fs::OpenOptions;
+use serde_json::json;
+use std::io::{self, BufRead, BufReader};
+
 const STDIN_PFD: usize = 0;
 const UHF_PFD: usize = 1;
 const BEACON_PFD: usize = 2;
