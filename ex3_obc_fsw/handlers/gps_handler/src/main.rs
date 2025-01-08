@@ -131,10 +131,10 @@ impl GPSHandler {
 
     }
 
+    /// Function mathes the opcodes with the message header op_code
+    /// https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
+    /// returns none if Ok, Error if err
     fn handle_msg_for_gps(&mut self, msg: Msg) -> Result<(), Error> {
-        // match the opcodes with the message header op_code 
-        // https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
-        // returns none if Ok, Error if err
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
 
@@ -143,7 +143,6 @@ impl GPSHandler {
         match opcode {
             //for now im using the simulated gps commands but this will change when we get the actual gps commands
             //  get data from GPS; 
-            //  if data < 128, send to GS else send to bulk
             opcodes::GPS::GetLatLong => {   
                 trace!("Getting latitude and longitude");
                 //for now, the 'cmd' is temporary and only used over TCP to sim gps.
