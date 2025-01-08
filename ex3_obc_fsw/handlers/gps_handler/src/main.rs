@@ -190,8 +190,8 @@ impl GPSHandler {
 
     /// Format HK into a JSON to create an easily readable HK
     /// copied from iris handler
-    fn format_gps_hk(data: &[u8]) - > Result<Vec<u8>>, std::io::Error> {
-        let mut hk_map = HashMap::new() // think of hashmap as python dict
+    fn format_gps_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+        let mut hk_map = HashMap::new();
 
         //  convert data to string and trim newline characters
         let data_str = std::str::from_utf8(data).unwrap().trim_end();
