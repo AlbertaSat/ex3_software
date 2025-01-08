@@ -44,8 +44,8 @@ pub mod opcodes {
         fn from(value: u8) -> Self {
             match value {
                 0 => GPS::GetLatLong,
-                1 => GPS::GetLatLong
-                3 => GPS::GetHK
+                1 => GPS::GetLatLong,
+                3 => GPS::GetHK,
                 7 => GPS::Reset,
                 _ => {
                     GPS::Error
