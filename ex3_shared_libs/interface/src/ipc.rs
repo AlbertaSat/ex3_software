@@ -4,27 +4,20 @@ Summer 2024
 
 */
 use nix::libc;
-use nix::sys::socket::{self, accept, bind, listen, socket, Backlog, AddressFamily, SockFlag, SockType, UnixAddr};
-use nix::unistd::{read, write};
+use nix::sys::socket::{self, bind, socket, AddressFamily, SockFlag, SockType, UnixAddr};
+use nix::unistd::write;
 use std::ffi::CString;
-use std::fmt::format;
-use std::fs::ReadDir;
-use std::os::unix::process;
-use std::str::from_utf8;
-use nix::errno::Errno;
 use std::process::exit;
 use std::io::Error as IoError;
-use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::path::Path;
-use std::{fs, io, usize};
-use common::component_ids::ComponentIds;
+use std::{fs, io};
 use super::Interface;
 
 // TODO: Implement drop trait so that IpcClients socket paths are deleted when they go out of scope
 
 const SOCKET_PATH_PREPEND: &str = "/tmp/fifo_socket_";
 const CLIENT_PARTIAL_POSTFIX: &str = "_client_";
-const SOCKET_DIR: &str = "/tmp";
 pub const IPC_BUFFER_SIZE: usize = 4096;
 const POLL_TIMEOUT_MS: i32 = 100;
 
@@ -117,7 +110,7 @@ impl IpcClient {
             }
         );
         println!("Successfully set server address to {}", server_name);
-        let mut client = IpcClient {
+        let client = IpcClient {
             socket_path: socket_path.clone(),
             fd: socket_fd,
             server_addr: Some(server_addr),

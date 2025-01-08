@@ -11,6 +11,7 @@ use std::path::Path;
 use std::{fs, io};
 use logging::*;
 use log::{trace, warn};
+use interface::Interface;
 
 const INTERNAL_MSG_BODY_SIZE: usize = 4088; // 4KB - 8 (header) being passed internally
 fn main() -> Result<(), IoError> {
