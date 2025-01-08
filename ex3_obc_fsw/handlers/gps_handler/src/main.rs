@@ -39,7 +39,7 @@ The GPS shouldnt decide where the data goes. ."
 
 struct GPSHandler {
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
-    gs_interface: Option<IpcClient> // For sending messages to the GS through the coms_handler
+    gs_interface: Option<IpcClient>, // For sending messages to the GS through the coms_handler
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
@@ -137,7 +137,10 @@ impl GPSHandler {
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
         // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
-        match opcodes::GPS::from(msg.header.op_code){
+
+        let opcode = opcodes::GPS::from(msg.header.op_code);
+        let mut cmd = "dummy";
+        match opcode {
             //for now im using the simulated gps commands but this will change when we get the actual gps commands
             //  get data from GPS; 
             //  if data < 128, send to GS else send to bulk
