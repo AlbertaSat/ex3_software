@@ -3,6 +3,7 @@ pub use component_ids::ComponentIds;
 pub mod message_structure;
 pub mod bulk_msg_slicing;
 pub mod logging;
+pub mod house_keeping;
 
 /// Ports used for communication between handlers and simulated subsystems / payloads
 pub mod ports {
@@ -22,10 +23,9 @@ pub mod ports {
 
 /// For constants that are used across the entire project
 pub mod constants {
-    pub const UHF_MAX_MESSAGE_SIZE_BYTES: u8 = 128;
+    pub const UHF_MAX_MESSAGE_SIZE_BYTES: usize = 128;
 
-    // Something up with the slicing makes this number be the size that each packet ends up 128B
-    pub const DONWLINK_MSG_BODY_SIZE: usize = 121; // 128 - 5 (header) - 2 (sequence number)
+    pub const DOWNLINK_MSG_BODY_SIZE: usize = UHF_MAX_MESSAGE_SIZE_BYTES - crate::message_structure::HEADER_SIZE;
 }
 
 /// Here opcodes and their associated meaning are defined for each component
@@ -37,6 +37,13 @@ pub mod opcodes {
         SetBeacon = 4,
         GetBeacon = 5,
         Error = 6,
+    }
+    pub enum EPS {
+        On = 1,
+        Off = 2,
+        GetHK = 3,
+        Reset = 7,
+        Error = 99,
     }
     pub enum DFGM {
         ToggleDataCollection = 0,
@@ -88,6 +95,18 @@ pub mod opcodes {
                 _ => {
                     DFGM::Error // or choose a default value or handle the error in a different way
                 }
+            }
+        }
+    }
+
+    impl From<u8> for EPS {
+        fn from(value: u8) -> Self {
+            match value {
+                1 => EPS::On,
+                2 => EPS::Off,
+                3 => EPS::GetHK,
+                7 => EPS::Reset,
+                _ => EPS::Error,
             }
         }
     }

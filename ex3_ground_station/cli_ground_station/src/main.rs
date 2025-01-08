@@ -113,7 +113,7 @@ fn build_msg_from_operator_input(operator_str: String) -> Option<Msg> {
 
     let msg_body = match payload {
         ComponentIds::BulkMsgDispatcher => bulk::parse_cmd(&input_tokens[1..]),
-        ComponentIds::EPS => eps::parse_cmd(&input_tokens[1..]),
+//             ComponentIds::EPS => eps::parse_cmd(&input_tokens[1..]), Why?
         ComponentIds::SHELL => shell::parse_cmd(&input_tokens[1..]),
         _ => {
             opcode = input_tokens[1].parse::<u8>().unwrap();
