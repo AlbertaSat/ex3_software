@@ -132,11 +132,11 @@ impl GPSHandler {
     }
 
     fn handle_msg_for_gps(&mut self, msg: Msg) -> Result<(), Error> {
-        //match the opcodes with the message header op_code
-        //returns none if Ok, Error if err
+        // match the opcodes with the message header op_code 
+        // https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
+        // returns none if Ok, Error if err
         self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
         println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
-        // handle opcodes: https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
 
         let opcode = opcodes::GPS::from(msg.header.op_code);
         let mut cmd = "dummy";
@@ -155,13 +155,13 @@ impl GPSHandler {
             }
             opcodes::GPS::GetHK => {
                 trace!("Getting HK");
-                cmd="ping" //this definitely isnt what HK shld be but idk what HK should be... 
+                cmd="ping" //Waiting for confirmation on action for this opcode
             }
             opcodes::GPS::Reset => {
                 trace!("Resetting");
-                //TODO: WE DONT HAVE RESET ON THE SIM GPS RN. What would reset even look like?   
+                //TODO: waiting for confirmation on correct action for this opcode
             }
-            _ => { //match case for everything else 
+            opcodes::GPS::Error => { //match case for everything else 
                 debug!("Unrecognised opcode");
             }
         }
