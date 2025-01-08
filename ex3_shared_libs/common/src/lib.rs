@@ -38,6 +38,7 @@ pub mod opcodes {
         GetUTCTime = 1,
         GetHK = 3,
         Reset = 7,
+        Error = 99,
     }
 
     impl From<u8> for GPS {
