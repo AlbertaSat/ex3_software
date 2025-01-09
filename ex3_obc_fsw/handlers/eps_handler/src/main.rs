@@ -64,7 +64,7 @@ impl EPSHandler {
                 &mut msg_dispatcher_interface_option,
             ];
 
-            poll_ipc_server_sockets(&mut server);
+            let _ = poll_ipc_server_sockets(&mut server);
 
             // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;
@@ -116,9 +116,9 @@ impl EPSHandler {
         resp.truncate(DOWNLINK_MSG_BODY_SIZE);
 
         let msg = Msg::new(MsgType::Cmd as u8, 0, GS as u8, EPS as u8, 0, resp.as_bytes().to_vec());
-        if let Some(gs_resp_interface) = &self.gs_interface {
-            let _ = ipc_write(&gs_resp_interface.fd, &serialize_msg(&msg)?);
-        } else {
+        if let Some(ref mut gs_resp_interface) = self.gs_interface {
+            let _ = gs_resp_interface.send(&serialize_msg(&msg)?);
+        } else  {
             debug!("Response not sent to gs. IPC interface not created");
         }
 

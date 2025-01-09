@@ -15,7 +15,7 @@ use log::{debug, trace, warn};
 use common::logging::*;
 use std::io::Error;
 
-use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
+use interface::ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, poll_ipc_clients, poll_ipc_server_sockets};
 use common::message_structure::*;
 
 use std::{thread, time};
@@ -56,7 +56,7 @@ impl GPSHandler {
                 &mut msg_dispatcher_interface_option,
             ];
 
-            poll_ipc_server_sockets(&mut server);
+            let _ = poll_ipc_server_sockets(&mut server);
 
             // restore the value back into `self.dispatcher_interface` after polling. May have been mutated
             self.msg_dispatcher_interface = msg_dispatcher_interface_option;
@@ -92,7 +92,10 @@ fn main() {
 
     // example (TODO add gps_interface to GPSHandler object and poll in run loop)
     let mut gps_interface = IpcClient::new("gps_device".to_string()).ok();      // connect("/tmp/fifo_socket_gps_device")
-    let _ = ipc_write(&gps_interface.as_ref().unwrap().fd, "time".as_bytes());  // send("time")
+    if let Some(ref mut iface) = gps_interface {
+        let _ = iface.send("time".as_bytes());
+
+    }
     thread::sleep(time::Duration::from_millis(100));                            // wait (only for example)
     let _ = poll_ipc_clients(&mut vec![&mut gps_interface]);                    // recv()
     println!("Got \"{}\"", String::from_utf8(gps_interface.as_mut().unwrap().read_buffer()).unwrap());
