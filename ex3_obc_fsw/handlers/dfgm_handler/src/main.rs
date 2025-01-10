@@ -119,7 +119,7 @@ impl DFGMHandler {
             // let msg_dispatcher_interface = self.msg_dispatcher_interface;
 
             let mut servers = vec![&mut self.msg_dispatcher_interface];
-            poll_ipc_server_sockets(&mut servers);
+            let _ = poll_ipc_server_sockets(&mut servers);
 
             // Handling the bulk message dispatcher interface
             if let Some(cmd_msg_dispatcher) = self.msg_dispatcher_interface.as_mut() {

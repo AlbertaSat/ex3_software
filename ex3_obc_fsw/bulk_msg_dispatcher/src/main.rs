@@ -5,13 +5,13 @@ use message_structure::*;
 use std::fs::{File, OpenOptions};
 use std::io::Error as IoError;
 use std::io::Read;
-use std::os::fd::OwnedFd;
 use std::thread;
 use std::time::Duration;
 use std::path::Path;
 use std::{fs, io};
 use logging::*;
 use log::{trace, warn};
+use interface::Interface;
 
 const INTERNAL_MSG_BODY_SIZE: usize = 4088; // 4KB - 8 (header) being passed internally
 fn main() -> Result<(), IoError> {
@@ -46,24 +46,34 @@ fn main() -> Result<(), IoError> {
     loop {
         let mut servers = vec![&mut coms_interface, &mut cmd_disp_interface];
         thread::sleep(Duration::from_secs(1));
-        poll_ipc_server_sockets(&mut servers);
-    
+        let _ = poll_ipc_server_sockets(&mut servers);
+
         for server in servers.into_iter().flatten() {
             if let Some(msg) = handle_client(server)? {
+                // If the server is bulk msg server and msg type is ack then send bulk msgs
+                // to coms for downlink
+                println!("bulk got msg: {:?}", msg);
                 if server.socket_path.contains("gs_bulk") {
                     if msg.header.msg_type == MsgType::Ack as u8 {
-                        // TODO: Do we need the msg body to be 0? Will this disp see any other types of ACKs?
+                        trace!("Got ACK from COMS handler, starting downlink sequence.");
+                        // If the first byte of message body is 0, then then continue with downlink
+                        // process, by sending messages to gs
+                        println!("Length of message vector: {}", messages.len());
                         if msg.msg_body[0] == 0 {
                             for (i, message) in messages.iter().enumerate() {
                                 let serialized_msg = serialize_msg(message)?;
                                 trace!("Sending {} B", serialized_msg.len());
-                                if let Some(data_fd) = &server.data_fd {
-                                    ipc_write(data_fd, &serialized_msg)?;
-                                } else {
-                                    warn!("No data file descriptor found in coms_interface.");
-                                    break;
+                                match &server.client_addr {
+                                    Some(_addr) => {
+                                        let _ = server.send(&serialized_msg);
+                                    }
+                                    None => {
+                                        warn!("No client found for server");
+                                        break;
+                                    }
                                 }
                                 trace!("Sent msg #{}", i + 1);
+                                // Why
                                 thread::sleep(Duration::from_micros(1));
                             }
                             messages.clear();
@@ -84,8 +94,8 @@ fn main() -> Result<(), IoError> {
                             num_of_4kb_msgs = u16::from_le_bytes([first_msg.msg_body[0], first_msg.msg_body[1]]) + 1;
                             num_bytes = bulk_msg.msg_body.len() as u64;
                             trace!("Num of 4k msgs: {}", num_of_4kb_msgs);
-    
                             server.clear_buffer();
+                            trace!("Successfully loaded data for downlinking... waiting on ACK.");
                         }
                         Err(e) => {
                             warn!("Error reading data from path: {}", e);
@@ -94,19 +104,18 @@ fn main() -> Result<(), IoError> {
                 }
             }
         }
-    // Separate block for sending data if messages are available
-    if !messages.is_empty() {
-        if let Some(ref mut gs_bulk_server) = coms_interface {
-            if let Some(data_fd) = &gs_bulk_server.data_fd {
-                send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, data_fd)?;
-            } else {
-                warn!("No data file descriptor found in coms_interface.");
+        // Separate block for sending data if messages are available
+        if !messages.is_empty() {
+            if let Some(ref mut gs_bulk_server) = coms_interface {
+                if let Some(_client_addr) = &gs_bulk_server.client_addr {
+                    send_num_msgs_and_bytes_to_gs(num_of_4kb_msgs, num_bytes, gs_bulk_server)?;
+                    println!("Sending Ack to COM, num msg: {num_of_4kb_msgs},  num bytes: {num_bytes}");
+                } else {
+                    warn!("No data file descriptor found in coms_interface.");
+                }
             }
-            gs_bulk_server.clear_buffer();
         }
     }
-    }
-    
 }
 
 fn get_path_from_bytes(path_bytes: Vec<u8>) -> Result<String, IoError> {
@@ -132,7 +141,7 @@ fn handle_client(server: &IpcServer) -> Result<Option<Msg>, IoError> {
 
 /// This is the communication protocol that will execute each time the Bulk Msg Dispatcher wants
 /// to send a Bulk Msg to the coms handler for downlinking.
-fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: &OwnedFd) -> Result<(), IoError> {
+fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, iface: &mut IpcServer) -> Result<(), IoError> {
     // 1. Send Msg to coms handler indicating Bulk Msg and buffer size needed
     let mut num_msgs_bytes: Vec<u8> = num_msgs.to_le_bytes().to_vec();
     let mut num_bytes_bytes: Vec<u8> = num_bytes.to_le_bytes().to_vec();
@@ -140,7 +149,7 @@ fn send_num_msgs_and_bytes_to_gs(num_msgs: u16, num_bytes: u64, fd: &OwnedFd) ->
     let num_msg: Msg = Msg::new(MsgType::Bulk as u8, 0,
                                 ComponentIds::GS as u8, ComponentIds::DFGM as u8,
                                 2, num_msgs_bytes);
-    ipc_write(fd, &serialize_msg(&num_msg)?)?;
+    iface.send(&serialize_msg(&num_msg)?)?;
     Ok(())
 }
 
