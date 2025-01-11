@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "ex3_ground_station/cli_ground_station",
-    "ex3_ground_station/dashboard",
+    "ex3_ground_station/dashboard", "ex3_ground_station/gui_ground_station",
     "ex3_ground_station/server",
     "ex3_obc_fsw/bulk_msg_dispatcher",
     "ex3_obc_fsw/cmd_dispatcher",
