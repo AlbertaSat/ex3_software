@@ -1,6 +1,7 @@
 use yew::prelude::*;
+use stylist::yew::styled_component;
 
-#[function_component(App)]
+#[styled_component(App)]
 fn app() -> Html {
     html! {
         <ul>
