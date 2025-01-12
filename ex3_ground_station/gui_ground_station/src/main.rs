@@ -3,6 +3,10 @@ use stylist::{yew::styled_component};
 
 #[styled_component(SubSystemSelect)]
 fn sub_system_select() -> Html {
+
+    let active_ss: UseStateHandle<String> = use_state(|| "Ground Station".to_string());
+
+    // Todo: Refactor so that the styling isn't inside the function
     let styling = css!(
         r#"
         ul {
@@ -35,30 +39,37 @@ fn sub_system_select() -> Html {
         }
         "#
     );
+    
+    let onclick = {
+        
+        let active_ss = active_ss.clone();
+        
+        Callback::from(move |item: String| {
+            // Update the state based on the clicked item
+            active_ss.set(item); // Update the state
+        })
+    };
 
-    enum SubSystem {
-        BulkMessageDispatcher,
-        UHFHandler,
-        COMSHandler,
-        ShellHandler,
-        CommandDispatcher,
-        GroundStation,
-    }
-
-    let _state = use_state(|| SubSystem::GroundStation);
-
+    let sub_system_fullnames = vec!["Bulk Message Dispatcher", "UHF Subsystem", "Comms Handler", "Command Dispatcher", "Ground Station"];
     html! {
         <>
             <div>
-                <h>{"Hello"}</h>
+                <h>{(*active_ss).clone()}</h>
             </div>
             <div class={styling}>
                 <ul>
-                    <li ><a href="default.asp">{"Bulk Message Dispatcher"}</a></li>
-                    <li ><a href="news.asp">{"UHF Subsystem"}</a></li>
-                    <li><a href="contact.asp">{"Comms Handler"}</a></li>
-                    <li><a href="about.asp">{"Command Dispatcher"}</a></li>
-                    <li><a href="about.asp">{"Ground Station"}</a></li>
+                    { for sub_system_fullnames.iter().map(|item| {
+                        let item_clone = item.to_string();
+                        let onclick = {
+                            let onclick = onclick.clone();
+                            Callback::from(move |_| onclick.emit(item_clone.clone()))
+                        };
+                        html! {
+                            <li onclick={onclick}>
+                                {item}
+                            </li>
+                        }
+                    })}
                 </ul>
             </div>
         </>
@@ -74,6 +85,7 @@ fn app() -> Html {
         </div>
     }
 }
+
 
 fn main() {
     yew::Renderer::<App>::new().render();
