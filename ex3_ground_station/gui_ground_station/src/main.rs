@@ -1,12 +1,33 @@
 use yew::prelude::*;
 use stylist::{yew::styled_component};
 
+#[derive(Clone, PartialEq)]
+enum SubSystem {
+    BulkMessageDispatcher,
+    UHFHandler,
+    COMSHandler,
+    ShellHandler,
+    CommandDispatcher,
+    GroundStation,
+}
+
+fn view_pager(ss: SubSystem) -> Html {
+    match ss {
+        SubSystem::BulkMessageDispatcher => html!{<h>{"BulkMessageDispatcher"}</h>},
+        SubSystem::UHFHandler => html!{<h>{"UHFHandler"}</h>},
+        SubSystem::COMSHandler => html!{<CommsTerminal/>},
+        SubSystem::ShellHandler => html!{<h>{"ShellHandler"}</h>},
+        SubSystem::CommandDispatcher => html!{<h>{"CommandDispatcher"}</h>},
+        SubSystem::GroundStation => html!{<h>{"GroundStation"}</h>},
+    }
+}
+
 #[styled_component(SubSystemSelect)]
 fn sub_system_select() -> Html {
 
-    let active_ss: UseStateHandle<String> = use_state(|| "Ground Station".to_string());
+    let active_ss = use_state(|| SubSystem::GroundStation);
 
-    // Todo: Refactor so that the styling isn't inside the function
+    // Todo: Refactor so that the styling isn't inside this function
     let styling = css!(
         r#"
         ul {
@@ -42,19 +63,28 @@ fn sub_system_select() -> Html {
     
     let onclick = {
         
-        let active_ss = active_ss.clone();
+        let activeSS = active_ss.clone();
         
         Callback::from(move |item: String| {
             // Update the state based on the clicked item
-            active_ss.set(item); // Update the state
+            let new_ss = match item.as_str() {
+                "Bulk Message Dispatcher" => SubSystem::BulkMessageDispatcher,
+                "UHF Subsystem" => SubSystem::UHFHandler,
+                "Comms Handler" => SubSystem::COMSHandler,
+                "Shell Handler" => SubSystem::ShellHandler,
+                "Command Dispatcher" => SubSystem::CommandDispatcher,
+                "Ground Station" => SubSystem::GroundStation,
+                _ => SubSystem::GroundStation,
+            };
+            activeSS.set(new_ss); // Update the state
         })
     };
 
-    let sub_system_fullnames = vec!["Bulk Message Dispatcher", "UHF Subsystem", "Comms Handler", "Command Dispatcher", "Ground Station"];
+    let sub_system_fullnames = vec!["Bulk Message Dispatcher", "UHF Subsystem", "Comms Handler", "Shell Handler", "Command Dispatcher", "Ground Station"];
     html! {
         <>
             <div>
-                <h>{(*active_ss).clone()}</h>
+                <h>{view_pager((*active_ss).clone())}</h>
             </div>
             <div class={styling}>
                 <ul>
@@ -76,6 +106,67 @@ fn sub_system_select() -> Html {
     }
 }
 
+#[styled_component(CommsTerminal)]
+fn coms_terminal_comp() -> Html {
+
+    let styling = css!(
+        r#"
+        h {
+            font-size: 25px;
+            width: 100%;
+        }
+
+        #stateView {
+            display: inline-block;
+            width: 73%;
+            height: 1000px;
+            background-color: #eeeeee;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+        }
+
+        #opCodeView {
+           display: inline-block;
+            width: 23%;
+            height: 1000px;
+            background-color: #bebebe;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+            padding: 5px;
+        }
+
+        #stateAndOpCodes {
+            font-size: 0;
+            display: flex;
+        }
+
+        #button {
+            display: inline-block;
+            background-color: #9e9e9e;
+            padding: 5px;
+            cursor: pointer;
+        }
+        
+        "#
+    );
+
+    html! {
+        <div class={styling}>
+            <h>
+                {"View Subsystem: Comms Handler"}
+                <div id="stateAndOpCodes">
+                    <p id="stateView">{"lorem ipsum lkajdjajdasdjsaldjs"}</p>
+                    <p id="opCodeView">
+                        <p id="button">{"Get Housekeeping"}</p>
+                    </p>
+                </div>
+            </h>
+        </div>
+    }
+}
+
 #[styled_component(App)]
 fn app() -> Html {
 
@@ -85,7 +176,6 @@ fn app() -> Html {
         </div>
     }
 }
-
 
 fn main() {
     yew::Renderer::<App>::new().render();
