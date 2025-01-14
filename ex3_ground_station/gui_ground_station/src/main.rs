@@ -3,6 +3,7 @@ use stylist::{yew::styled_component};
 
 #[derive(Clone, PartialEq)]
 enum SubSystem {
+    EPSHandler,
     BulkMessageDispatcher,
     UHFHandler,
     COMSHandler,
@@ -11,6 +12,7 @@ enum SubSystem {
     GroundStation,
 }
 
+// This function will return the components of a requested subsystem
 fn view_pager(ss: SubSystem) -> Html {
     match ss {
         SubSystem::BulkMessageDispatcher => html!{<h>{"BulkMessageDispatcher"}</h>},
@@ -18,10 +20,12 @@ fn view_pager(ss: SubSystem) -> Html {
         SubSystem::COMSHandler => html!{<CommsTerminal/>},
         SubSystem::ShellHandler => html!{<h>{"ShellHandler"}</h>},
         SubSystem::CommandDispatcher => html!{<h>{"CommandDispatcher"}</h>},
-        SubSystem::GroundStation => html!{<h>{"GroundStation"}</h>},
+        SubSystem::GroundStation => html!{<GroundStationDisplay/>},
+        SubSystem::EPSHandler => html!{<EPSHandlerDisplay/>},
     }
 }
 
+// This holds the entire app
 #[styled_component(SubSystemSelect)]
 fn sub_system_select() -> Html {
 
@@ -48,7 +52,21 @@ fn sub_system_select() -> Html {
             margin-bottom: 0;
             margin-left: 2px;
             border: 1px solid green;
-            width: 200px;
+            width: 170px;
+            align-items: center;
+            text-align: center;
+            padding: 7px 30px;
+            cursor: pointer;
+        }
+        li:hover {
+            display: inline-block;
+            height:33px;
+            background-color:rgb(12, 147, 12);
+            margin-top: 0;
+            margin-bottom: 0;
+            margin-left: 2px;
+            border: 1px solid green;
+            width: 170px;
             align-items: center;
             text-align: center;
             padding: 7px 30px;
@@ -63,11 +81,12 @@ fn sub_system_select() -> Html {
     
     let onclick = {
         
-        let activeSS = active_ss.clone();
+        let active_ss = active_ss.clone();
         
         Callback::from(move |item: String| {
             // Update the state based on the clicked item
             let new_ss = match item.as_str() {
+                "EPS Handler" => SubSystem::EPSHandler,
                 "Bulk Message Dispatcher" => SubSystem::BulkMessageDispatcher,
                 "UHF Subsystem" => SubSystem::UHFHandler,
                 "Comms Handler" => SubSystem::COMSHandler,
@@ -76,11 +95,11 @@ fn sub_system_select() -> Html {
                 "Ground Station" => SubSystem::GroundStation,
                 _ => SubSystem::GroundStation,
             };
-            activeSS.set(new_ss); // Update the state
+            active_ss.set(new_ss); // Update the state
         })
     };
 
-    let sub_system_fullnames = vec!["Bulk Message Dispatcher", "UHF Subsystem", "Comms Handler", "Shell Handler", "Command Dispatcher", "Ground Station"];
+    let sub_system_fullnames = vec!["EPS Handler","Bulk Message Dispatcher", "UHF Subsystem", "Comms Handler", "Shell Handler", "Command Dispatcher", "Ground Station"];
     html! {
         <>
             <div>
@@ -155,7 +174,126 @@ fn coms_terminal_comp() -> Html {
     html! {
         <div class={styling}>
             <h>
-                {"View Subsystem: Comms Handler"}
+                {"Comms Handler"}
+                <div id="stateAndOpCodes">
+                    <p id="stateView">{"lorem ipsum lkajdjajdasdjsaldjs"}</p>
+                    <p id="opCodeView">
+                        <p id="button">{"Get Housekeeping"}</p>
+                    </p>
+                </div>
+            </h>
+        </div>
+    }
+}
+
+#[styled_component(GroundStationDisplay)]
+fn gs_terminal_comp() -> Html {
+
+    let styling = css!(
+        r#"
+        h {
+            font-size: 25px;
+            width: 100%;
+        }
+
+        #stateView {
+            display: inline-block;
+            width: 73%;
+            height: 1000px;
+            background-color: #eeeeee;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+        }
+
+        #opCodeView {
+           display: inline-block;
+            width: 23%;
+            height: 1000px;
+            background-color: #bebebe;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+            padding: 5px;
+        }
+
+        #stateAndOpCodes {
+            font-size: 0;
+            display: flex;
+        }
+
+        #button {
+            display: inline-block;
+            background-color: #9e9e9e;
+            padding: 5px;
+            cursor: pointer;
+        }
+        
+        "#
+    );
+
+    html! {
+        <div class={styling}>
+            <h>
+                {"Ground Station Status"}
+                <div id="stateAndOpCodes">
+                    <p id="stateView">{"lorem ipsum lkajdjajdasdjsaldjs"}</p>
+                </div>
+            </h>
+        </div>
+    }
+}
+
+#[styled_component(EPSHandlerDisplay)]
+fn eps_terminal_comp() -> Html {
+
+    let styling = css!(
+        r#"
+        h {
+            font-size: 25px;
+            width: 100%;
+        }
+
+        #stateView {
+            display: inline-block;
+            width: 73%;
+            height: 1000px;
+            background-color: #eeeeee;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+        }
+
+        #opCodeView {
+           display: inline-block;
+            width: 23%;
+            height: 1000px;
+            background-color: #bebebe;
+            font-size: 15px;
+            border-color: #afafaf;
+            border-size: 1px;
+            padding: 5px;
+        }
+
+        #stateAndOpCodes {
+            font-size: 0;
+            display: flex;
+        }
+
+        #button {
+            display: inline-block;
+            background-color: #9e9e9e;
+            padding: 5px;
+            cursor: pointer;
+        }
+        
+        "#
+    );
+
+    html! {
+        <div class={styling}>
+            <h>
+                {"EPS"}
                 <div id="stateAndOpCodes">
                     <p id="stateView">{"lorem ipsum lkajdjajdasdjsaldjs"}</p>
                     <p id="opCodeView">
