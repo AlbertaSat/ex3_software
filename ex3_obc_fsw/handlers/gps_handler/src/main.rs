@@ -25,13 +25,12 @@ Background info:
 use log::{debug, trace, warn};
 use std::io::Error;
 
-use common::{logging::*, message_structure::*, opcodes, ports};
+use common::{logging::*, message_structure::*, opcodes};
 use common::component_ids::ComponentIds::{GPS, GS};
 use common::constants::DOWNLINK_MSG_BODY_SIZE;
 use interface::{ipc::*, tcp::*, Interface};
 
-// use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
-use std::{thread, time};
+// use std::{thread, time};
 
 /* Comments from Hari:
 "Why should the GPS ever directly communicate to the ground station? No reason. 
@@ -46,10 +45,10 @@ struct GPSHandler {
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
-impl <IpClient> GPSHandler {
+impl <IpcClient> GPSHandler {
     pub fn new( 
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
-        gs_interface: Result<IpClient, std::io::Error>,
+        gs_interface: Result<IpcClient, std::io::Error>,
         gps_interface: Result<IpcClient, std::io::Error>,
     ) -> GPSHandler {
         
@@ -138,8 +137,9 @@ impl <IpClient> GPSHandler {
     /// https://docs.google.com/spreadsheets/d/1rWde3jjrgyzO2fsg2rrVAKxkPa2hy-DDaqlfQTDaNxg/edit?gid=0#gid=0
     /// returns none if Ok, Error if err
     fn handle_msg_for_gps(&mut self, msg: Msg) -> Result<(), Error> {
-        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); //Question: why this line?
-        println!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+        self.msg_dispatcher_interface.as_mut().unwrap().clear_buffer(); 
+        trace!("GPS msg opcode: {} {:?}", msg.header.op_code, msg.msg_body);
+        let mut tcp_buf = [0u8;BUFFER_SIZE];
 
         let opcode = opcodes::GPS::from(msg.header.op_code);
         let mut cmd = "dummy";
@@ -216,8 +216,10 @@ impl <IpClient> GPSHandler {
     //     Ok(json_bytes)
     // }
 
-    fn write_msg_to_gs(interface: &mut TcpInterface, msg: MSG) {
-        // heavily lifted from coms_handler
+    /// I have no idea that this is for
+    /// heavily lifted from coms_handler
+    /// 
+    fn write_msg_to_gs(interface: &mut TcpInterface, msg: Msg) {
         let serialized_msg_result = serialize_msg(&msg);    // converts msg to bytes -> Result<Vec<u8>
         match serialized_msg_result {
             Ok(serialized_msg) => {
