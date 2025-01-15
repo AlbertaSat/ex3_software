@@ -42,14 +42,14 @@ The GPS shouldnt decide where the data goes. ."
 struct GPSHandler {
     msg_dispatcher_interface: Option<IpcServer>, // For communcation with other FSW components [internal to OBC]
     gs_interface: Option<IpcClient>, // For sending messages to the GS through the coms_handler
-    gps_interface: Option<IpcClient> // For sending messages to the GPS 
+    gps_interface: Option<TcpInterface> // For sending messages to the GPS 
 }
 
-impl <IpcClient> GPSHandler {
+impl GPSHandler {
     pub fn new( 
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
         gs_interface: Result<IpcClient, std::io::Error>,
-        gps_interface: Result<IpcClient, std::io::Error>,
+        gps_interface: Result<TcpInterface, std::io::Error>,
     ) -> GPSHandler {
         
         //error handling
@@ -170,6 +170,7 @@ impl <IpcClient> GPSHandler {
 
         //Send commands to GPS interface using TcpInterface::send
         // "?" operator at the end of a line: propogates errors -returned by TcpInterface::send- up the call stack until a function higher up can handle it.
+        // Problem: send has incorrect arguements, specifically self
         TcpInterface::send(self.gps_interface.as_mut().unwrap(), cmd.as_bytes())?; //returns usize. 
         TcpInterface::read(self.gps_interface.as_mut().unwrap(), &mut tcp_buf)?;
 
@@ -248,7 +249,10 @@ fn main() {
     let gs_interface = IpcClient::new("gs_non_bulk".to_string());
 
     // Create IPC interface for GPS handler to talk to simulated GPS 
-    let gps_interface = IpcClient::new("gps_device".to_string());   // connect("/tmp/fifo_socket_gps_device")
+    // let gps_interface = IpcClient::new("gps_device".to_string());   // connect("/tmp/fifo_socket_gps_device")
+
+    let gps_interface = TcpInterface::new_client("127.0.0.1".to_string(), ports::SIM_GPS_PORT); // ip is probably not correct, copied from eps_handler
+
     
     // Create GPS handler
     let mut gps_handler = GPSHandler::new(msg_dispatcher_interface, gs_interface, gps_interface);
