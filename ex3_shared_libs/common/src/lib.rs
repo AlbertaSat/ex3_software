@@ -33,27 +33,6 @@ pub mod constants {
 /// For example if a message is sent to the OBC to get housekeeping data,
 pub mod opcodes {
 
-    pub enum GPS {
-        GetLatLong = 0,
-        GetUTCTime = 1,
-        GetHK = 3,
-        Reset = 7,
-        Error = 99,
-    }
-
-    impl From<u8> for GPS {
-        fn from(value: u8) -> Self {
-            match value {
-                0 => GPS::GetLatLong,
-                1 => GPS::GetLatLong,
-                3 => GPS::GetHK,
-                7 => GPS::Reset,
-                _ => {
-                    GPS::Error
-                }
-            }
-        }
-        
     pub enum COMS {
         GetHK = 3,
         SetBeacon = 4,
@@ -94,6 +73,14 @@ pub mod opcodes {
         SetMode = 6,
         Reset = 7,
         GetMode = 8,
+        Error = 99,
+    }
+
+    pub enum GPS {
+        GetLatLong = 0,
+        GetUTCTime = 1,
+        GetHK = 3,
+        Reset = 7,
         Error = 99,
     }
 
@@ -164,6 +151,20 @@ pub mod opcodes {
                 8 => UHF::GetMode,
                 _ => {
                     UHF::Error // or choose a default value or handle the error in a different way
+                }
+            }
+        }
+    }
+
+    impl From<u8> for GPS {
+        fn from(value: u8) -> Self {
+            match value {
+                0 => GPS::GetLatLong,
+                1 => GPS::GetLatLong,
+                3 => GPS::GetHK,
+                7 => GPS::Reset,
+                _ => {
+                    GPS::Error
                 }
             }
         }
