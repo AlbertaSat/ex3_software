@@ -23,11 +23,14 @@ Background info:
 // 2. COORDINATE TAGGING of IRIS PHOTOS
 
 use log::{debug, trace, warn};
-use logging::*;
 use std::io::Error;
-use common::opcodes;
-use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
-use message_structure::*;
+
+use common::{logging::*, message_structure::*, opcodes, ports};
+use common::component_ids::ComponentIds::{GPS, GS};
+use common::constants::DOWNLINK_MSG_BODY_SIZE;
+use interface::{ipc::*, tcp::*, Interface};
+
+// use ipc::{IpcClient, IpcServer, IPC_BUFFER_SIZE, ipc_write, poll_ipc_clients, poll_ipc_server_sockets};
 use std::{thread, time};
 
 /* Comments from Hari:
@@ -43,7 +46,7 @@ struct GPSHandler {
     gps_interface: Option<IpcClient> // For sending messages to the GPS 
 }
 
-impl GPSHandler {
+impl <IpClient> GPSHandler {
     pub fn new( 
         msg_dispatcher_interface: Result<IpcServer, std::io::Error>,
         gs_interface: Result<IpClient, std::io::Error>,
@@ -115,19 +118,19 @@ impl GPSHandler {
         }
 
 
-        /// handles how GPS will collect HK
-        /// most of this is placeholder as we do not yet know what kind of HK data to recieve
-        fn collect_hk(&mut self) -> io::Result<()> {
-            let hk_msg = Msg::new("HK_test_one".to_string()); //Question: idk what to put in it now, but will need to make a Msg for Hk...
-            if let Some(hk_string) = self.handle_msg_for_gps(hk_msg) {
-                let hk_bytes = format_gps_hk(hk_string.as_bytes())?;
-                store_gps_data("HK_test", &hk_bytes)?;
-            }
+        // /// handles how GPS will collect HK
+        // /// most of this is placeholder as we do not yet know what kind of HK data to recieve
+        // fn collect_hk(&mut self) -> io::Result<()> {
+        //     let hk_msg = Msg::new("HK_test_one".to_string()); //Question: idk what to put in it now, but will need to make a Msg for Hk...
+        //     if let Some(hk_string) = self.handle_msg_for_gps(hk_msg) {
+        //         let hk_bytes = format_gps_hk(hk_string.as_bytes())?;
+        //         store_gps_data("HK_test", &hk_bytes)?;
+        //     }
 
-            ok(());
-            // TODO: WHAT IS GPS HK ACTION
-            //UNFINISHED
-        }
+        //     ok(());
+        //     // TODO: WHAT IS GPS HK ACTION
+        //     //UNFINISHED
+        // }
 
     }
 
@@ -188,30 +191,30 @@ impl GPSHandler {
 
 
 
-    /// Format HK into a JSON to create an easily readable HK
-    /// copied from iris handler
-    fn format_gps_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
-        let mut hk_map = HashMap::new();
+    // /// Format HK into a JSON to create an easily readable HK
+    // /// copied from iris handler
+    // fn format_gps_hk(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    //     let mut hk_map = HashMap::new();
 
-        //  convert data to string and trim newline characters
-        let data_str = std::str::from_utf8(data).unwrap().trim_end();
+    //     //  convert data to string and trim newline characters
+    //     let data_str = std::str::from_utf8(data).unwrap().trim_end();
 
-        for line in data_str.lines() {
-            //Some tells us we know a value is present; in this case a key value pair
-            if let Some((key, value)) = line.split_once(": ") {     
-                hk_map.insert(key.trim().to_string(), value.trim().to_string());
-            } else {
-                debug!("Failed to precess line of HK without ':' ");
-            }
-        }
+    //     for line in data_str.lines() {
+    //         //Some tells us we know a value is present; in this case a key value pair
+    //         if let Some((key, value)) = line.split_once(": ") {     
+    //             hk_map.insert(key.trim().to_string(), value.trim().to_string());
+    //         } else {
+    //             debug!("Failed to precess line of HK without ':' ");
+    //         }
+    //     }
 
-        let json_value = json!(hk_map);
-        let json_bytes = serde_json::to_vec(&json_value)?;
-        trace!("Num HK bytes: {}", json_bytes.len());
-        trace!("HK bytes: {:?}", json_bytes);
+    //     let json_value = json!(hk_map);
+    //     let json_bytes = serde_json::to_vec(&json_value)?;
+    //     trace!("Num HK bytes: {}", json_bytes.len());
+    //     trace!("HK bytes: {:?}", json_bytes);
     
-        Ok(json_bytes)
-    }
+    //     Ok(json_bytes)
+    // }
 
     fn write_msg_to_gs(interface: &mut TcpInterface, msg: MSG) {
         // heavily lifted from coms_handler
