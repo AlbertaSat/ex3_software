@@ -7,6 +7,5 @@ edition = "2021"
 nix = { version = "0.29.0", features = ["poll", "socket", "fs", "term", "ioctl"] }
 i2cdev = "0.6.1"
 spidev = "0.6.0"
-serialport = "4.6.0"
 common = {path = "../common"}
 
